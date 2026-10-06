@@ -1,0 +1,44 @@
+appId: com.noth2.mangamanager
+productName: Halftone
+publish:
+  provider: github
+  owner: alterstare
+  repo: Halftone-Desktop
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+# Local OCR runtime (native addon + its DLLs) must live outside the asar.
+asarUnpack:
+  - node_modules/onnxruntime-node/**
+extraResources:
+  - from: resources
+    to: .
+    filter:
+      - '**/*'
+win:
+  target:
+    - nsis
+    - zip
+  # Ship only this platform's onnxruntime binaries.
+  files:
+    - '!node_modules/onnxruntime-node/bin/napi-v*/linux/**'
+    - '!node_modules/onnxruntime-node/bin/napi-v*/darwin/**'
+    - '!node_modules/onnxruntime-node/bin/napi-v*/win32/arm64/**'
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  # No spaces: on-disk name == latest.yml url == uploaded asset name, so the
+  # updater can find the installer (GitHub/electron-updater don't reconcile spaces).
+  artifactName: ${productName}-Setup-${version}.${ext}
+linux:
+  target:
+    - AppImage
+    - tar.gz
+  files:
+    - '!node_modules/onnxruntime-node/bin/napi-v*/win32/**'
+    - '!node_modules/onnxruntime-node/bin/napi-v*/darwin/**'
+    - '!node_modules/onnxruntime-node/bin/napi-v*/linux/arm64/**'
+  category: Graphics
