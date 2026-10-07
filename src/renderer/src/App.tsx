@@ -28,6 +28,7 @@ import { startLockGuard, markLockReady, useLock, decoyHiddenTabs } from './lock'
 import LockPrompt from './components/LockPrompt'
 import { softReload, restoreSoftReload } from './softReload'
 import { startTranslationWatch } from './translate'
+import { KeyboardArrowLeftIcon, KeyboardArrowRightIcon } from './components/icons'
 
 export default function App(): JSX.Element {
   const view = useStore((s) => s.view)
@@ -401,7 +402,7 @@ function ReaderSplit(): JSX.Element {
           onClick={toggleListCollapsed}
           title={listCollapsed ? '목록 펼치기' : '목록 접기'}
         >
-          {listCollapsed ? '▶' : '◀'}
+          {listCollapsed ? <KeyboardArrowRightIcon /> : <KeyboardArrowLeftIcon />}
         </button>
       </div>
       <div className="reader-pane">

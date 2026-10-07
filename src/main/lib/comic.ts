@@ -344,7 +344,8 @@ function listUrl(base: string, src: ComicListSource, page: number): string {
     // Section filter: search otherwise mixes in novels and anime.
     u.searchParams.set('kind', src.type === 'webtoon' ? 'webtoon' : 'manhwa')
   } else {
-    if (src.genre && src.genre !== '전체') u.searchParams.set('g', src.genre)
+    const gs = src.genres.filter((g) => g && g !== '전체')
+    if (gs.length) u.searchParams.set('g', gs.join(','))
     if (SORT_PARAM[src.sort]) u.searchParams.set('sort', SORT_PARAM[src.sort])
   }
   if (page > 1) u.searchParams.set('page', String(page))
@@ -353,8 +354,8 @@ function listUrl(base: string, src: ComicListSource, page: number): string {
 
 // In-page: apply genre + sort + page (client-side React buttons), then scrape
 // the cards and the available genre chips. Runs async (awaits re-renders).
-function listScript(genre: string, sortLabel: string, page: number, filters: Record<string, string> = {}): string {
-  const G = JSON.stringify(genre)
+function listScript(genres: string[], sortLabel: string, page: number, filters: Record<string, string> = {}): string {
+  const G = JSON.stringify(genres.filter((g) => g && g !== '전체'))
   const S = JSON.stringify(sortLabel)
   const F = JSON.stringify(filters)
   return `(async () => {
@@ -400,12 +401,12 @@ function listScript(genre: string, sortLabel: string, page: number, filters: Rec
       await sleep(400)
     }
   }
-  // genre (the 장르 row when the page has labelled rows)
-  if (${G} && ${G} !== '전체') {
+  // genres (the 장르 row when the page has labelled rows); several stack up
+  for (const g of ${G}) {
     await pickChip(() => {
       const gr = rowEls().find((r) => r.label === '장르')
       const cs = gr ? gr.chips : [...document.querySelectorAll('.filter .chips button.chip, .chips button.chip')]
-      return cs.find((c) => chipLabel(c) === ${G} || chipText(c) === ${G} || (c.title || '').includes(${G}))
+      return cs.find((c) => chipLabel(c) === g || chipText(c) === g || (c.title || '').includes(g))
     })
   }
   // other rows (분류 / 요일 / 플랫폼): click the chosen chip unless already on
@@ -615,7 +616,7 @@ export async function comicList(base: string, src: ComicListSource, page: number
       rows?: ComicListResult['rows']
       page?: number
     }>(
-      listScript(src.query ? '전체' : src.genre, src.query ? '' : SORT_LABEL[src.sort], page + 1, src.query ? {} : src.filters ?? {}),
+      listScript(src.query ? [] : src.genres, src.query ? '' : SORT_LABEL[src.sort], page + 1, src.query ? {} : src.filters ?? {}),
       { items: [], hasNext: false, genres: [] }
     )
     // r.page = where the site actually landed (a jump past the end stops at the
@@ -738,7 +739,7 @@ async function firstMatch(
   // entries of the same name must never lend their cover/author.
   for (const q of titleQueries(title)) {
     for (const type of ['manga', 'webtoon'] as const) {
-      const r = await comicList(base, { genre: '전체', sort: 'date', type, query: q }, 0).catch(
+      const r = await comicList(base, { genres: [], sort: 'date', type, query: q }, 0).catch(
         () => null
       )
       const ok =

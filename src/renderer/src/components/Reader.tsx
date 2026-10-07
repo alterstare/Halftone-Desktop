@@ -849,8 +849,8 @@ export default function Reader({
               }
             )}
           </div>
-          <div className="paged-hint left">‹</div>
-          <div className="paged-hint right">›</div>
+          <div className="paged-hint left"><KeyboardArrowLeftIcon /></div>
+          <div className="paged-hint right"><KeyboardArrowRightIcon /></div>
         </div>
       ) : (
         <div className="reader-content paged" ref={contentRef} onClick={onPagedClick}>
@@ -869,8 +869,8 @@ export default function Reader({
               />
             ) : null
           )}
-          <div className="paged-hint left">‹</div>
-          <div className="paged-hint right">›</div>
+          <div className="paged-hint left"><KeyboardArrowLeftIcon /></div>
+          <div className="paged-hint right"><KeyboardArrowRightIcon /></div>
         </div>
       )}
 

@@ -672,7 +672,7 @@ export default function Home(): JSX.Element {
                 title="검색에서 제거"
                 onClick={() => removeSearchToken(tok)}
               >
-                {tokenLabel(tok)} ✕
+                {tokenLabel(tok)} <CloseIcon />
               </button>
             ))}
           </div>

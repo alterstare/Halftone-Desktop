@@ -251,6 +251,7 @@ export default function Settings(): JSX.Element {
               저장
             </button>
           </div>
+          <div className="settings-version">Halftone v{__APP_VERSION__}</div>
         </div>
 
         {toast && <div className="settings-toast">✓ {toast}</div>}

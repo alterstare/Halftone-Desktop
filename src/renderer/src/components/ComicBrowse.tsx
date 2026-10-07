@@ -9,7 +9,7 @@ import type { ComicSeriesRef } from './ComicDownloadModal'
 import ComicBackupModal from './ComicBackupModal'
 import OnlineThumb from './OnlineThumb'
 import { getOnlineImages } from '../images'
-import { SearchIcon, FavoriteIcon, DownloadIcon } from './icons'
+import { SearchIcon, FavoriteIcon, DownloadIcon, CloseIcon } from './icons'
 import { BypassToggle, OnlineOnlyToggle, FavSortSelect } from './FavDlToggle'
 import Pager from './Pager'
 import { groupSeries, titleKey, isComicCode } from '../util'
@@ -65,12 +65,16 @@ export default function ComicBrowse(): JSX.Element {
   const setSettings = useStore((s) => s.setSettings)
   const [addrOpen, setAddrOpen] = useState(false)
   const [addr, setAddr] = useState(comicBaseUrl)
-  const [genre, setGenre] = useState<string>('전체')
+  // Picked genre chips ([] = 전체); several narrow the list (site ANDs them).
+  const [genreSel, setGenreSel] = useState<string[]>([])
+  const genreTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const genreSelRef = useRef<string[]>([])
+  genreSelRef.current = genreSel
   const [sort, setSort] = useState<ComicSort>('date')
   const [type, setType] = useState<ComicType>('manga')
   const [query, setQuery] = useState('')
   const [field, setField] = useState<'title' | 'author'>('title')
-  const [source, setSource] = useState<ComicListSource>({ genre: '전체', sort: 'date', type: 'manga' })
+  const [source, setSource] = useState<ComicListSource>({ genres: [], sort: 'date', type: 'manga' })
   const [page, setPage] = useState(0)
   // Authors discovered when a series is opened (list cards don't carry them).
   const [authors, setAuthors] = useState<Record<string, string | null>>({})
@@ -155,7 +159,7 @@ export default function ComicBrowse(): JSX.Element {
   // Apply the current type/sort/genre/query without needing the 적용 button.
   const applySource = (patch: Partial<ComicListSource>): void => {
     const next: ComicListSource = {
-      genre,
+      genres: genreSel,
       sort,
       type,
       query: query.trim() || undefined,
@@ -179,7 +183,7 @@ export default function ComicBrowse(): JSX.Element {
     setQuery('')
     setField('title')
     setPage(0)
-    setSource({ genre, sort, type, filters })
+    setSource({ genres: genreSel, sort, type, filters })
     setReloadKey((k) => k + 1) // force a fresh fetch even if the source is unchanged
     if (rootRef.current) rootRef.current.scrollTop = 0
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -355,6 +359,91 @@ export default function ComicBrowse(): JSX.Element {
           </button>
         </div>
 
+        {!favMode && (
+          <div className="genre-chips comic-filters">
+            {(rows.length ? rows : genres.length ? ([{ label: '장르', chips: genres.map((g) => ({ label: g })) }] as ComicFilterRow[]) : []).map((row) => {
+              const isGenre = row.label === '장르'
+              const cur = isGenre ? null : filters[row.label]
+              const pickedList = isGenre ? genreSel : cur && cur !== '전체' ? [cur] : []
+              const isOn = (label: string): boolean =>
+                label === '전체' ? pickedList.length === 0 : pickedList.includes(label)
+              // 장르: toggle (several allowed, panel stays open); other rows: one pick.
+              const pick = (v: string): void => {
+                if (isGenre) {
+                  // Read the latest picks (two quick clicks before a re-render must both count).
+                  const curSel = genreSelRef.current
+                  const next = v === '전체' ? [] : curSel.includes(v) ? curSel.filter((g) => g !== v) : [...curSel, v]
+                  genreSelRef.current = next
+                  setGenreSel(next)
+                  // Debounced: picking several in a row fetches once.
+                  if (genreTimer.current) clearTimeout(genreTimer.current)
+                  genreTimer.current = setTimeout(() => applySource({ genres: next }), 500)
+                } else {
+                  setOpenRow(null)
+                  const next = { ...filters, [row.label]: v }
+                  setFilters(next)
+                  applySource({ filters: next })
+                }
+              }
+              const chipText = !pickedList.length
+                ? `${row.label} 더보기`
+                : pickedList.length > 2
+                  ? `${row.label}: ${pickedList[0]} 외 ${pickedList.length - 1}`
+                  : `${row.label}: ${pickedList.join(', ')}`
+              return (
+                <div className="comic-filter" key={row.label}>
+                  <button
+                    className={`chip ${pickedList.length ? 'active' : ''} ${openRow === row.label ? 'open' : ''}`}
+                    onClick={() => setOpenRow((o) => (o === row.label ? null : row.label))}
+                  >
+                    {chipText} <span className={`dt ${openRow === row.label ? 'up' : ''}`} />
+                  </button>
+                  {openRow === row.label && (
+                    <div className="cat-panel comic-filter-panel">
+                      {row.chips.map((c) => (
+                        <span
+                          key={c.label}
+                          className={`tag ${isOn(c.label) ? 'fav-tag' : ''} ${isGenre && excludeGenres.includes(c.label) ? 'excluded' : ''}`}
+                          title={
+                            isGenre && c.label !== '전체'
+                              ? excludeGenres.includes(c.label)
+                                ? '우클릭: 제외 해제'
+                                : '클릭: 선택/해제 (여러 개 가능) · 우클릭: 이 장르 제외'
+                              : undefined
+                          }
+                          onClick={() => pick(c.label)}
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            if (isGenre && c.label !== '전체') toggleExclude(c.label)
+                          }}
+                        >
+                          {c.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {excludeGenres.length > 0 && (
+              <span className="genre-ex-info">
+                제외 {excludeGenres.length}개
+                {items.length > shownItems.length && ` · 이 쪽에서 ${items.length - shownItems.length}개 숨김`}
+                <span
+                  className="mini"
+                  onClick={() => {
+                    const s = { ...useStore.getState().settings, comicExcludeGenres: [] }
+                    useStore.setState({ settings: s })
+                    void window.api.saveSettings(s)
+                  }}
+                >
+                  해제
+                </span>
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="chips">
           <BypassToggle onApplied={() => !favMode && setReloadKey((k) => k + 1)} />
           {TYPES.map(([v, l]) => (
@@ -365,9 +454,9 @@ export default function ComicBrowse(): JSX.Element {
                 setType(v)
                 // The other type has different filter rows → start clean.
                 setFilters({})
-                setGenre('전체')
+                setGenreSel([])
                 setRows([])
-                applySource({ type: v, filters: {}, genre: '전체' })
+                applySource({ type: v, filters: {}, genres: [] })
               }}
             >
               {l}
@@ -426,75 +515,42 @@ export default function ComicBrowse(): JSX.Element {
           </div>
         )}
 
-        {!favMode && (
-          <div className="genre-chips comic-filters">
-            {(rows.length ? rows : genres.length ? ([{ label: '장르', chips: genres.map((g) => ({ label: g })) }] as ComicFilterRow[]) : []).map((row) => {
-              const isGenre = row.label === '장르'
-              const cur = isGenre ? genre : filters[row.label]
-              const picked = cur && cur !== '전체' ? cur : null
-              const pick = (v: string): void => {
-                setOpenRow(null)
-                if (isGenre) {
-                  setGenre(v)
-                  applySource({ genre: v })
-                } else {
-                  const next = { ...filters, [row.label]: v }
-                  setFilters(next)
-                  applySource({ filters: next })
-                }
-              }
-              return (
-                <div className="comic-filter" key={row.label}>
-                  <button
-                    className={`chip ${picked ? 'active' : ''} ${openRow === row.label ? 'open' : ''}`}
-                    onClick={() => setOpenRow((o) => (o === row.label ? null : row.label))}
-                  >
-                    {picked ? `${row.label}: ${picked}` : `${row.label} 더보기`}{' '}
-                    <span className={`dt ${openRow === row.label ? 'up' : ''}`} />
-                  </button>
-                  {openRow === row.label && (
-                    <div className="cat-panel comic-filter-panel">
-                      {row.chips.map((c) => (
-                        <span
-                          key={c.label}
-                          className={`tag ${(cur ?? '전체') === c.label || (!cur && c.label === '전체') ? 'fav-tag' : ''} ${isGenre && excludeGenres.includes(c.label) ? 'excluded' : ''}`}
-                          title={
-                            isGenre && c.label !== '전체'
-                              ? excludeGenres.includes(c.label)
-                                ? '우클릭: 제외 해제'
-                                : '클릭: 이 장르만 · 우클릭: 이 장르 제외'
-                              : undefined
-                          }
-                          onClick={() => pick(c.label)}
-                          onContextMenu={(e) => {
-                            e.preventDefault()
-                            if (isGenre && c.label !== '전체') toggleExclude(c.label)
-                          }}
-                        >
-                          {c.label}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-            {excludeGenres.length > 0 && (
-              <span className="genre-ex-info">
-                제외 {excludeGenres.length}개
-                {items.length > shownItems.length && ` · 이 쪽에서 ${items.length - shownItems.length}개 숨김`}
-                <span
-                  className="mini"
+
+        {/* Picked filters, one chip each (like the doujin search tokens) — click to drop. */}
+        {!favMode && (genreSel.length > 0 || Object.values(filters).some((v) => v && v !== '전체')) && (
+          <div className="search-chips">
+            {genreSel.map((g) => (
+              <button
+                key={`g:${g}`}
+                className="chip active search-tok"
+                title="선택 해제"
+                onClick={() => {
+                  const next = genreSel.filter((x) => x !== g)
+                  setGenreSel(next)
+                  applySource({ genres: next })
+                }}
+              >
+                {g} <CloseIcon />
+              </button>
+            ))}
+            {Object.entries(filters)
+              .filter(([, v]) => v && v !== '전체')
+              .map(([label, v]) => (
+                <button
+                  key={`${label}:${v}`}
+                  className="chip active search-tok"
+                  title="선택 해제"
                   onClick={() => {
-                    const s = { ...useStore.getState().settings, comicExcludeGenres: [] }
-                    useStore.setState({ settings: s })
-                    void window.api.saveSettings(s)
+                    const next = { ...filters }
+                    delete next[label]
+                    setFilters(next)
+                    applySource({ filters: next })
                   }}
                 >
-                  해제
-                </span>
-              </span>
-            )}
+                  {label === '요일' ? '' : `${label} `}
+                  {v} <CloseIcon />
+                </button>
+              ))}
           </div>
         )}
       </div>

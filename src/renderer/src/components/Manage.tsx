@@ -10,7 +10,7 @@ import { hashAndSize } from '../exclude'
 import Thumb from './Thumb'
 import ConfirmModal from './ConfirmModal'
 import Stepper from './Stepper'
-import { ArrowBackIcon } from './icons'
+import { KeyboardArrowLeftIcon, KeyboardArrowRightIcon, ArrowDownIcon } from './icons'
 
 export default function Manage(): JSX.Element {
   const storedMode = useStore((s) => s.manageMode)
@@ -25,8 +25,8 @@ export default function Manage(): JSX.Element {
     <div className="manage">
       <div className="manage-head">
         <div className="flat-group manage-tabs">
-          <button className="mini" onClick={goHome}>
-            <ArrowBackIcon />홈
+          <button className="mini manage-back" onClick={goHome} title="홈">
+            <KeyboardArrowLeftIcon />
           </button>
           {!normal && (
             <button
@@ -351,7 +351,7 @@ function Translations(): JSX.Element {
           </div>
           <div className="dup-row">
             <ManageCard work={p.source} badge="원본" open={() => openTab(p.source.id)} onDelete={() => del(p.source.id, p.source.title)} />
-            <span className="trans-arrow">→</span>
+            <span className="trans-arrow"><KeyboardArrowRightIcon /></span>
             {p.matches.map((k) => (
               <ManageCard key={k.id} work={k} badge="한국어" open={() => openTab(k.id)} onDelete={() => del(k.id, k.title)} />
             ))}
@@ -582,7 +582,7 @@ function Collections(): JSX.Element {
               onClick={() => toggleOpen(g.dir)}
               role="button"
             >
-              <span className="coll-caret">{isOpen ? '▾' : '▸'}</span>
+              <span className="coll-caret">{isOpen ? <ArrowDownIcon /> : <KeyboardArrowRightIcon />}</span>
               {g.name} · {g.works.length}개 폴더
               {isOpen && (
                 <span className="coll-actions flat-group" onClick={(e) => e.stopPropagation()}>

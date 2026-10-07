@@ -6,7 +6,7 @@ import { useLock } from '../lock'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
 import { groupSeries, analyzeSeries } from '../util'
-import { HomeIcon, LanguageIcon, MenuIcon, DownloadIcon, SettingsIcon, CloseIcon, CompareArrowsIcon } from './icons'
+import { HomeIcon, LanguageIcon, MenuIcon, DownloadIcon, SettingsIcon, CloseIcon, CompareArrowsIcon, KeyboardArrowRightIcon, ArrowDownIcon } from './icons'
 
 export default function TabBar(): JSX.Element {
   const tabs = useStore((s) => s.tabs)
@@ -433,7 +433,7 @@ export default function TabBar(): JSX.Element {
                 }}
                 title={`${g.name} (${it.tabs.length}) — 접기/펼치기, 우클릭 메뉴`}
               >
-                <span>{isCollapsed ? '▸' : '▾'}</span>
+                <span className="grp-caret">{isCollapsed ? <KeyboardArrowRightIcon /> : <ArrowDownIcon />}</span>
                 {renaming?.id === g.id ? (
                   <input
                     className="grp-rename"
@@ -477,7 +477,7 @@ export default function TabBar(): JSX.Element {
               onClick={() => toggle(OTHER)}
               title={`${otherLabel} 탭 (${otherTabs.length}) — 클릭 시 펼치기`}
             >
-              <span>{expanded.has(OTHER) ? '▾' : '▸'}</span>
+              <span className="grp-caret">{expanded.has(OTHER) ? <ArrowDownIcon /> : <KeyboardArrowRightIcon />}</span>
               <span className="tab-title">{otherLabel}</span>
               <span className="grp-count">{otherTabs.length}</span>
             </div>

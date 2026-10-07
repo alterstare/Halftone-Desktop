@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { JSX, MouseEvent } from 'react'
+import { CloseIcon } from './icons'
 
 // Tag chips for a card, always showing WHOLE tags (never cut mid-tag): the ones
 // that don't fit hide behind a "+N" chip (click to expand, "접기" to collapse).
@@ -155,7 +156,7 @@ export default function TagList({
       {t}
       {onRemove && manualTags.includes(t) && (
         <span className="tag-x" onClick={stop(() => onRemove(t))}>
-          ×
+          <CloseIcon />
         </span>
       )}
     </span>

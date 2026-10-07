@@ -1,6 +1,7 @@
 import { resolve } from 'path'
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import { readFileSync } from 'fs'
 
 export default defineConfig({
   main: {
@@ -31,6 +32,10 @@ export default defineConfig({
       rollupOptions: {
         input: { index: resolve(__dirname, 'src/renderer/index.html') }
       }
+    },
+    // App version, shown at the bottom of Settings.
+    define: {
+      __APP_VERSION__: JSON.stringify(JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8')).version)
     },
     plugins: [react()]
   }

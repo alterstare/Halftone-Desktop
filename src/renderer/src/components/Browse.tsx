@@ -15,7 +15,7 @@ import { favMeta, tagTokens, tagToken, tokenLabel, FAV_BASE } from '../util'
 import { useFavSummaries } from '../favSummaries'
 import Caret from './Caret'
 import Dropdown from './Dropdown'
-import { CheckIcon, PauseIcon, PlayIcon, SearchIcon, SyncIcon, GridIcon, MenuIcon, FavoriteIcon, DownloadIcon } from './icons'
+import { CheckIcon, PauseIcon, PlayIcon, SearchIcon, SyncIcon, GridIcon, MenuIcon, FavoriteIcon, DownloadIcon, CloseIcon } from './icons'
 import { OnlineOnlyToggle, FavSortSelect } from './FavDlToggle'
 import { doujinFavCodes, doujinFavGalleries } from '../favorites'
 import type { OnlineGallery } from '../store'
@@ -407,7 +407,7 @@ export default function Browse(): JSX.Element {
               title="검색에서 제거"
               onClick={() => removeToken(tok)}
             >
-              {tokenLabel(tok)} ✕
+              {tokenLabel(tok)} <CloseIcon />
             </button>
           ))}
         </div>

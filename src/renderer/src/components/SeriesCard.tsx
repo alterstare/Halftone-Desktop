@@ -10,6 +10,7 @@ import FavGroup from './FavGroup'
 import TagList from './TagList'
 import { useSeriesCard } from './useSeriesCard'
 import ConfirmModal from './ConfirmModal'
+import { CloseIcon } from './icons'
 
 // Open a folder's parent in Explorer (so we don't descend into chapter 1).
 function parentOf(p: string): string {
@@ -60,7 +61,7 @@ export default function SeriesCard({ series }: { series: SeriesGroup }): JSX.Ele
             {language && (
               <span className="lang removable">
                 {language}
-                <span className="tag-x" onClick={(e) => { e.stopPropagation(); c.clearField('language') }}>×</span>
+                <span className="tag-x" onClick={(e) => { e.stopPropagation(); c.clearField('language') }}><CloseIcon /></span>
               </span>
             )}
             {artist && ' · '}
@@ -71,7 +72,7 @@ export default function SeriesCard({ series }: { series: SeriesGroup }): JSX.Ele
                   onPick={(a) => addSearchToken(tagToken(`artist:${a}`))}
                   onMenu={(a, e) => c.openTagMenu(e, tagToken(`artist:${a}`), a)}
                 />
-                <span className="tag-x" onClick={(e) => { e.stopPropagation(); c.clearField('artist') }}>×</span>
+                <span className="tag-x" onClick={(e) => { e.stopPropagation(); c.clearField('artist') }}><CloseIcon /></span>
               </span>
             )}
           </div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { createPortal } from 'react-dom'
+import { KeyboardArrowRightIcon } from './icons'
 
 export interface MenuItem {
   label: string
@@ -21,7 +22,7 @@ function Row({ item, onClose }: { item: MenuItem; onClose: () => void }): JSX.El
         onMouseLeave={() => setOpen(false)}
       >
         <span className="ctx-label">{item.label}</span>
-        <span className="ctx-arrow">›</span>
+        <span className="ctx-arrow"><KeyboardArrowRightIcon /></span>
         {open && (
           <div className="ctx-submenu">
             {item.children.map((c, i) => (

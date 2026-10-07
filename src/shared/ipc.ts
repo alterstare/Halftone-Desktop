@@ -15,7 +15,9 @@ export type DoujinListSource =
 export type ComicSort = 'date' | 'new' | 'bookmark' | 'view' | 'rating' | 'chapter'
 export type ComicType = 'manga' | 'webtoon'
 export interface ComicListSource {
-  genre: string // '전체' = no filter; otherwise a genre chip label (dynamic per site)
+  // Picked genre chip labels (dynamic per site); [] = 전체. Several = all of them
+  // (the site ANDs genres).
+  genres: string[]
   sort: ComicSort
   type: ComicType
   query?: string // free-text search; overrides genre/sort when present

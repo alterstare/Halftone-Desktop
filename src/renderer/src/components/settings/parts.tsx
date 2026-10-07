@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import type { JSX, ReactNode } from 'react'
 import SettingRow from '../SettingRow'
 import { useSettings } from './context'
+import { CloseIcon } from '../icons'
 
 // Mutually-exclusive choice rendered as description cards: one card per option
 // with a title, optional badge and a per-option description.
@@ -254,7 +255,7 @@ export function ChipList({
         <span key={s} className={chipClass}>
           {label(s)}
           <span className="tag-x" onClick={() => onRemove(s)}>
-            ×
+            <CloseIcon />
           </span>
         </span>
       ))}

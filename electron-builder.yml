@@ -19,6 +19,8 @@ extraResources:
     filter:
       - '**/*'
 win:
+  # Multi-size icon pre-rendered by scripts/make-ico.cjs (crisp taskbar/desktop sizes).
+  icon: build/icon.ico
   target:
     - nsis
     - zip

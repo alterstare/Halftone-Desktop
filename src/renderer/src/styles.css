@@ -7130,3 +7130,121 @@ textarea {
   background: var(--line);
   pointer-events: none;
 }
+
+/* Current app version, always at the very bottom of Settings. */
+.settings-version {
+  margin-top: -24px;
+  padding-bottom: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+.search-chips .chip.search-tok .micon {
+  width: 1em;
+  height: 1em;
+  margin-left: 2px;
+}
+
+/* 일반 만화 online "<row> 더보기" buttons: flat divider style like the toolbar
+   row — no fill/outline; hover/open tints; a row with picks shows purple text. */
+.comic-filters {
+  margin: 8px 0 4px;
+}
+.comic-filters > * + * {
+  margin-left: 17px;
+}
+.comic-filters > * + *::before {
+  left: -9px;
+  height: 16px;
+  margin-top: -8px;
+}
+.comic-filter > .chip {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+.comic-filter > .chip:hover:not(:disabled),
+.comic-filter > .chip.open {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text-hover);
+}
+.comic-filter > .chip.active {
+  color: var(--accent);
+}
+
+/* 관리 header: icon-only round back (home) button, like the pager arrows. */
+.flat-group .mini.manage-back {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  font-size: 22px;
+}
+.flat-group .mini.manage-back:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+/* Keyboard Arrow / Close icons that replaced the old text glyphs (▶◀ ‹› ▸▾ → ✕ ×). */
+.list-toggle .micon {
+  width: 15px;
+  height: 15px;
+}
+.paged-hint {
+  display: flex;
+}
+.paged-hint .micon {
+  width: 56px;
+  height: 56px;
+}
+.ctx-arrow {
+  display: inline-flex;
+}
+.ctx-arrow .micon {
+  width: 16px;
+  height: 16px;
+}
+.tab-group-head .grp-caret {
+  display: inline-flex;
+  margin-left: -3px;
+}
+.tab-group-head .grp-caret .micon {
+  width: 15px;
+  height: 15px;
+}
+.coll-caret {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+.coll-caret .micon {
+  width: 16px;
+  height: 16px;
+}
+.trans-arrow {
+  display: inline-flex;
+}
+.trans-arrow .micon {
+  width: 28px;
+  height: 28px;
+}
+.search-tok .micon {
+  width: 1em;
+  height: 1em;
+  margin-left: 2px;
+}
+.tag-x {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.tag-x .micon {
+  width: 12px;
+  height: 12px;
+}
+.flat-group .mini.manage-back .micon {
+  width: 28px;
+  height: 28px;
+}
