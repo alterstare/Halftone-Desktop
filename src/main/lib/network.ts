@@ -9,7 +9,7 @@ import { session } from 'electron'
 import { Proxy as Tunnel } from 'green-tunnel'
 import type { Settings } from '../../shared/types'
 import { setDoujinContentHost } from './doujin'
-import { COMIC_PARTITION } from './comic'
+import { COMIC_PARTITION, setComicTunnelFallback } from './comic'
 
 export async function applyNetwork(s: Settings): Promise<void> {
   const rules = s.proxyServer.trim()
@@ -27,11 +27,36 @@ export async function applyNetwork(s: Settings): Promise<void> {
 // at it — never the OS proxy setting (a crash would leave every app on the PC
 // pointing at a dead port). doujin doesn't need it (DNS-only block, handled in
 // doujin.ts).
+//
+// Direct first, tunnel only as a fallback: Cloudflare never passes its challenge
+// over the tunnel's split ClientHello (the checkbox spins and comes back), while
+// a direct connection to a Cloudflare site gets ECH (encrypted SNI) and slips
+// past SNI filters anyway. So with the setting on, the tunnel just runs; the
+// session is pointed at it only when a direct main-page load fails at the
+// connection level (comic.ts → tunnelFallback), once per settings apply.
 let tunnel: Tunnel | null = null
+let tunnelPort = 0
+let tunnelInUse = false
+
+async function tunnelFallback(): Promise<boolean> {
+  if (!tunnel || tunnelInUse) return false
+  tunnelInUse = true
+  const ses = session.fromPartition(COMIC_PARTITION)
+  // The challenge itself still goes direct.
+  await ses.setProxy({
+    proxyRules: `http://127.0.0.1:${tunnelPort}`,
+    proxyBypassRules: '<local>,challenges.cloudflare.com,*.challenges.cloudflare.com'
+  })
+  await ses.closeAllConnections().catch(() => {})
+  return true
+}
+setComicTunnelFallback(tunnelFallback)
 
 async function applyTunnel(on: boolean): Promise<void> {
   if (on === !!tunnel) return // unchanged — settings are saved often (zoom, mode…)
   const ses = session.fromPartition(COMIC_PARTITION)
+  tunnelInUse = false
+  await ses.setProxy({ mode: 'system' })
   if (on) {
     const t = new Tunnel({
       host: '127.0.0.1',
@@ -44,13 +69,12 @@ async function applyTunnel(on: boolean): Promise<void> {
     try {
       const { port } = await t.start()
       tunnel = t
-      await ses.setProxy({ proxyRules: `http://127.0.0.1:${port}`, proxyBypassRules: '<local>' })
+      tunnelPort = port
     } catch (e) {
       console.warn('[tunnel] start failed — direct connection:', (e as Error).message)
       await t.stop().catch(() => {})
     }
   } else if (tunnel) {
-    await ses.setProxy({ mode: 'system' })
     await tunnel.stop().catch(() => {})
     tunnel = null
   }

@@ -141,6 +141,16 @@ export default function App(): JSX.Element {
 
   // Cloudflare auth: main pops its browser window and tells us to show a banner.
   const [cfChallenge, setCfChallenge] = useState(false)
+  // Cloudflare rejects the tunnel's split ClientHello, so the challenge can't pass
+  // once the session fell back to it (verified on desktop + mobile, 2026-10). Saving settings
+  // re-applies the network (tunnel off, sockets dropped) before the retry.
+  const tunnelOn = useStore((s) => s.settings.bypassTunnel === true)
+  const disableTunnelAndRetry = async (): Promise<void> => {
+    const s = { ...useStore.getState().settings, bypassTunnel: false }
+    setSettings(s)
+    await window.api.saveSettings(s)
+    await window.api.comicChallengeAction('retry')
+  }
   useEffect(() => window.api.onComicChallenge((active) => setCfChallenge(active)), [])
 
   // Auto-update progress → shown as a row in the activity bar.
@@ -283,7 +293,30 @@ export default function App(): JSX.Element {
       <LockPrompt />
       {cfChallenge && (
         <div className="cf-banner">
-          🔒 사이트 인증이 필요합니다. 방금 뜬 창에서 “사람인지 확인”을 완료해 주세요. 완료되면 자동으로 진행됩니다.
+          <span>
+            🔒 사이트 인증이 필요합니다. 방금 뜬 창에서 “사람인지 확인”을 완료해 주세요. 완료되면 자동으로 진행됩니다.
+          </span>
+          {tunnelOn && (
+            <span className="cf-banner-warn">
+              차단 우회(GreenTunnel)로 연결 중이면 인증이 통과되지 않을 수 있습니다.
+            </span>
+          )}
+          <div className="flat-group">
+            {tunnelOn && (
+              <button className="mini on" onClick={disableTunnelAndRetry}>
+                우회 끄고 다시 시도
+              </button>
+            )}
+            <button className="mini" onClick={() => window.api.comicChallengeAction('show')}>
+              창 열기
+            </button>
+            <button className="mini" onClick={() => window.api.comicChallengeAction('retry')}>
+              다시 시도
+            </button>
+            <button className="mini" onClick={() => window.api.comicChallengeAction('cancel')}>
+              취소
+            </button>
+          </div>
         </div>
       )}
       {showExit && <ExitModal onChoose={onExit} />}

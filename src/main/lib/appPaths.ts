@@ -1,8 +1,10 @@
 // Imported first by main/index.ts: fixes the userData folder and upgrades data
 // written by older versions before any other module touches it.
 //
-// • Packaged builds were named "MangaManager" before the rename to Halftone;
-//   keep using that folder so existing libraries, settings and logins survive.
+// • The data folder is %APPDATA%/Halftone (dev runs: Halftone-dev, kept apart so
+//   a dev build never writes the installed app's library). Builds before the
+//   rename used MangaManager (packaged) / manga-manager (dev): that folder is
+//   moved over once, so libraries, settings and site logins survive.
 // • Older versions stored source names (old site ids) in setting keys, mode
 //   values, the image scheme host, the scraper session folder and a userData
 //   file. Rename them to the current ids once, in place.
@@ -10,7 +12,22 @@ import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'fs'
 
-if (app.isPackaged) app.setPath('userData', join(app.getPath('appData'), 'MangaManager'))
+// Picks the userData folder, moving the legacy one into place on first run.
+// If the move fails (an old version still running holds files open), keep
+// using the legacy folder this run — the move is retried on the next start.
+export function resolveUserData(appData: string, packaged: boolean): string {
+  const target = join(appData, packaged ? 'Halftone' : 'Halftone-dev')
+  const legacy = join(appData, packaged ? 'MangaManager' : 'manga-manager')
+  if (existsSync(target) || !existsSync(legacy)) return target
+  try {
+    renameSync(legacy, target)
+    return target
+  } catch {
+    return legacy
+  }
+}
+
+app.setPath('userData', resolveUserData(app.getPath('appData'), app.isPackaged))
 
 // Old ids, spelled indirectly so the source carries no site names.
 const OLD_D = ['hi', 'tomi'].join('')

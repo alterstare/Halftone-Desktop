@@ -28,8 +28,10 @@ in a fresh context without re-deriving everything.
   - `build` = electron-vite production build (fast, ~900ms). Use to sanity-check.
   - Packaging: `npm run dist` (electron-builder). winCodeSign symlink step needs
     Developer Mode or admin — not needed for normal dev.
-- App `userData`: `%APPDATA%/MangaManager/` (packaged; kept after the rename to Halftone, pinned in `src/main/lib/appPaths.ts`) — holds `works.json` (scanned library)
-  and `settings.json`.
+- App `userData`: `%APPDATA%/Halftone/` (packaged) / `%APPDATA%/Halftone-dev/` (dev),
+  pinned in `src/main/lib/appPaths.ts`, which moves the pre-rename folder
+  (`MangaManager` / `manga-manager`) into place once — holds `works.json`
+  (scanned library) and `settings.json`.
 
 ---
 

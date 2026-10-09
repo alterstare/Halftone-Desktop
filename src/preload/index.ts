@@ -121,6 +121,7 @@ const api: Api = {
   comicDownloadGeneric: (title, chapters, only) =>
     ipcRenderer.invoke(IPC.comicDownloadGeneric, title, chapters, only),
   comicOpenSite: (url) => ipcRenderer.invoke(IPC.comicOpenSite, url),
+  comicChallengeAction: (action) => ipcRenderer.invoke(IPC.comicChallengeAction, action),
   saveThumb: (id, dataUrl) => ipcRenderer.invoke(IPC.saveThumb, id, dataUrl),
   getThumb: (id) => ipcRenderer.invoke(IPC.getThumb, id),
   pickImage: () => ipcRenderer.invoke(IPC.pickImage),

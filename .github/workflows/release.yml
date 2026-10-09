@@ -1,8 +1,12 @@
 name: Release
 
-# Push a version tag (e.g. v0.3.0) to build on both OSes and publish a GitHub
-# Release with the installers + update metadata. Windows nsis (.exe) and Linux
-# AppImage are auto-updatable; zip/tar.gz are portable-only.
+# Push a version tag (e.g. v0.3.0) to build the Linux assets (AppImage is
+# auto-updatable; tar.gz is portable-only) into that version's GitHub Release.
+#
+# Windows is NOT built here any more (the hosted Windows runner was too slow):
+# it's built and uploaded locally BEFORE pushing the tag —
+#   npx electron-builder --win --publish always   (GH_TOKEN set)
+# which creates the draft release this job then adds the Linux files to.
 on:
   push:
     tags:
@@ -13,15 +17,7 @@ permissions:
 
 jobs:
   release:
-    strategy:
-      fail-fast: false
-      # Run one OS at a time: parallel jobs both try to create the same draft
-      # release and race, so one platform's assets silently fail to upload. Serial
-      # → the second job reuses the release the first created.
-      max-parallel: 1
-      matrix:
-        os: [windows-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -36,14 +32,7 @@ jobs:
       - name: Build renderer/main
         run: npm run build
 
-      - name: Build & publish (Windows)
-        if: matrix.os == 'windows-latest'
-        run: npx electron-builder --win --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build & publish (Linux)
-        if: matrix.os == 'ubuntu-latest'
         run: npx electron-builder --linux --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

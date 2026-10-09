@@ -146,6 +146,7 @@ export const IPC = {
   comicScrapeList: 'comic:scrapeList',
   comicDownloadGeneric: 'comic:downloadGeneric',
   comicOpenSite: 'comic:openSite',
+  comicChallengeAction: 'comic:challengeAction',
   comicChallenge: 'comic:challenge', // main -> renderer: Cloudflare auth window shown/cleared
   comicStatus: 'comic:status', // main -> renderer: what the manga-site scraper is doing (null = idle)
   saveThumb: 'thumb:save',
@@ -411,6 +412,7 @@ export interface Api {
   // Open a site in a visible window so the user can clear Cloudflare / log in, or
   // navigate a backup site. Pass `url` to open a specific address.
   comicOpenSite: (url?: string) => Promise<void>
+  comicChallengeAction: (action: 'show' | 'retry' | 'cancel') => Promise<void>
   saveThumb: (workId: string, dataUrl: string) => Promise<string>
   getThumb: (workId: string) => Promise<string | null>
   pickImage: () => Promise<string | null> // returns a mangaimg:// url for the chosen image

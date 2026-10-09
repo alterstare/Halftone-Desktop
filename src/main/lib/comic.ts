@@ -26,8 +26,15 @@ import type {
   ComicSummary
 } from '../../shared/ipc'
 
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+// Claim the Chromium version this Electron build really ships: Turnstile
+// cross-checks the UA against the client hints (sec-ch-ua /
+// navigator.userAgentData), and a mismatch makes its "verify" loop forever.
+const UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`
+// App-wide, not just per window: the Turnstile widget is a cross-origin iframe in
+// its own process, and neither webContents.setUserAgent nor session.setUserAgent
+// reaches it — its requests went out as "… Electron/33 …" while the page said
+// plain Chrome, so every "verify" click failed and re-armed the challenge.
+app.userAgentFallback = UA
 export const COMIC_PARTITION = 'persist:comic'
 const PARTITION = COMIC_PARTITION
 
@@ -81,20 +88,24 @@ function getWindow(): BrowserWindow {
     webPreferences: {
       partition: PARTITION,
       javascript: true,
-      backgroundThrottling: false,
-      sandbox: false,
-      // Main-world preload that kills WebRTC/STUN + automation tells so the
-      // Cloudflare / block.js challenge stops looping. (out/preload/comic.mjs)
-      contextIsolation: false,
-      preload: join(__dirname, '../preload/comic.mjs')
+      backgroundThrottling: false
     }
   })
   win.webContents.setUserAgent(UA)
+  // No STUN probing (it fails DNS on the user's network and spams errors). Done
+  // natively instead of stubbing RTCPeerConnection in the page: Turnstile spots
+  // patched browser APIs and then never passes.
+  win.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
   blockHiddenMedia()
   // Don't actually destroy on user close — just hide, so the session survives.
   win.on('close', (e) => {
     e.preventDefault()
-    win?.hide()
+    const w = win
+    w?.hide()
+    // Closed on a challenge page → stop popping it up; the user reopens it with
+    // the 인증창 button when they want to.
+    if (challengeWait) challengeDismissed = true
+    else if (w) void probe(w).then((p) => { if (p?.challenge) challengeDismissed = true })
   })
   // If the scrape window's renderer actually crashes, drop it so getWindow()
   // rebuilds a fresh one on the next call. NB: do NOT hook 'unresponsive' — the
@@ -131,13 +142,40 @@ function blockHiddenMedia(): void {
       (d.resourceType === 'image' || d.resourceType === 'media' || d.resourceType === 'font')
     cb({ cancel: block })
   })
+  // Track whether the scraper window's current document is a Cloudflare
+  // challenge from the response header, so probe() never has to run script in
+  // it (see onChallengePage).
+  session.fromPartition(PARTITION).webRequest.onHeadersReceived((d, cb) => {
+    const w = win && !win.isDestroyed() ? win : null
+    if (w && d.resourceType === 'mainFrame' && d.webContentsId === w.webContents.id) {
+      const h = d.responseHeaders ?? {}
+      onChallengePage = Object.keys(h).some((k) => k.toLowerCase() === 'cf-mitigated')
+    }
+    cb({ responseHeaders: d.responseHeaders })
+  })
 }
 
-// True once the user has a Cloudflare clearance cookie for the manga-site domain.
-async function hasClearance(): Promise<boolean> {
+// True while the window shows a Cloudflare challenge page. Set from the main
+// document's `cf-mitigated` header (or the DOM check, for a challenge without
+// it) and cleared by the next main-frame response. While it's set we must NOT
+// executeJavaScript in the page: polling it every 300ms made Cloudflare issue
+// cf_clearance and then reject it on the very next load — an endless checkbox
+// (reproduced 2026-10-09; the same window without polling passes).
+let onChallengePage = false
+
+// True once the user has a Cloudflare clearance cookie for `url`'s domain. Must be
+// per-domain: after a site move the old domain's cookie would otherwise count as
+// clearance for the new one, so its challenge was never shown to the user.
+// cf_clearance now arrives Partitioned (CHIPS), which cookies.get({ url }) does
+// not return — so list them all and match the domain by hand.
+async function hasClearance(url: string): Promise<boolean> {
   try {
-    const cookies = await session.fromPartition(PARTITION).cookies.get({ name: 'cf_clearance' })
-    return cookies.length > 0
+    const host = new URL(url).hostname
+    const cookies = await session.fromPartition(PARTITION).cookies.get({})
+    return cookies.some((c) => {
+      const d = (c.domain ?? '').replace(/^\./, '')
+      return c.name === 'cf_clearance' && !!d && (host === d || host.endsWith('.' + d))
+    })
   } catch {
     return false
   }
@@ -182,11 +220,10 @@ function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
 }
 
 const probe = async (w: BrowserWindow): Promise<Probe | null> => {
-  return withTimeout(
-    w.webContents.executeJavaScript(PROBE, true) as Promise<Probe | null>,
-    6000,
-    null
-  )
+  if (onChallengePage) return { challenge: true, ready: false, url: w.webContents.getURL() }
+  const p = await withTimeout(w.webContents.executeJavaScript(PROBE) as Promise<Probe | null>, 6000, null)
+  if (p?.challenge) onChallengePage = true
+  return p
 }
 
 // Navigate, settle, and clear any CF challenge (showing the window so the user
@@ -200,6 +237,14 @@ const probe = async (w: BrowserWindow): Promise<Probe | null> => {
 // intermittently (in a browser you'd just hit refresh a few times). Other
 // failures fail fast as before.
 const RETRY_CODES = new Set([-101])
+// Connection-level failures that a blocking ISP produces (reset / closed /
+// timed out / DNS). Any of them on a direct load switches the session to the
+// bypass tunnel (when the setting is on) and retries.
+const FALLBACK_CODES = new Set([-7, -100, -101, -105, -118, -137])
+let tunnelFallback: (() => Promise<boolean>) | null = null
+export function setComicTunnelFallback(fn: () => Promise<boolean>): void {
+  tunnelFallback = fn
+}
 const MAX_RETRIES = 10
 const retryDelay = (n: number): number => Math.min(400 * n, 2000)
 // A connection can also stall — no reset, no data — leaving the page (or its
@@ -213,6 +258,33 @@ const CONTENT_STALL_MS = 15000
 const dropConnections = (): Promise<void> =>
   session.fromPartition(PARTITION).closeAllConnections().catch(() => {})
 
+// A challenge wait in progress (ensure() holds the scrape queue meanwhile). The
+// banner's buttons act on it directly — outside the queue, which it is blocking.
+let challengeWait: { since: number; cancelled: boolean } | null = null
+// The user closed / cancelled the challenge window: later loads fail with
+// CHALLENGE_MSG instead of popping it up again, until the user opens it by hand
+// (인증창 / 창 열기 / 다시 시도) or a page gets through.
+let challengeDismissed = false
+const CHALLENGE_MSG = '사이트 인증이 필요합니다. 위의 "인증창" 버튼을 눌러 인증해 주세요.'
+
+export function comicChallengeAction(action: 'show' | 'retry' | 'cancel'): void {
+  const w = win && !win.isDestroyed() ? win : null
+  if (!w || !challengeWait) return
+  if (action !== 'cancel') challengeDismissed = false
+  if (action === 'cancel') {
+    challengeDismissed = true
+    challengeWait.cancelled = true
+    w.hide()
+    return
+  }
+  if (action === 'retry') {
+    challengeWait.since = Date.now() // fresh 3-minute window
+    w.webContents.reload()
+  }
+  w.show()
+  w.focus()
+}
+
 async function ensure(url: string, needContent: boolean): Promise<void> {
   const w = getWindow()
   if (sameUrl(w.webContents.getURL(), url)) {
@@ -225,7 +297,7 @@ async function ensure(url: string, needContent: boolean): Promise<void> {
   // navigation from blocking the shared queue.
   let failCode = 0
   const onFail = (_e: unknown, code: number, _d: string, _u: string, isMain: boolean): void => {
-    if (isMain && RETRY_CODES.has(code)) failCode = code
+    if (isMain && (RETRY_CODES.has(code) || FALLBACK_CODES.has(code))) failCode = code
   }
   w.webContents.on('did-fail-load', onFail)
   let nav: Promise<undefined> = Promise.resolve(undefined)
@@ -247,9 +319,19 @@ async function ensure(url: string, needContent: boolean): Promise<void> {
       failCode = STALL
     }
   }
+  // Whether to reload after a failed load: first try switching to the tunnel
+  // (once — it's a no-op after), then keep retrying resets / stalls as before.
+  const canRetry = async (): Promise<boolean> => {
+    if (!failCode || retries >= MAX_RETRIES) return false
+    if (await tunnelFallback?.()) {
+      status('직접 연결이 막혀 우회 연결로 바꾸는 중…')
+      return true
+    }
+    return RETRY_CODES.has(failCode) || failCode === STALL
+  }
   // Initial load, re-tried while the connection itself fails.
   await load()
-  while (failCode && retries < MAX_RETRIES) {
+  while (await canRetry()) {
     retries++
     await dropConnections()
     await delay(retryDelay(retries))
@@ -257,12 +339,13 @@ async function ensure(url: string, needContent: boolean): Promise<void> {
   }
   let contentRetried = false
   let shown = false
+  let challengeSince = 0
   const start = Date.now()
   if (!failCode) status('페이지를 읽는 중…')
   for (let first = true; ; first = false) {
     if (!first) await delay(300)
     // Connection reset after DOM-ready (late failure) → reload.
-    if (failCode && retries < MAX_RETRIES) {
+    if (await canRetry()) {
       retries++
       await dropConnections()
       await delay(retryDelay(retries))
@@ -271,22 +354,39 @@ async function ensure(url: string, needContent: boolean): Promise<void> {
     }
     const p = await probe(w)
     if (!p) {
+      // Mid-navigation (e.g. 다시 시도 reloading the challenge) — keep waiting.
+      if (shown && challengeWait && !challengeWait.cancelled && w.isVisible()) continue
       if (Date.now() - start > 8000 && !needContent) break
       if (Date.now() - start > 30000) break
       continue
     }
-    if (p.challenge && !(await hasClearance())) {
-      // Still being challenged and no clearance cookie yet → let the user solve.
-      if (!shown) {
+    if (p.challenge) {
+      // Never reload during a challenge (that re-arms it). With a valid clearance
+      // the interstitial passes on its own in a few seconds; without one, or if it
+      // lingers (stale / rejected clearance), the user has to solve it.
+      if (!challengeSince) challengeSince = Date.now()
+      if (challengeDismissed && !shown) {
+        w.webContents.removeListener('did-fail-load', onFail)
+        throw new Error(CHALLENGE_MSG)
+      }
+      if (!shown && (Date.now() - challengeSince > 5000 || !(await hasClearance(p.url)))) {
         shown = true
+        challengeWait = { since: Date.now(), cancelled: false }
         w.show()
         w.focus()
         onChallenge?.(true) // tell the app to show the "인증 필요" banner
         status('사이트 인증 대기 중 — 열린 창에서 인증을 마쳐 주세요')
       }
-      if (Date.now() - start > 180000) break // give up after 3 min
+      // Give up after 3 min, or as soon as the user closes the window / presses
+      // 취소 — otherwise the queue stays blocked and nothing else can load.
+      const cw = challengeWait
+      if (shown && (!cw || cw.cancelled || !w.isVisible() || Date.now() - cw.since > 180000)) {
+        status('인증이 끝나지 않아 중단했습니다 — 다시 시도해 주세요')
+        break
+      }
       continue
     }
+    challengeDismissed = false // a page got through → auto-popup is fine again
     if (p.ready) break
     if (!shown) status('페이지를 읽는 중…')
     // Page is up but its content never arrives (stalled API call) → once per
@@ -306,8 +406,11 @@ async function ensure(url: string, needContent: boolean): Promise<void> {
   // user isn't left staring at a blank window — but don't thrash on every call.
   w.webContents.removeListener('did-fail-load', onFail)
   if (failCode) status('연결할 수 없습니다 — 잠시 후 다시 시도해 주세요')
-  if (shown && win && !win.isDestroyed() && (await hasClearance())) win.hide()
-  if (shown) onChallenge?.(false) // clear the banner (solved, or gave up)
+  if (shown && win && !win.isDestroyed() && (await hasClearance(w.webContents.getURL() || url))) win.hide()
+  if (shown) {
+    challengeWait = null
+    onChallenge?.(false) // clear the banner (solved, or gave up)
+  }
 }
 
 async function evalPage<T>(script: string, fallback: T): Promise<T> {
@@ -786,6 +889,9 @@ export async function comicReadUrls(_base: string, chapterUrl: string): Promise<
 // Manually open a site in the visible window (default the configured base) so
 // the user can clear Cloudflare, log in, or navigate a backup site by hand.
 export async function comicOpenSite(base: string, url?: string): Promise<void> {
+  // A challenge wait holds the queue — just bring its window back.
+  challengeDismissed = false
+  if (challengeWait) return comicChallengeAction('show')
   return queue(async () => {
     const w = getWindow()
     const target = url && url.trim() ? url.trim() : base.replace(/\/+$/, '') + '/'
@@ -794,6 +900,14 @@ export async function comicOpenSite(base: string, url?: string): Promise<void> {
     w.show()
     w.focus()
     await w.loadURL(target).catch(() => {})
+    // Hold the scrape queue while a challenge is up: a queued list load would
+    // otherwise navigate this window away mid-check and restart it.
+    const start = Date.now()
+    while (Date.now() - start < 180000 && !w.isDestroyed() && w.isVisible()) {
+      const p = await probe(w)
+      if (p && !p.challenge) break
+      await delay(500)
+    }
   })
 }
 
@@ -995,6 +1109,8 @@ export async function fetchComicBuffer(base: string, url: string): Promise<Buffe
     } catch (e) {
       clearTimeout(timer)
       if (e instanceof HttpError || attempt >= 4) throw e
+      // Network-level failure on a direct connection → try the bypass tunnel.
+      await tunnelFallback?.()
       await delay(500 * (attempt + 1))
     }
   }

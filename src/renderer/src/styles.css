@@ -396,6 +396,15 @@ img {
   line-height: 1.5;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   animation: toast-in 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cf-banner .flat-group {
+  flex: none;
+}
+.cf-banner-warn {
+  color: var(--gold);
 }
 
 /* Tag autocomplete (dark, themed replacement for the native <datalist>). */

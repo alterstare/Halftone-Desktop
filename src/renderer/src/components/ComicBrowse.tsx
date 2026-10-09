@@ -128,7 +128,10 @@ export default function ComicBrowse(): JSX.Element {
         if (r.genres && r.genres.length) setGenres(['전체', ...r.genres.filter((g) => g !== '전체')])
         if (r.rows && r.rows.length) setRows(r.rows)
       })
-      .catch((e) => alive && setError(String(e?.message ?? e)))
+      .catch(
+        (e) =>
+          alive && setError(String(e?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+      )
       .finally(() => alive && setLoading(false))
     return () => {
       alive = false

@@ -16,10 +16,7 @@ export default defineConfig({
   preload: {
     build: {
       rollupOptions: {
-        input: {
-          index: resolve(__dirname, 'src/preload/index.ts'),
-          comic: resolve(__dirname, 'src/preload/comic.ts')
-        }
+        input: { index: resolve(__dirname, 'src/preload/index.ts') }
       }
     }
   },

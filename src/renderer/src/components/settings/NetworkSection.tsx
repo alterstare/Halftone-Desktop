@@ -44,7 +44,7 @@ export default function NetworkSection(): JSX.Element {
         {!isDoujin && (
           <SettingRow
             title="일반 만화 차단 우회 (GreenTunnel)"
-            desc="일반 만화 사이트 접속에만 내장 우회 프록시를 씁니다. 접속 요청을 잘게 나눠 보내 통신사의 주소(SNI) 차단을 피하고, DNS는 암호화(DoH)로 조회합니다. 연결이 자꾸 끊길 때 켜세요."
+            desc="일반 만화 사이트 접속에만 내장 우회 프록시를 씁니다. 접속 요청을 잘게 나눠 보내 통신사의 주소(SNI) 차단을 피하고, DNS는 암호화(DoH)로 조회합니다. 연결이 자꾸 끊길 때 켜세요. 켜 두어도 먼저 직접 연결하고, 직접 연결이 막힐 때만 우회합니다. 우회 중에는 Cloudflare 인증(사람인지 확인)이 통과되지 않을 수 있습니다."
           >
             <Toggle checked={draft.bypassTunnel === true} onChange={(v) => patch({ bypassTunnel: v })} />
           </SettingRow>

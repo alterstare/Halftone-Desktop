@@ -15,6 +15,7 @@ import {
   fetchComicBuffer,
   comicDownloadSeries,
   comicOpenSite,
+  comicChallengeAction,
   comicCoverForTitle,
   comicSeriesAuthor,
   comicSeriesTitle,
@@ -82,6 +83,7 @@ export function registerComicIpc(): void {
 
   // Show the scraper window (Cloudflare check / backup site browsing by hand).
   ipcMain.handle(IPC.comicOpenSite, (_e, url?: string) => comicOpenSite(store.settings.comicBaseUrl, url))
+  ipcMain.handle(IPC.comicChallengeAction, (_e, action: 'show' | 'retry' | 'cancel') => comicChallengeAction(action))
   // Backup site: read the chapter list of whatever page the user navigated to.
   ipcMain.handle(IPC.comicScrapeList, () => comicScrapeList())
 
