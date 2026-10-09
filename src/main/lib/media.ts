@@ -9,6 +9,7 @@
 //   mangaimg://web/<https url>    doujin image (fetched via the DNS-bypass path)
 //   mangaimg://comic/<https url>   general-manga online image (manga-site session)
 import { app, net, protocol } from 'electron'
+import type { CustomScheme } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { promises as fs } from 'fs'
@@ -17,9 +18,12 @@ import { fetchComicBuffer } from './comic'
 import { store } from '../context'
 
 // Must run before app 'ready' (Electron requirement for privileged schemes).
-export function registerImageScheme(): void {
+// Electron takes the privileged-scheme list once: other modules' schemes
+// (Sorta's sorta-img) come in through `extra`.
+export function registerImageScheme(extra: CustomScheme[] = []): void {
   protocol.registerSchemesAsPrivileged([
-    { scheme: 'mangaimg', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+    { scheme: 'mangaimg', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+    ...extra
   ])
 }
 

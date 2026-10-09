@@ -14,7 +14,7 @@ import {
   ScanIcon,
   EditIcon,
   AddPhotoIcon,
-  FolderIcon, ArrowUpwardIcon, ArrowUpIcon, ArrowDownIcon } from './icons'
+  FolderIcon, ArrowUpwardIcon, ArrowUpIcon, ArrowDownIcon, CategoryIcon } from './icons'
 
 // Unified row for the activity list: background jobs (export/scan) merged with the
 // online downloads (which also carry the avif→webp conversion on the same row).
@@ -29,6 +29,15 @@ interface Row {
   error?: string
   // Set only for download rows — drives the phase label + stop/retry/remove controls.
   dl?: { code: string; phase: DoujinProgress['phase']; canStop: boolean; canRetry: boolean }
+  sortaJob?: number // 캐릭터 분류 job id (cancellable through the Sorta frame)
+}
+
+// Cancel a 캐릭터 분류 job: Sorta's API lives in its frame (same origin).
+function cancelSortaJob(id: number): void {
+  const w = (document.querySelector('.sorta-frame') as HTMLIFrameElement | null)?.contentWindow as
+    | (Window & { api?: { cancelJob: (id: number) => Promise<boolean> } })
+    | null
+  void w?.api?.cancelJob(id)
 }
 
 const KIND_ICON: Record<Job['kind'], ReactNode> = {
@@ -37,7 +46,8 @@ const KIND_ICON: Record<Job['kind'], ReactNode> = {
   meta: <EditIcon />,
   thumb: <AddPhotoIcon />,
   organize: <FolderIcon />,
-  convert: <ConvertIcon />
+  convert: <ConvertIcon />,
+  sorta: <CategoryIcon />
 }
 
 const ACTIVE = new Set<DoujinProgress['phase']>(['queued', 'fetching', 'downloading', 'enriching'])
@@ -80,8 +90,10 @@ export default function ActivityBar(): JSX.Element | null {
   const hideAll = useLock((s) => s.decoy) && libraryMode === 'doujin'
   const rows: Row[] = hideAll ? [] : [
     ...jobs
-      .filter((j) => j.mode === libraryMode)
+      // 캐릭터 분류 jobs aren't tied to a library mode: show them in both.
+      .filter((j) => j.mode === libraryMode || j.kind === 'sorta')
       .map((j) => ({
+        sortaJob: j.kind === 'sorta' && j.status === 'running' ? Number(j.id.slice(6)) : undefined,
         id: j.id,
         icon: KIND_ICON[j.kind],
         title: j.title,
@@ -142,6 +154,7 @@ export default function ActivityBar(): JSX.Element | null {
     if (r.dl?.phase === 'stopped') return '일시정지됨'
     if (r.status === 'error') return `오류: ${r.error ?? '실패'}`
     if (r.status === 'done') return r.detail ?? '완료'
+    if (r.detail && r.total > 0 && r.detail.endsWith(' MB')) return `${r.detail} (${pct(r.done, r.total)}%)`
     return r.total > 0 ? `${r.done}/${r.total} (${pct(r.done, r.total)}%)` : r.detail ?? '진행 중…'
   }
 
@@ -270,6 +283,19 @@ export default function ActivityBar(): JSX.Element | null {
                       onClick={(e) => {
                         e.stopPropagation()
                         removeDownload(r.dl!.code)
+                      }}
+                    >
+                      <XIcon />
+                    </button>
+                  </div>
+                ) : r.sortaJob !== undefined ? (
+                  <div className="activity-row-actions">
+                    <button
+                      className="mini icon danger"
+                      title="취소"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        cancelSortaJob(r.sortaJob!)
                       }}
                     >
                       <XIcon />

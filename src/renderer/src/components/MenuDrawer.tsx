@@ -1,7 +1,7 @@
 import type { JSX, ReactNode } from 'react'
 import { useStore } from '../store'
 import { useLock } from '../lock'
-import { HomeIcon, LanguageIcon, MenuIcon, SettingsIcon, DownloadIcon, FavoriteIcon, AssignmentIcon, HistoryIcon, CompareArrowsIcon, TranslateIcon } from './icons'
+import { HomeIcon, LanguageIcon, MenuIcon, SettingsIcon, DownloadIcon, FavoriteIcon, AssignmentIcon, HistoryIcon, CompareArrowsIcon, TranslateIcon, CategoryIcon } from './icons'
 
 // Left slide-in navigation drawer (☰). Surfaces every screen plus the
 // doujin ⇄ general-manga mode toggle. Existing tab-bar buttons still work; this
@@ -39,6 +39,7 @@ export default function MenuDrawer(): JSX.Element {
   const goManage = useStore((s) => s.goManage)
   const goSettings = useStore((s) => s.goSettings)
   const goTransWork = useStore((s) => s.goTransWork)
+  const goSorta = useStore((s) => s.goSorta)
   const setFilter = useStore((s) => s.setFilter)
   const setSort = useStore((s) => s.setSort)
   const setSearch = useStore((s) => s.setSearch)
@@ -61,6 +62,7 @@ export default function MenuDrawer(): JSX.Element {
 
   const normal = libraryMode === 'normal'
   const transMode = view === 'transwork'
+  const sortaMode = view === 'sorta'
   // Both modes route to the browse view; App renders ComicBrowse in normal mode,
   // doujin Browse otherwise.
   const onlineClick = (): void => go(goBrowse)
@@ -94,7 +96,13 @@ export default function MenuDrawer(): JSX.Element {
           label={transMode ? '라이브러리로 돌아가기' : '번역 편집기 모드로 전환'}
           onClick={() => go(transMode ? goHome : goTransWork)}
         />
-        <div className="menu-mode-cur">현재: {transMode ? '번역 편집기' : normal ? '일반 만화' : '동인지'}</div>
+        {/* 캐릭터 분류 mode: Sorta (character image sorter) embedded. */}
+        <Item
+          icon={<CategoryIcon />}
+          label={sortaMode ? '라이브러리로 돌아가기' : '캐릭터 분류 모드로 전환'}
+          onClick={() => go(sortaMode ? goHome : goSorta)}
+        />
+        <div className="menu-mode-cur">현재: {transMode ? '번역 편집기' : sortaMode ? '캐릭터 분류' : normal ? '일반 만화' : '동인지'}</div>
 
         <div className="menu-sep" />
         <Item icon={<HomeIcon />} label="라이브러리" active={view === 'home'} onClick={libraryClick} />

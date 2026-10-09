@@ -23,9 +23,10 @@ import { registerFavoritesIpc } from './ipc/favorites'
 import { registerDoujinIpc } from './ipc/doujin'
 import { registerComicIpc } from './ipc/comic'
 import { applyQuitShortcut } from './lib/quitShortcut'
+import { SORTA_SCHEME, closeSorta, setupSorta } from './sorta'
 
 // Privileged schemes must be registered before the app is ready.
-registerImageScheme()
+registerImageScheme([SORTA_SCHEME])
 
 // One-time migration to the in-app general-manga favorites: un-favorite every
 // general-manga work and move any that were physically relocated into the fav
@@ -64,7 +65,10 @@ function createWindow(): void {
     ...(process.env['ELECTRON_RENDERER_URL'] ? { icon: join(__dirname, '../../build/icon.png') } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
-      sandbox: false
+      sandbox: false,
+      // The 캐릭터 분류 mode (Sorta) is a frame of this window and needs its own
+      // API: the preload also runs there and exposes Sorta's API instead.
+      nodeIntegrationInSubFrames: true
     }
   })
   setMainWindow(win)
@@ -194,6 +198,7 @@ app.whenReady().then(async () => {
   registerFavoritesIpc()
   registerDoujinIpc()
   registerComicIpc()
+  setupSorta() // 캐릭터 분류 mode (opens its data on first use)
 
   createWindow()
 
@@ -219,6 +224,7 @@ app.on('before-quit', () => {
 app.on('will-quit', () => globalShortcut.unregisterAll())
 
 app.on('window-all-closed', async () => {
+  closeSorta()
   await store.flushWorks()
   await store.flushProgress()
   if (process.platform !== 'darwin') app.quit()

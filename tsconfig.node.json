@@ -12,5 +12,5 @@
     "types": ["node", "electron-vite/node"],
     "outDir": "./out/types-node"
   },
-  "include": ["src/main/**/*", "src/preload/**/*", "src/shared/**/*", "electron.vite.config.ts"]
+  "include": ["src/main/**/*", "src/preload/**/*", "src/shared/**/*", "electron.vite.config.ts", "src/sorta/core/**/*", "src/sorta/shared/**/*", "src/sorta/main/**/*", "src/sorta/preload/**/*", "src/sorta/version.ts"]
 }

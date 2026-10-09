@@ -7257,3 +7257,12 @@ textarea {
   width: 28px;
   height: 28px;
 }
+
+/* 캐릭터 분류 mode: Sorta's screen in a frame filling the body */
+.sorta-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+  background: var(--bg);
+}

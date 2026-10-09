@@ -9,7 +9,8 @@ export default defineConfig({
       rollupOptions: {
         input: { index: resolve(__dirname, 'src/main/index.ts') },
         // Native addon (local OCR) — loaded from node_modules at runtime, never bundled.
-        external: ['onnxruntime-node']
+        // Sorta (캐릭터 분류) native modules likewise.
+        external: ['onnxruntime-node', 'better-sqlite3', 'sharp']
       }
     }
   },
@@ -27,7 +28,8 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        input: { index: resolve(__dirname, 'src/renderer/index.html') }
+        // sorta.html = the 캐릭터 분류 mode (Sorta's screen, shown in a frame)
+        input: { index: resolve(__dirname, 'src/renderer/index.html'), sorta: resolve(__dirname, 'src/renderer/sorta.html') }
       }
     },
     // App version, shown at the bottom of Settings.

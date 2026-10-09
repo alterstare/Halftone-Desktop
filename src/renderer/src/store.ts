@@ -71,7 +71,7 @@ export interface DownloadItem {
 // covers everything else. total=0 → indeterminate (spinner, no percentage).
 export interface Job {
   id: string
-  kind: 'export' | 'scan' | 'meta' | 'thumb' | 'organize' | 'convert'
+  kind: 'export' | 'scan' | 'meta' | 'thumb' | 'organize' | 'convert' | 'sorta' // sorta = 캐릭터 분류 (shown in both modes)
   mode: 'doujin' | 'normal' // which library the task belongs to (bar is per-mode)
   title: string
   status: 'running' | 'done' | 'error'
@@ -146,7 +146,7 @@ export type Filter =
   // the hearts), codes = union of the checked imported lists' gallery codes.
   | { kind: 'favlists'; value: string[]; codes: string[] }
 
-type View = 'home' | 'reader' | 'settings' | 'download' | 'browse' | 'manage' | 'transwork'
+type View = 'home' | 'reader' | 'settings' | 'download' | 'browse' | 'manage' | 'transwork' | 'sorta'
 
 // One browser-style navigation entry: enough to restore where the user was.
 export interface NavEntry {
@@ -267,6 +267,8 @@ interface AppState {
   clearDoneJobs: () => void
   startJob: (kind: Job['kind'], mode: Job['mode'], title: string, detail?: string) => string
   updateJob: (id: string, patch: Partial<Job>) => void
+  // 캐릭터 분류 (Sorta frame) job progress → a row of the activity bar
+  sortaJob: (e: { jobId: number; label: string; done: number; total: number; unit?: 'bytes'; state: string; error?: string }) => void
   endJob: (id: string, patch: Partial<Job>) => void
   exportWorkJob: (workId: string, withTr: boolean) => Promise<void>
   exportImagesJob: (workId: string) => Promise<void>
@@ -305,6 +307,7 @@ interface AppState {
   goBrowse: () => void
   goManage: (mode: 'duplicates' | 'translations' | 'merge' | 'collections') => void
   goTransWork: () => void
+  goSorta: () => void // 캐릭터 분류 mode (Sorta)
   // 번역 편집기 list (persisted in settings.transProjects).
   addTransProjects: (workIds: string[]) => void
   updateTransProject: (workId: string, patch: Partial<TransProject>) => void
@@ -798,6 +801,7 @@ export const useStore = create<AppState>((set, get) => ({
   goBrowse: () => guardLeave(get, set, () => set({ view: 'browse' })),
   goManage: (mode) => guardLeave(get, set, () => set({ view: 'manage', manageMode: mode })),
   goTransWork: () => guardLeave(get, set, () => set({ view: 'transwork' })),
+  goSorta: () => guardLeave(get, set, () => set({ view: 'sorta' })),
   addTransProjects: (workIds) => {
     const cur = get().settings.transProjects ?? []
     const now = Date.now()
@@ -1566,6 +1570,28 @@ export const useStore = create<AppState>((set, get) => ({
     }))
     return id
   },
+  sortaJob: (e) =>
+    set((st) => {
+      const id = `sorta:${e.jobId}`
+      if (e.state === 'cancelled') return { jobs: st.jobs.filter((j) => j.id !== id) }
+      const mb = (n: number): number => Math.round(n / 1048576)
+      const bytes = e.unit === 'bytes'
+      const prev = st.jobs.find((j) => j.id === id)
+      const job: Job = {
+        id,
+        kind: 'sorta',
+        mode: st.libraryMode,
+        title: e.state === 'failed' ? (prev?.title ?? e.label) : e.label,
+        status: e.state === 'done' ? 'done' : e.state === 'failed' ? 'error' : 'running',
+        done: bytes ? mb(e.done) : e.done,
+        total: bytes ? mb(e.total) : e.total,
+        detail: bytes && e.total ? `${mb(e.done)} / ${mb(e.total)} MB` : e.state === 'done' ? '완료' : undefined,
+        error: e.error,
+        startedAt: prev?.startedAt ?? Date.now(),
+        endedAt: e.state === 'done' || e.state === 'failed' ? Date.now() : undefined
+      }
+      return { jobs: prev ? st.jobs.map((j) => (j.id === id ? job : j)) : [job, ...st.jobs] }
+    }),
   updateJob: (id, patch) =>
     set((st) => ({ jobs: st.jobs.map((j) => (j.id === id ? { ...j, ...patch } : j)) })),
   endJob: (id, patch) =>

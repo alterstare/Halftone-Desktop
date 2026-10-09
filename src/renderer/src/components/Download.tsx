@@ -27,7 +27,8 @@ const KIND_ICON: Record<Job['kind'], string> = {
   meta: '🖋',
   thumb: '🖼',
   organize: '🗂',
-  convert: '♻'
+  convert: '♻',
+  sorta: '🏷'
 }
 const rowPct = (done: number, total: number): number =>
   total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0

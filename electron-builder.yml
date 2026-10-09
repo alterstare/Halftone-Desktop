@@ -10,9 +10,20 @@ directories:
 files:
   - out/**/*
   - package.json
-# Local OCR runtime (native addon + its DLLs) must live outside the asar.
+  # better-sqlite3 ships its C sources (~10MB); only the built .node is needed.
+  - '!node_modules/better-sqlite3/deps/**'
+  - '!node_modules/better-sqlite3/src/**'
+  - '!node_modules/better-sqlite3/binding.gyp'
+# better-sqlite3 (캐릭터 분류 / Sorta) is already the Electron-ABI prebuilt
+# (scripts/native.mjs on install): don't let electron-builder compile it.
+npmRebuild: false
+# Native addons + their DLLs / shared libs must live outside the asar:
+# local OCR runtime, and Sorta's SQLite + image library.
 asarUnpack:
   - node_modules/onnxruntime-node/**
+  - node_modules/better-sqlite3/**
+  - node_modules/sharp/**
+  - node_modules/@img/**
 extraResources:
   - from: resources
     to: .

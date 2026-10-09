@@ -1,6 +1,6 @@
 {
   "name": "manga-manager",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Halftone",
   "main": "./out/main/index.js",
   "author": "noth2",
@@ -10,16 +10,22 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "dist": "electron-vite build && electron-builder",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.sorta.json",
+    "postinstall": "node scripts/native.mjs",
+    "sync-sorta": "node scripts/sync-sorta.mjs"
   },
   "dependencies": {
+    "better-sqlite3": "^12.11.1",
     "electron-updater": "^6.8.9",
     "green-tunnel": "^3.0.5",
     "onnxruntime-node": "^1.30.0",
+    "sharp": "^0.34.5",
     "tesseract.js": "^5.1.1",
+    "undici": "^6.29.0",
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
@@ -28,6 +34,7 @@
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
     "pngjs": "^7.0.0",
+    "prebuild-install": "^7.1.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.7.2",

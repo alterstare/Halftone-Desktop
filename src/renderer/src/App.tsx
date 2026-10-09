@@ -59,6 +59,22 @@ export default function App(): JSX.Element {
   // page change or reset refetches. Not mounted until first opened (avoids a
   // network hit on boot).
   const [browseSeen, setBrowseSeen] = useState(false)
+  // 캐릭터 분류 (Sorta) frame: created on first visit, then kept alive so its
+  // screen state and running jobs survive switching modes.
+  const [sortaSeen, setSortaSeen] = useState(false)
+  useEffect(() => {
+    if (view === 'sorta') setSortaSeen(true)
+  }, [view])
+  // Its job progress comes up from the frame (postMessage) into the activity bar.
+  useEffect(() => {
+    const onMsg = (e: MessageEvent): void => {
+      const frame = document.querySelector('.sorta-frame') as HTMLIFrameElement | null
+      if (!frame || e.source !== frame.contentWindow || e.data?.type !== 'sorta-job') return
+      useStore.getState().sortaJob(e.data.event)
+    }
+    window.addEventListener('message', onMsg)
+    return () => window.removeEventListener('message', onMsg)
+  }, [])
   useEffect(() => {
     if (view === 'browse') setBrowseSeen(true)
     // Entering online without a site address set (per mode) → prompt to enter it.
@@ -267,7 +283,7 @@ export default function App(): JSX.Element {
           <Settings />
         ) : view === 'download' ? (
           <Download />
-        ) : view === 'browse' ? null : view === 'manage' ? (
+        ) : view === 'browse' || view === 'sorta' ? null : view === 'manage' ? (
           <Manage />
         ) : view === 'transwork' ? (
           <TransWork />
@@ -275,6 +291,9 @@ export default function App(): JSX.Element {
           <ReaderSplit />
         ) : (
           <Home />
+        )}
+        {sortaSeen && (
+          <iframe className="sorta-frame" src="sorta.html" title="캐릭터 분류" style={{ display: view === 'sorta' ? 'block' : 'none' }} />
         )}
         {/* Kept-alive online browse (hidden when another view is active). */}
         {browseSeen && (

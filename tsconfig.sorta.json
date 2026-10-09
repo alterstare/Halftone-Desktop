@@ -1,0 +1,20 @@
+{
+  // The embedded Sorta renderer (src/sorta, synced from ../sorta): checked on
+  // its own because its window.api is Sorta's API, not Halftone's.
+  "compilerOptions": {
+    "composite": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "esModuleInterop": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "outDir": "./out/types-sorta"
+  },
+  "include": ["src/renderer/sorta-main.ts", "src/sorta/renderer/src/**/*", "src/sorta/shared/**/*", "src/sorta/preload/index.d.ts"]
+}

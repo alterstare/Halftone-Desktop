@@ -23,8 +23,9 @@ in a fresh context without re-deriving everything.
   cd /c/Users/noth2/Desktop/code/manga-viewer-2 && npm run typecheck
   cd /c/Users/noth2/Desktop/code/manga-viewer-2 && npm run build
   ```
-  - `typecheck` = `tsc --noEmit` for both `tsconfig.node.json` (main/preload) and
-    `tsconfig.web.json` (renderer). **Run it after every change.**
+  - `typecheck` = `tsc --noEmit` for `tsconfig.node.json` (main/preload),
+    `tsconfig.web.json` (renderer) and `tsconfig.sorta.json` (embedded Sorta
+    renderer, §12). **Run it after every change.**
   - `build` = electron-vite production build (fast, ~900ms). Use to sanity-check.
   - Packaging: `npm run dist` (electron-builder). winCodeSign symlink step needs
     Developer Mode or admin — not needed for normal dev.
@@ -275,3 +276,28 @@ DevTools Protocol: `./node_modules/.bin/electron . --remote-debugging-port=9333`
 single-instance lock), connect to the page target and click / call
 `window.api.*`. It uses the real userData — back up `works.json`,
 `settings.json`, `online.json` before anything that writes.
+
+## 12. 캐릭터 분류 mode (Sorta, embedded)
+
+- Sorta (character image sorter, repo `alterstare/Sorta`, local `../sorta`) is
+  embedded as a mode: sidebar → "캐릭터 분류 모드로 전환" (under 번역 편집기).
+- **`src/sorta/` is a generated copy — never edit it.** Change Sorta, then
+  `npm run sync-sorta` (copies `core`, `shared`, `main/host.ts`,
+  `preload/api.ts`, `preload/index.d.ts`, `renderer/src`, writes `version.ts`).
+- Screen: `src/renderer/sorta.html` (second renderer entry) shown in an
+  `<iframe class="sorta-frame">` that App keeps alive after the first visit, so
+  Sorta's CSS / shortcuts / state stay isolated from Halftone's.
+- The preload runs in every frame (`nodeIntegrationInSubFrames: true` on the
+  main window): `sorta.html` gets Sorta's `window.api` (`createSortaApi`), the
+  top page gets Halftone's, other frames get nothing.
+- Main side: `src/main/sorta.ts` → Sorta's `initSorta()` (IPC on `sorta:*`
+  channels, `sorta-img://` protocol registered with Halftone's schemes in
+  `registerImageScheme([SORTA_SCHEME])`). Events go to the Sorta frame via
+  `WebFrameMain.send`.
+- Data: shared with the standalone Sorta app, `%APPDATA%/Sorta` (opened lazily on
+  the first visit; `sorta.lock` lets only one app use it — the other shows
+  "…에서 Sorta 데이터를 쓰고 있습니다" + 다시 시도). Test with a copy:
+  `SORTA_DATA_DIR=<folder>`.
+- Native modules for it: `better-sqlite3` (Electron prebuilt fetched by
+  `scripts/native.mjs` on postinstall; `npmRebuild: false`), `sharp`; both
+  `asarUnpack`ed and external in the main build.

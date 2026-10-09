@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { Api } from '../shared/ipc'
+import { createApi as createSortaApi } from '../sorta/preload/api'
 
 const api: Api = {
   pickFolder: () => ipcRenderer.invoke(IPC.pickFolder),
@@ -163,4 +164,8 @@ const api: Api = {
   closeWindow: (decision, session) => ipcRenderer.invoke(IPC.closeWindow, decision, session)
 }
 
-contextBridge.exposeInMainWorld('api', api)
+// The preload runs in every frame of the main window (nodeIntegrationInSubFrames):
+// the 캐릭터 분류 frame (sorta.html) gets Sorta's API; the top page gets
+// Halftone's; any other frame gets nothing.
+if (/\/sorta\.html$/.test(location.pathname)) contextBridge.exposeInMainWorld('api', createSortaApi(ipcRenderer))
+else if (window.top === window) contextBridge.exposeInMainWorld('api', api)
