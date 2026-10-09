@@ -27,6 +27,7 @@ export type ShortcutId =
   | 'reload'
   | 'nextPage'
   | 'prevPage'
+  | 'focusToggle'
   | 'transUndo'
   | 'transRedo'
   | 'forceQuit'
@@ -60,6 +61,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: 'tabLast', group: '탭', label: '마지막 탭', defaults: ['Ctrl+9'] },
   { id: 'nextPage', group: '감상', label: '다음 페이지', defaults: ['ArrowRight', 'PageDown'] },
   { id: 'prevPage', group: '감상', label: '이전 페이지', defaults: ['ArrowLeft', 'PageUp'] },
+  { id: 'focusToggle', group: '감상', label: '포커스 모드: 막대 보이기 / 숨기기', defaults: ['Space'] },
   { id: 'transUndo', group: '번역 편집', label: '실행 취소', defaults: ['Ctrl+Z'] },
   { id: 'transRedo', group: '번역 편집', label: '다시 실행', defaults: ['Ctrl+Shift+Z', 'Ctrl+Y'] }
 ]

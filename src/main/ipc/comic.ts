@@ -77,7 +77,9 @@ export function registerComicIpc(): void {
     return { ...r, items: r.items.map((it) => ({ ...it, thumb: it.thumb ? encodeComic(it.thumb) : null })) }
   })
   ipcMain.handle(IPC.comicChapters, (_e, seriesUrl: string) => comicChapters(store.settings.comicBaseUrl, seriesUrl))
-  ipcMain.handle(IPC.comicReadUrls, async (_e, chapterUrl: string) => (await comicReadUrls(store.settings.comicBaseUrl, chapterUrl)).map(encodeComic))
+  ipcMain.handle(IPC.comicReadUrls, async (_e, chapterUrl: string, fresh?: boolean) =>
+    (await comicReadUrls(store.settings.comicBaseUrl, chapterUrl, fresh === true)).map(encodeComic)
+  )
   ipcMain.handle(IPC.comicSeriesAuthor, (_e, seriesUrl: string) => comicSeriesAuthor(store.settings.comicBaseUrl, seriesUrl))
   ipcMain.handle(IPC.comicSeriesTitle, (_e, seriesUrl: string) => comicSeriesTitle(store.settings.comicBaseUrl, seriesUrl))
 

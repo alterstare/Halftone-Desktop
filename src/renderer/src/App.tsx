@@ -69,8 +69,9 @@ export default function App(): JSX.Element {
   useEffect(() => {
     const onMsg = (e: MessageEvent): void => {
       const frame = document.querySelector('.sorta-frame') as HTMLIFrameElement | null
-      if (!frame || e.source !== frame.contentWindow || e.data?.type !== 'sorta-job') return
-      useStore.getState().sortaJob(e.data.event)
+      if (!frame || e.source !== frame.contentWindow) return
+      if (e.data?.type === 'sorta-job') useStore.getState().sortaJob(e.data.event)
+      else if (e.data?.type === 'sorta-view') useStore.setState({ sortaView: String(e.data.view) })
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
@@ -168,6 +169,53 @@ export default function App(): JSX.Element {
     await window.api.comicChallengeAction('retry')
   }
   useEffect(() => window.api.onComicChallenge((active) => setCfChallenge(active)), [])
+
+  // 포커스 모드: chrome hidden once reading starts (Reader sets focusHidden).
+  // Leaving the reader, switching tabs or turning the mode off shows it again.
+  const focusMode = useStore((s) => s.settings.focusMode ?? 0)
+  const focusHidden = useStore((s) => s.focusHidden)
+  const setFocusHidden = useStore((s) => s.setFocusHidden)
+  const focusOn = focusHidden && focusMode > 0 && view === 'reader'
+  useEffect(() => setFocusHidden(false), [view, activeTabId, focusMode, setFocusHidden])
+  // Reveal by mouse: hovering where a hidden bar normally sits brings the chrome
+  // back — the reader's top bar band (plus the tab bar's from 3단계), the bottom
+  // bar band, and from 2단계 a strip at the reader's left edge for the sidebar.
+  // Bar heights are read live: the bars stay laid out inside their collapsed
+  // slides, so offsetHeight is still their natural height. Reading hides again.
+  useEffect(() => {
+    if (!focusOn) return
+    const LEFT_STRIP = 16
+    const onMove = (e: MouseEvent): void => {
+      const pane = document.querySelector<HTMLElement>('.reader-pane')
+      if (!pane) return
+      const r = pane.getBoundingClientRect()
+      const headH = document.querySelector<HTMLElement>('.reader-head')?.offsetHeight ?? 0
+      const footH = document.querySelector<HTMLElement>('.reader-bottom-wrap')?.offsetHeight ?? 0
+      const tabH = focusMode >= 3 ? document.querySelector<HTMLElement>('.tabbar')?.offsetHeight ?? 0 : 0
+      const inPaneX = e.clientX >= r.left && e.clientX <= r.right
+      const top = inPaneX && e.clientY >= r.top && e.clientY <= r.top + tabH + headH
+      const bottom = inPaneX && e.clientY >= r.bottom - footH && e.clientY <= r.bottom
+      const left = focusMode >= 2 && e.clientX <= r.left + LEFT_STRIP && e.clientY >= r.top && e.clientY <= r.bottom
+      if (top || bottom || left) setFocusHidden(false)
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [focusOn, focusMode, setFocusHidden])
+  // Reveal / hide by key (단축키 'focusToggle', Space by default).
+  useEffect(() => {
+    if (view !== 'reader' || focusMode === 0) return
+    const onKey = (e: KeyboardEvent): void => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
+      const combo = comboFromEvent(e)
+      if (!combo || !shortcutCombos(useStore.getState().settings.shortcuts, 'focusToggle').includes(combo)) return
+      // Also keeps Space from scrolling the page / pressing a focused button.
+      e.preventDefault()
+      setFocusHidden(!useStore.getState().focusHidden)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [view, focusMode, setFocusHidden])
 
   // Auto-update progress → shown as a row in the activity bar.
   useEffect(() => window.api.onUpdateStatus((s) => useStore.getState().setUpdate(s)), [])
@@ -275,8 +323,12 @@ export default function App(): JSX.Element {
   }
 
   return (
-    <div className="app">
-      <TabBar />
+    <div className={`app ${focusOn ? `focus focus-${focusMode}` : ''}`}>
+      <div className="chrome-slide tabbar-chrome">
+        <div className="chrome-clip">
+          <TabBar />
+        </div>
+      </div>
       <MenuDrawer />
       <div className="body" ref={bodyRef}>
         {view === 'settings' ? (
@@ -293,7 +345,7 @@ export default function App(): JSX.Element {
           <Home />
         )}
         {sortaSeen && (
-          <iframe className="sorta-frame" src="sorta.html" title="캐릭터 분류" style={{ display: view === 'sorta' ? 'block' : 'none' }} />
+          <iframe className="sorta-frame" src="sorta.html" aria-label="캐릭터 분류" style={{ display: view === 'sorta' ? 'block' : 'none' }} />
         )}
         {/* Kept-alive online browse (hidden when another view is active). */}
         {browseSeen && (

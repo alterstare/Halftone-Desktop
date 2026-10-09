@@ -102,6 +102,7 @@ export const SettingsIcon = mkIcon(
 export const SearchIcon = mkIcon(
   'm19.6 21l-6.3-6.3q-.75.6-1.725.95T9.5 16q-2.725 0-4.612-1.888T3 9.5t1.888-4.612T9.5 3t4.613 1.888T16 9.5q0 1.1-.35 2.075T14.7 13.3l6.3 6.3zM9.5 14q1.875 0 3.188-1.312T14 9.5t-1.312-3.187T9.5 5T6.313 6.313T5 9.5t1.313 3.188T9.5 14'
 )
+export const RefreshIcon = mkIcon('M12 20q-3.35 0-5.675-2.325T4 12t2.325-5.675T12 4q1.725 0 3.3.712T18 6.75V4h2v7h-7V9h4.2q-.8-1.4-2.187-2.2T12 6Q9.5 6 7.75 7.75T6 12t1.75 4.25T12 18q1.925 0 3.475-1.1T17.65 14h2.1q-.7 2.65-2.85 4.325T12 20') // Refresh
 export const SyncIcon = mkIcon(
   'M4 20v-2h2.75l-.4-.35q-1.225-1.225-1.787-2.662T4 12.05q0-2.775 1.663-4.937T10 4.25v2.1Q8.2 7 7.1 8.563T7 12.05q0 1.125.425 2.188T7.75 16.2l.25.25V14h2v6zm10-.25v-2.1q1.8-.65 2.9-2.212T18 11.95q0-1.125-.425-2.187T16.25 7.8L16 7.55V10h-2V4h6v2h-2.75l.4.35q1.225 1.225 1.788 2.663T20 11.95q0 2.775-1.662 4.938T14 19.75'
 )
@@ -202,6 +203,44 @@ export function XIcon({ className }: IconProps): JSX.Element {
       aria-hidden="true"
     >
       <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  )
+}
+
+// --- Material Symbols downloaded as-is (fill 1, 24px; 960-unit viewBox). ---
+function mkIcon960(path: string) {
+  return function Icon({ className }: IconProps): JSX.Element {
+    return (
+      <svg className={`micon ${className ?? ''}`} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
+        <path d={path} />
+      </svg>
+    )
+  }
+}
+export const PageGapIcon = mkIcon960('M240-160 80-320l56-56 64 62v-332l-64 62-56-56 160-160 160 160-56 56-64-62v332l64-62 56 56-160 160Zm240-40v-80h400v80H480Zm0-240v-80h400v80H480Zm0-240v-80h400v80H480Z') // format_line_spacing — reader option: 페이지 간격
+export const CoverSingleIcon = mkIcon960('M480-280h80v-400H400v80h80v320ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Z') // looks_one — reader option: 첫 페이지 단독
+export const WheelFlipOnIcon = mkIcon960('M480-200 240-440l56-56 184 183 184-183 56 56-240 240Zm0-240L240-680l56-56 184 183 184-183 56 56-240 240Z') // keyboard_double_arrow_down — reader option: 스크롤 넘김 ON
+export const WheelFlipOffIcon = mkIcon960('M551-80 406-392 240-160v-720l560 440H516l144 309-109 51Z') // arrow_selector_tool — reader option: 스크롤 넘김 OFF
+export const ClickLeftIcon = mkIcon960('M460-320v-320L300-480l160 160ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm360-80v-560H200v560h360Z') // right_panel_open — reader option: 넘김 클릭 왼쪽
+export const ClickRightIcon = mkIcon960('M500-640v320l160-160-160-160ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm200-80h360v-560H400v560Z') // left_panel_open — reader option: 넘김 클릭 오른쪽
+export const NextRightIcon = mkIcon960('M800-240v-480h80v480h-80Zm-320 0-57-56 144-144H80v-80h487L424-664l56-56 240 240-240 240Z') // keyboard_tab — reader option: 다음 페이지 오른쪽
+export const NextLeftIcon = mkIcon960('M160-240H80v-480h80v480Zm320 0L240-480l240-240 56 56-143 144h487v80H393l144 144-57 56Z') // keyboard_tab_rtl — reader option: 다음 페이지 왼쪽
+
+// 포커스 모드 level: fullscreen_exit corners (inward) when off; fullscreen
+// corners (outward) with the level number inside when on — like the fit icons.
+export function FocusLevelIcon({ level, className }: IconProps & { level: number }): JSX.Element {
+  return (
+    <svg className={`micon ${className ?? ''}`} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      {level > 0 ? (
+        <>
+          <path d="M3 21v-5h2v3h3v2zm13 0v-2h3v-3h2v5zM3 8V3h5v2H5v3zm16 0V5h-3V3h5v5z" />
+          <text x="12" y="12.5" textAnchor="middle" dominantBaseline="central" fontSize="10" fontWeight="700">
+            {level}
+          </text>
+        </>
+      ) : (
+        <path d="M6 21v-3H3v-2h5v5zm10 0v-5h5v2h-3v3zM3 8V6h3V3h2v5zm13 0V3h2v3h3v2z" />
+      )}
     </svg>
   )
 }

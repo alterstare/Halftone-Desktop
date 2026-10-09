@@ -110,7 +110,7 @@ const api: Api = {
   doujinRegenCover: (workId, code) => ipcRenderer.invoke(IPC.doujinRegenCover, workId, code),
   comicList: (source, page) => ipcRenderer.invoke(IPC.comicList, source, page),
   comicChapters: (seriesUrl) => ipcRenderer.invoke(IPC.comicChapters, seriesUrl),
-  comicReadUrls: (chapterUrl) => ipcRenderer.invoke(IPC.comicReadUrls, chapterUrl),
+  comicReadUrls: (chapterUrl, fresh) => ipcRenderer.invoke(IPC.comicReadUrls, chapterUrl, fresh),
   comicDownload: (seriesUrl, title) => ipcRenderer.invoke(IPC.comicDownload, seriesUrl, title),
   comicDownloadChapters: (seriesUrl, title, chapterUrls) =>
     ipcRenderer.invoke(IPC.comicDownloadChapters, seriesUrl, title, chapterUrls),

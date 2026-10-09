@@ -308,6 +308,7 @@ interface AppState {
   goManage: (mode: 'duplicates' | 'translations' | 'merge' | 'collections') => void
   goTransWork: () => void
   goSorta: () => void // 캐릭터 분류 mode (Sorta)
+  sortaView: string // screen shown in the Sorta frame (its settings button in the tab bar lights up)
   // 번역 편집기 list (persisted in settings.transProjects).
   addTransProjects: (workIds: string[]) => void
   updateTransProject: (workId: string, patch: Partial<TransProject>) => void
@@ -360,6 +361,10 @@ interface AppState {
   moveTab: (dragId: string, overId: string | null) => void // reorder; null = move to end
   refreshTab: (tabId: string) => void // reload that tab's content
   reloadNonce: number
+  // 포커스 모드: chrome currently hidden (reading started). Shown again by the
+  // reveal gesture, a view/tab change, or turning the mode off.
+  focusHidden: boolean
+  setFocusHidden: (v: boolean) => void
   // Split view.
   openSplit: (workId: string) => void
   openSplitOnline: (g: OnlineGallery) => void
@@ -421,6 +426,9 @@ interface AppState {
   setLastReaderMode: (lib: 'doujin' | 'normal', m: 'scroll' | 'paged' | 'spread') => void
   setLastFit: (lib: 'doujin' | 'normal', f: FitMode) => void
   setLastZoom: (lib: 'doujin' | 'normal', z: number) => void
+  // Change settings from outside the settings screen (e.g. the reader's option
+  // row). Per-mode keys also land in the current mode's overlay so they stick.
+  patchSettings: (patch: Partial<Settings>) => void
   setHomeLayout: (l: 'list' | 'grid') => void
   setBrowseSource: (s: DoujinListSource) => void
   // Cross-search: jump to the online browse and run a query (from a local card),
@@ -604,6 +612,10 @@ export const useStore = create<AppState>((set, get) => ({
   tabGroups: [],
   activeTabId: null,
   reloadNonce: 0,
+  focusHidden: false,
+  setFocusHidden: (v) => {
+    if (get().focusHidden !== v) set({ focusHidden: v })
+  },
 
   search: '',
   searchSeed: null,
@@ -802,6 +814,7 @@ export const useStore = create<AppState>((set, get) => ({
   goManage: (mode) => guardLeave(get, set, () => set({ view: 'manage', manageMode: mode })),
   goTransWork: () => guardLeave(get, set, () => set({ view: 'transwork' })),
   goSorta: () => guardLeave(get, set, () => set({ view: 'sorta' })),
+  sortaView: 'library',
   addTransProjects: (workIds) => {
     const cur = get().settings.transProjects ?? []
     const now = Date.now()
@@ -1714,6 +1727,18 @@ export const useStore = create<AppState>((set, get) => ({
     const cur = get().settings.lastFit ?? { doujin: 'contain', normal: 'width' }
     if (cur[lib] === f) return
     const s = { ...get().settings, lastFit: { ...cur, [lib]: f } }
+    set({ settings: s })
+    window.api.saveSettings(s)
+  },
+  patchSettings: (patch) => {
+    const st = get()
+    const split = Object.fromEntries(
+      Object.entries(patch).filter(([k]) => (SPLIT_SETTING_KEYS as readonly string[]).includes(k))
+    )
+    const perMode = Object.keys(split).length
+      ? { ...st.settings.perMode, [st.libraryMode]: { ...st.settings.perMode?.[st.libraryMode], ...split } }
+      : st.settings.perMode
+    const s = { ...st.settings, ...patch, perMode }
     set({ settings: s })
     window.api.saveSettings(s)
   },

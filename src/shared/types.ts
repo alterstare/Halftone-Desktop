@@ -189,6 +189,12 @@ export interface Settings {
   // Two-page (spread) view: which side the NEXT page sits on. 'left' = manga
   // right-to-left (current page on the right), 'right' = left-to-right.
   spreadNextSide: 'left' | 'right'
+  // Two-page view: show the first page (usually the cover) on its own, so the
+  // pages after it pair up as printed (2-3, 4-5, …) instead of shifted by one.
+  spreadCoverSingle: boolean
+  // 포커스 모드: once reading starts, hide the reader's chrome. 0 = off,
+  // 1 = reader top/bottom bars, 2 = + the list sidebar, 3 = + the tab bar.
+  focusMode: 0 | 1 | 2 | 3
   // Click-paging (paged + spread): which half of the page advances to the next
   // page. 'right' = click the right half to go forward (default), 'left' = click
   // the left half to go forward.
@@ -327,6 +333,7 @@ export const SPLIT_SETTING_KEYS = [
   'readerPageGap',
   'pagedWheelFlip',
   'spreadNextSide',
+  'spreadCoverSingle',
   'pagedFlipSide',
   'defaultSort',
   'ignoreBracketTagsInSort'
@@ -416,6 +423,8 @@ export const DEFAULT_SETTINGS: Settings = {
   lastFit: { doujin: 'contain', normal: 'width' },
   lastZoom: { doujin: 1, normal: 1 },
   spreadNextSide: 'left',
+  spreadCoverSingle: false,
+  focusMode: 0,
   pagedFlipSide: 'right',
   homeLayout: 'grid',
   thumbHoverPreview: true,

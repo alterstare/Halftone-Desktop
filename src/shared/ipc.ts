@@ -383,7 +383,7 @@ export interface Api {
   // General-manga online (manga-site-family). Scraped via a hidden BrowserWindow.
   comicList: (source: ComicListSource, page: number) => Promise<ComicListResult>
   comicChapters: (seriesUrl: string) => Promise<ComicChapter[]>
-  comicReadUrls: (chapterUrl: string) => Promise<string[]> // wrapped image urls
+  comicReadUrls: (chapterUrl: string, fresh?: boolean) => Promise<string[]> // wrapped image urls; fresh = reload the page
   // Download every chapter of a series into the general-manga library. Progress
   // is reported on the doujinProgress channel (code = seriesUrl). Returns the
   // newly scanned chapter works.

@@ -1116,6 +1116,13 @@ select {
   color: rgba(0, 0, 0, 0.10);
   pointer-events: none;
 }
+.paged-hint {
+  transition: opacity 0.12s ease-out;
+}
+/* Gone for good once reading starts (Reader sets .gone). */
+.paged-hint.gone {
+  opacity: 0;
+}
 .paged-hint.left {
   left: 18px;
 }
@@ -1134,6 +1141,145 @@ select {
      instead of overflowing / clipping the buttons. */
   flex-wrap: wrap;
   row-gap: 8px;
+}
+/* 포커스 모드: chrome wrapped in collapsible slides (grid 0fr ↔ 1fr animates
+   the height). .app.focus-N hides level N's parts:
+   1 = reader top/bottom bars, 2 = + list sidebar, 3 = + tab bar. */
+.chrome-slide {
+  display: grid;
+  grid-template-rows: 1fr;
+  flex-shrink: 0;
+  transition: grid-template-rows 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.chrome-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+.app.focus .reader-chrome,
+.app.focus-3 .tabbar-chrome {
+  grid-template-rows: 0fr;
+}
+.app.focus-2 .list-pane,
+.app.focus-3 .list-pane {
+  width: 0 !important;
+  box-shadow: none;
+}
+.app.focus-2 .divider,
+.app.focus-3 .divider {
+  width: 0;
+  pointer-events: none;
+}
+.app.focus-2 .divider .list-toggle,
+.app.focus-3 .divider .list-toggle {
+  display: none;
+}
+
+/* Option-row buttons: icon, name, then the current value in small dim text. */
+.reader-opt-btns .mini.opt-btn {
+  /* Fixed width so the hover reveal never shifts the neighbouring buttons. */
+  width: 76px;
+  padding: 1px 4px;
+}
+/* Icon + value row. The value starts collapsed (0 width, transparent); on hover
+   it widens and fades in, and since the row stays centred the icon slides left
+   to make room — reversing smoothly on leave. */
+/* The pointer glyph (스크롤 넘김 OFF) reads larger than its neighbours. */
+.micon.opt-ico-pointer {
+  transform: scale(0.95);
+}
+.opt-top {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.opt-state {
+  max-width: 0;
+  margin-left: 0;
+  overflow: hidden;
+  opacity: 0;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    max-width 0.12s ease-out,
+    margin-left 0.12s ease-out,
+    opacity 0.12s ease-out;
+}
+.opt-btn:hover .opt-state,
+.opt-btn:focus-visible .opt-state {
+  max-width: 44px;
+  margin-left: 3px;
+  opacity: 1;
+}
+
+/* Bottom bar + its expandable option row (toggled by the arrow at the left). */
+.reader-bottom-wrap {
+  flex-shrink: 0;
+  background: var(--bg-1);
+}
+.reader-bottom .mini.reader-bar-toggle {
+  /* Blends into the bar: no outline, bar-coloured; the arrow flips when open. */
+  border-color: transparent;
+  background: var(--bg-1);
+  color: var(--text-dim);
+}
+.reader-bottom .mini.reader-bar-toggle:hover {
+  color: var(--text);
+}
+.reader-bar-toggle .micon {
+  font-size: 18px;
+  transition: transform 0.12s ease-out;
+}
+.reader-bottom-wrap.open .reader-bar-toggle .micon {
+  transform: rotate(180deg);
+}
+/* Open/close: the row's height animates 0 → auto (grid 0fr → 1fr) while its
+   content slides up into place and fades in. */
+.reader-options-slide {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.reader-bottom-wrap.open .reader-options-slide {
+  grid-template-rows: 1fr;
+}
+.reader-options-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+.reader-options-slide .reader-options {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.reader-bottom-wrap.open .reader-options-slide .reader-options {
+  opacity: 1;
+  transform: none;
+}
+.reader-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  /* Same vertical breathing room as the main bar (its padding is 2px top/bottom). */
+  padding: 2px 16px;
+  position: relative;
+  font-size: 12px;
+}
+/* Separator from the main bar: inset from both ends instead of edge to edge. */
+.reader-options::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: var(--line);
+}
+.reader-options-label {
+  color: var(--muted);
 }
 .page-slider {
   flex: 1 1 140px;
@@ -4618,12 +4764,16 @@ select:focus,
   gap: 3px;
   flex-shrink: 0;
 }
+/* Icon-only buttons are circles (width follows the height). The 그룹 생성 (+)
+   built into the group panel's input keeps its own flat shape. */
 .mini.icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 3px 5px;
+  padding: 0;
   line-height: 0;
+  aspect-ratio: 1;
+  border-radius: 50%;
 }
 .mini.icon .seg-ico {
   width: 14px;
@@ -5506,6 +5656,9 @@ textarea {
 }
 .key-add.on {
   padding: 0 8px;
+  /* Shows "키 입력…" while recording → a pill-free rounded box, not a circle. */
+  aspect-ratio: auto;
+  border-radius: var(--r4);
 }
 .key-wait {
   font-size: 12px;
@@ -5558,7 +5711,7 @@ textarea {
 /* Reader bottom bar buttons (모드 · 맞춤 · 번역) + glance window buttons:
    icon + label spacing; glance icon buttons square. */
 .glance-actions.flat-group .mini.icon {
-  width: 30px;
+  width: 28px;
   height: 28px;
   font-size: 17px;
 }
@@ -5643,7 +5796,7 @@ textarea {
   color: var(--text-hover);
 }
 .reader-head .mini.icon {
-  width: 30px;
+  width: 28px;
   height: 28px;
   padding: 0;
   font-size: 18px;
@@ -6660,6 +6813,8 @@ textarea {
   border: 1px solid transparent;
   border-left-color: var(--line);
   border-radius: 0 var(--r4) var(--r4) 0;
+  /* Full-height strip on the card's edge, not a circle. */
+  aspect-ratio: auto;
 }
 .edition-dl:hover:not(:disabled),
 .edition-dl:active:not(:disabled) {
@@ -7265,4 +7420,8 @@ textarea {
   border: none;
   display: block;
   background: var(--bg);
+}
+.menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
 }

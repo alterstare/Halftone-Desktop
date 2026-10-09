@@ -173,7 +173,8 @@ type DownloadSpec =
 | `--panel` | `#ffffff` | `#14161d` | modal/panel surface |
 
 - Shadows: `--shadow-subtle`, `--shadow-micro`. Radius scale: `--r1`=4 `--r2`=6
-  `--r3`=8 `--r4`/`--r5`=12 `--r6`=16. **Buttons cap at 12px radius — no pills.**
+  `--r3`=8 `--r4`/`--r5`=12 `--r6`=16. **Buttons cap at 12px radius — no pills.** Exception: icon-only
+  buttons (`.mini.icon`) are circles (`aspect-ratio: 1; border-radius: 50%`).
 
 ### Shared UI components (reuse — do NOT hand-roll native controls)
 In `src/renderer/src/components/`:

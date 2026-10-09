@@ -285,9 +285,10 @@ export function comicChallengeAction(action: 'show' | 'retry' | 'cancel'): void 
   w.focus()
 }
 
-async function ensure(url: string, needContent: boolean): Promise<void> {
+// `force` reloads even when the url is already open (다시 불러오기).
+async function ensure(url: string, needContent: boolean, force = false): Promise<void> {
   const w = getWindow()
-  if (sameUrl(w.webContents.getURL(), url)) {
+  if (!force && sameUrl(w.webContents.getURL(), url)) {
     const p = await probe(w)
     if (p && !p.challenge && (p.ready || !needContent)) return // already good — no reload
   }
@@ -413,11 +414,11 @@ async function ensure(url: string, needContent: boolean): Promise<void> {
   }
 }
 
-async function evalPage<T>(script: string, fallback: T): Promise<T> {
+async function evalPage<T>(script: string, fallback: T, ms = 30000): Promise<T> {
   const w = getWindow()
   // 30s cap: the in-page list script clicks + waits (≤~10s normally); a longer
   // wait means the context was torn down by a navigation → bail to the fallback.
-  return withTimeout(w.webContents.executeJavaScript(script, true) as Promise<T>, 30000, fallback)
+  return withTimeout(w.webContents.executeJavaScript(script, true) as Promise<T>, ms, fallback)
 }
 
 // Sort tab → the site's `sort` query value (verified 2026-10; 최신순 = none).
@@ -871,18 +872,66 @@ export async function comicAuthorForTitle(base: string, title: string): Promise<
 // existed and fell through to the last-resort scan (= the ad banners). Wait
 // until a page image shows up — returns at once when it's already there, gives
 // up after `ms` (then READ_SCRIPT's fallbacks run as before).
+// The viewer is a virtualized list now: the full page list comes from an API
+// call, but only the ~5 pages near the scroll position are in the DOM (the rest
+// are height-only spacers), so READ_SCRIPT alone got just the first few pages.
+// Scroll the (hidden) page top to bottom collecting <img alt="page N"> → src.
+// No backslashes in here on purpose: inside this template literal "\D" would
+// silently become "D" and break the regex (bit the mobile port).
+const COLLECT_SCRIPT = `(async () => {
+  const se = document.scrollingElement || document.documentElement
+  const got = new Map()
+  const grab = () => {
+    for (const img of document.querySelectorAll('.vw-imgs img, img.viewer-ratio-img, img.viewer-lazy-img')) {
+      const n = parseInt((img.getAttribute('alt') || '').replace(/[^0-9]/g, ''))
+      const u = img.getAttribute('data-src') || img.getAttribute('src')
+      if (n > 0 && u && /^https?:/.test(u)) got.set(n, u)
+    }
+  }
+  const step = Math.max(200, Math.round(innerHeight * 0.8))
+  let stall = 0
+  for (let i = 0; i < 2000 && stall < 6; i++) {
+    grab()
+    const before = got.size
+    se.scrollTop = se.scrollTop + step
+    await new Promise((r) => setTimeout(r, 120))
+    grab()
+    const atEnd = se.scrollTop + innerHeight >= se.scrollHeight - 2
+    if (got.size === before && atEnd) stall++
+    else stall = 0
+  }
+  se.scrollTop = 0
+  return [...got.keys()].sort((a, b) => a - b).map((k) => got.get(k))
+})()`
+
+// Whether the viewer is virtualized: some of its children are height-only
+// spacers without an <img>. Chapters rendered in full (every page an <img>)
+// skip the 5–10s scroll. No .vw-imgs (unknown layout) → collect to be safe.
+const NEEDS_COLLECT = `(() => {
+  const v = document.querySelector('.vw-imgs')
+  if (!v) return true
+  return [...v.children].some((c) => !(c.matches('img') || c.querySelector('img')))
+})()`
+
 const HAS_PAGE_IMG = `!!document.querySelector('.vw-imgs img, img.viewer-lazy-img, img.viewer-ratio-img')`
 async function waitPageImages(ms: number): Promise<void> {
   const end = Date.now() + ms
   while (!(await evalPage<boolean>(HAS_PAGE_IMG, false)) && Date.now() < end) await delay(300)
 }
 
-export async function comicReadUrls(_base: string, chapterUrl: string): Promise<string[]> {
+// `fresh` reloads the chapter page even if it's already open (다시 불러오기).
+export async function comicReadUrls(_base: string, chapterUrl: string, fresh = false): Promise<string[]> {
   return queue(async () => {
-    await ensure(chapterUrl, true)
+    await ensure(chapterUrl, true, fresh)
     status('만화 이미지를 기다리는 중…')
     await waitPageImages(20000)
-    return evalPage<string[]>(READ_SCRIPT, [])
+    const read = await evalPage<string[]>(READ_SCRIPT, [])
+    if (!(await evalPage<boolean>(NEEDS_COLLECT, true))) return read
+    status('전체 페이지를 모으는 중…')
+    // Long webtoons (hundreds of pages) take a while to scroll through.
+    const collected = await evalPage<string[]>(COLLECT_SCRIPT, [], 120000)
+    // Older viewers without alt="page N" only work with READ_SCRIPT.
+    return collected.length > read.length ? collected : read
   })
 }
 

@@ -8,6 +8,7 @@ import Dropdown from '../Dropdown'
 import SettingRow from '../SettingRow'
 import Stepper from '../Stepper'
 import Toggle from '../Toggle'
+import { RadioCards } from './parts'
 import { useSettings } from './context'
 
 export default function StyleSection(): JSX.Element {
@@ -78,6 +79,20 @@ export default function StyleSection(): JSX.Element {
         <SettingRow title="두 쪽 보기에서 오른쪽을 다음 페이지로" desc="끄면 왼쪽이 다음(만화식) 페이지가 됩니다.">
           <Toggle checked={draft.spreadNextSide === 'right'} onChange={(v) => patch({ spreadNextSide: v ? 'right' : 'left' })} />
         </SettingRow>
+        <SettingRow title="두 쪽 보기에서 첫 페이지 단독 표시" desc="첫 페이지(표지)를 한 장으로 보여 주고, 그다음부터 2-3, 4-5쪽처럼 짝을 맞춥니다. 펼침 그림이 어긋날 때 켜세요.">
+          <Toggle checked={draft.spreadCoverSingle === true} onChange={(v) => patch({ spreadCoverSingle: v })} />
+        </SettingRow>
+        <SettingRow title="포커스 모드" desc="감상을 시작하면(클릭·휠·페이지 넘김) 화면 주변 막대를 숨깁니다. 감상창 하단바 옵션에서도 바꿀 수 있습니다." />
+        <RadioCards<'0' | '1' | '2' | '3'>
+          value={String(draft.focusMode ?? 0) as '0' | '1' | '2' | '3'}
+          onChange={(v) => patch({ focusMode: Number(v) as 0 | 1 | 2 | 3 })}
+          options={[
+            { val: '0', label: '끔', desc: '막대를 숨기지 않습니다.' },
+            { val: '1', label: '1단계', desc: '감상창의 상단바와 하단바를 숨깁니다.' },
+            { val: '2', label: '2단계', desc: '상단바·하단바와 함께 왼쪽 목록(사이드바)도 숨깁니다.' },
+            { val: '3', label: '3단계', desc: '상단바·하단바·사이드바에 더해 맨 위 탭바까지 숨깁니다.' }
+          ]}
+        />
         <SettingRow title="왼쪽을 클릭해서 페이지 넘기기" desc="끄면 오른쪽을 클릭해 다음 페이지로 넘깁니다.">
           <Toggle checked={draft.pagedFlipSide === 'left'} onChange={(v) => patch({ pagedFlipSide: v ? 'left' : 'right' })} />
         </SettingRow>

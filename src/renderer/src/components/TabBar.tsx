@@ -15,6 +15,7 @@ export default function TabBar(): JSX.Element {
   const chapterScheme = useStore((s) => s.settings.normalChapterScheme)
   const activeTabId = useStore((s) => s.activeTabId)
   const view = useStore((s) => s.view)
+  const sortaView = useStore((s) => s.sortaView)
   const libraryMode = useStore((s) => s.libraryMode)
   const decoy = useLock((s) => s.decoy)
   const goHome = useStore((s) => s.goHome)
@@ -493,9 +494,23 @@ export default function TabBar(): JSX.Element {
       >
         <DownloadIcon />
       </button>
-      <button className={`tab icon-tab ${view === 'settings' ? 'active' : ''}`} onClick={() => useStore.getState().goSettings()} title="설정">
-        <SettingsIcon />
-      </button>
+      {/* In 캐릭터 분류 mode this is Sorta's settings button (Halftone's own
+          settings stay out of reach there). */}
+      {view === 'sorta' ? (
+        <button
+          className={`tab icon-tab ${sortaView === 'settings' ? 'active' : ''}`}
+          onClick={() =>
+            (document.querySelector('.sorta-frame') as HTMLIFrameElement | null)?.contentWindow?.postMessage({ type: 'sorta-settings' }, '*')
+          }
+          title="캐릭터 분류 설정"
+        >
+          <SettingsIcon />
+        </button>
+      ) : (
+        <button className={`tab icon-tab ${view === 'settings' ? 'active' : ''}`} onClick={() => useStore.getState().goSettings()} title="설정">
+          <SettingsIcon />
+        </button>
+      )}
 
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.tab)} onClose={() => setMenu(null)} />}
       {grpMenu && (

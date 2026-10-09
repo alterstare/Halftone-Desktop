@@ -11,15 +11,19 @@ function Item({
   icon,
   label,
   active,
-  onClick
+  onClick,
+  disabled,
+  title
 }: {
   icon: ReactNode
   label: string
   active?: boolean
   onClick: () => void
+  disabled?: boolean
+  title?: string
 }): JSX.Element {
   return (
-    <button className={`menu-item ${active ? 'active' : ''}`} onClick={onClick}>
+    <button className={`menu-item ${active ? 'active' : ''}`} onClick={onClick} disabled={disabled} title={title}>
       <span className="menu-item-ico">{icon}</span>
       <span className="menu-item-label">{label}</span>
     </button>
@@ -122,7 +126,14 @@ export default function MenuDrawer(): JSX.Element {
         <div className="menu-sep" />
         <Item icon={<DownloadIcon />} label="작업 목록" active={view === 'download'} onClick={() => go(goDownload)} />
         <Item icon={<AssignmentIcon />} label="관리" active={view === 'manage'} onClick={() => go(() => goManage('duplicates'))} />
-        <Item icon={<SettingsIcon />} label="설정" active={view === 'settings'} onClick={() => go(goSettings)} />
+        <Item
+          icon={<SettingsIcon />}
+          label="설정"
+          active={view === 'settings'}
+          onClick={() => go(goSettings)}
+          disabled={sortaMode}
+          title={sortaMode ? '캐릭터 분류 모드에서는 탭 막대의 설정 버튼이 캐릭터 분류 설정을 엽니다' : undefined}
+        />
       </nav>
     </div>
   )

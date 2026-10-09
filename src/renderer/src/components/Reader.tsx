@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { useStore, useSeriesRoots } from '../store'
-import { getImages, getOnlineImages } from '../images'
+import { getImages, getOnlineImages, reloadOnlineImages } from '../images'
 import { getComicChapters } from '../comic'
 import { analyzeSeries, seriesOf, splitArtists, workLanguage } from '../util'
 import type { ComicChapter } from '../../../shared/ipc'
@@ -23,11 +23,58 @@ import { prefetchOrdered } from './reader/prefetch'
 import PageSlot from './reader/PageSlot'
 import { useComicStatus } from './useComicStatus'
 import { comboFromEvent, shortcutCombos } from '../../../shared/shortcuts'
-import { DownloadIcon, ScrollModeIcon, PageModeIcon, SpreadModeIcon, TranslateIcon, ArrowBackIcon, FolderOpenIcon, CheckMarkIcon, KeyboardArrowLeftIcon, KeyboardArrowRightIcon } from './icons'
+import { DownloadIcon, ScrollModeIcon, PageModeIcon, SpreadModeIcon, TranslateIcon, ArrowBackIcon, FolderOpenIcon, CheckMarkIcon, KeyboardArrowLeftIcon, KeyboardArrowRightIcon, RefreshIcon, ArrowUpIcon, PageGapIcon, CoverSingleIcon, WheelFlipOnIcon, WheelFlipOffIcon, ClickLeftIcon, ClickRightIcon, NextRightIcon, NextLeftIcon, FocusLevelIcon } from './icons'
 
 // (tab, pane, work) combos whose view was already counted this session, so a
 // re-render / remount of the same open work doesn't bump viewCount again.
 const counted = new Set<string>()
+
+
+// One button in the reader's option row: icon over the name. The current value
+// shows through the icon / accent colour; on hover the icon steps aside and the
+// value appears next to it in words.
+function OptBtn(props: {
+  icon: JSX.Element
+  label: string
+  state: string
+  on?: boolean
+  title: string
+  onClick: () => void
+}): JSX.Element {
+  return (
+    <button className={`mini opt-btn ${props.on ? 'on' : ''}`} onClick={props.onClick} title={props.title}>
+      <span className="opt-top">
+        {props.icon}
+        <span className="opt-state">{props.state}</span>
+      </span>
+      <span className="btn-label">{props.label}</span>
+    </button>
+  )
+}
+
+// 포커스 모드: the reader was actually used (wheel / click / page key) → hide
+// the chrome. Module-level so it's one stable listener reference.
+function startReading(): void {
+  const st = useStore.getState()
+  if ((st.settings.focusMode ?? 0) > 0 && st.view === 'reader') st.setFocusHidden(true)
+}
+
+// First page of the two-page spread that contains `idx`. With the cover shown on
+// its own, spreads are [0], [1,2], [3,4], …; otherwise pairs start wherever the
+// reader is (unchanged behaviour: the slider can still shift the pairing).
+function spreadStart(idx: number, coverSingle: boolean): number {
+  if (!coverSingle) return idx
+  return idx <= 0 ? 0 : idx - ((idx - 1) % 2)
+}
+
+// Page index one flip forward/back from `idx` in the given mode.
+function flipTarget(idx: number, dir: 1 | -1, mode: string, coverSingle: boolean): number {
+  if (mode !== 'spread') return idx + dir
+  if (!coverSingle) return idx + 2 * dir
+  const st = spreadStart(idx, true)
+  if (dir > 0) return st === 0 ? 1 : st + 2
+  return st <= 1 ? st - 1 : st - 2 // [1,2] → cover; cover → previous work
+}
 
 export default function Reader({
   tabId,
@@ -57,6 +104,15 @@ export default function Reader({
   const setLastFit = useStore((s) => s.setLastFit)
   const setLastZoom = useStore((s) => s.setLastZoom)
   const spreadNextSide = useStore((s) => s.settings.spreadNextSide)
+  const coverSingle = useStore((s) => s.settings.spreadCoverSingle === true)
+  const wheelFlip = useStore((s) => s.settings.pagedWheelFlip === true)
+  const focusMode = useStore((s) => s.settings.focusMode ?? 0)
+  const patchSettings = useStore((s) => s.patchSettings)
+  // Bottom bar's extra option row (keyboard-arrow toggle at its left end).
+  const [barOpen, setBarOpen] = useState(false)
+  // Click-paging hint arrows: only until the reader is first used (wheel /
+  // click / page key) after opening a work; never again for that work.
+  const [hintsGone, setHintsGone] = useState(false)
   const pagedFlipSide = useStore((s) => s.settings.pagedFlipSide)
   const setTabReader = useStore((s) => s.setTabReader)
   const markRead = useStore((s) => s.markRead)
@@ -137,6 +193,8 @@ export default function Reader({
   const online = paneOnline
   const key = online ? `online:${online.code}` : paneWorkId
 
+  // New work → show the click-paging hint arrows again.
+  useEffect(() => setHintsGone(false), [key])
   // Reset translation toggle when switching works.
   useEffect(() => setTranslate(false), [key])
 
@@ -539,8 +597,10 @@ export default function Reader({
               const n = Math.trunc(wheelAccum.current / WHEEL_STEP)
               if (n !== 0) {
                 wheelAccum.current -= n * WHEEL_STEP
-                const unit = mode === 'spread' ? 2 : 1
-                goToPageRef.current(pageIdxRef.current + n * unit)
+                const cover = useStore.getState().settings.spreadCoverSingle === true
+                let to = pageIdxRef.current
+                for (let k = 0; k < Math.abs(n); k++) to = flipTarget(to, n > 0 ? 1 : -1, mode, cover)
+                goToPageRef.current(to)
               }
             })
           }
@@ -615,7 +675,8 @@ export default function Reader({
   useEffect(() => {
     if (mode !== 'spread' || fit !== 'cover') return
     let alive = true
-    for (const src of [images[pageIdx], images[pageIdx + 1]]) {
+    const st = spreadStart(pageIdx, coverSingle)
+    for (const src of [images[st], images[st + 1]]) {
       if (!src || spreadRatios[src]) continue
       const im = new Image()
       im.onload = () => {
@@ -627,23 +688,55 @@ export default function Reader({
     return () => {
       alive = false
     }
-  }, [mode, fit, images, pageIdx, spreadRatios])
+  }, [mode, fit, images, pageIdx, spreadRatios, coverSingle])
 
   // keyboard paging
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const t = e.target as HTMLElement
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return
-      const step = mode === 'spread' ? 2 : 1
       const combo = comboFromEvent(e)
       if (!combo) return
       const keys = useStore.getState().settings.shortcuts
-      if (shortcutCombos(keys, 'nextPage').includes(combo)) goToPage(pageIdx + step)
-      else if (shortcutCombos(keys, 'prevPage').includes(combo)) goToPage(pageIdx - step)
+      if (shortcutCombos(keys, 'nextPage').includes(combo)) {
+        startReading()
+        setHintsGone(true)
+        goToPage(flipTarget(pageIdx, 1, mode, coverSingle))
+      } else if (shortcutCombos(keys, 'prevPage').includes(combo)) {
+        startReading()
+        setHintsGone(true)
+        goToPage(flipTarget(pageIdx, -1, mode, coverSingle))
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [pageIdx, goToPage, mode])
+  }, [pageIdx, goToPage, mode, coverSingle])
+
+  // 포커스 모드: the first wheel / click in the page area (scrollbar included)
+  // counts as "reading started" and hides the chrome. Only user input — the
+  // scroll restore on open must not trigger it.
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const onUse = (): void => {
+      startReading()
+      setHintsGone(true)
+    }
+    el.addEventListener('wheel', onUse, { passive: true })
+    el.addEventListener('pointerdown', onUse)
+    return () => {
+      el.removeEventListener('wheel', onUse)
+      el.removeEventListener('pointerdown', onUse)
+    }
+  }, [mode, key, loadingImgs])
+
+  // Cover shown alone: snap the position to the start of its spread so the page
+  // label, progress and flips all agree with what's on screen.
+  useEffect(() => {
+    if (mode !== 'spread' || !coverSingle) return
+    const st = spreadStart(pageIdx, true)
+    if (st !== pageIdx) setPageIdx(st)
+  }, [mode, coverSingle, pageIdx])
 
   if (!tab) return <div className="reader empty">탭이 없습니다.</div>
 
@@ -689,14 +782,16 @@ export default function Reader({
   // setting (pagedFlipSide); the other half goes back.
   const onPagedClick = (e: React.MouseEvent): void => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const step = mode === 'spread' ? 2 : 1
     const clickedLeft = e.clientX - rect.left < rect.width / 2
     const forward = clickedLeft === (pagedFlipSide === 'left')
-    goToPage(pageIdx + (forward ? step : -step))
+    goToPage(flipTarget(pageIdx, forward ? 1 : -1, mode, coverSingle))
   }
 
   return (
     <div className="reader-wrap">
+      {/* Top/bottom bars sit in collapsible slides so 포커스 모드 can hide them. */}
+      <div className="chrome-slide reader-chrome">
+      <div className="chrome-clip">
       <div className="reader-head">
         {side === 'left' && (
           <button className="mini icon reader-back" onClick={goBack} title="목록">
@@ -737,6 +832,21 @@ export default function Reader({
         {/* Icon buttons, flat group (default design). Download shows its state
             in the icon: arrow → (busy, dimmed) → check when done. */}
         <span className="flat-group reader-head-btns">
+          {online && (
+            <button
+              className={`mini icon ${loadingImgs ? 'busy' : ''}`}
+              onClick={() => {
+                // Fetch this chapter's page list again (reloading the site page),
+                // then reload the tab with it.
+                reloadOnlineImages(online.code)
+                useStore.getState().refreshTab(tabId)
+              }}
+              disabled={loadingImgs}
+              title="다시 불러오기"
+            >
+              <RefreshIcon />
+            </button>
+          )}
           {online && online.kind !== 'comic' ? (
             <button
               className={`mini icon ${dlDone ? 'dl-ok' : ''} ${downloading ? 'busy' : ''}`}
@@ -763,6 +873,8 @@ export default function Reader({
             )
           )}
         </span>
+      </div>
+      </div>
       </div>
 
       {loadingImgs && <div className="reader-loading">{(online?.kind === 'comic' && comicStatus) || '이미지 로딩 중…'}</div>}
@@ -818,7 +930,12 @@ export default function Reader({
           <div className="spread-pages">
             {/* Page order per setting: 'left' = next page on the left (manga
                 right-to-left), 'right' = next page on the right (left-to-right). */}
-            {(spreadNextSide === 'left' ? [pageIdx + 1, pageIdx] : [pageIdx, pageIdx + 1]).map(
+            {(() => {
+              const st = spreadStart(pageIdx, coverSingle)
+              // Cover on its own: just page 0, centered.
+              if (coverSingle && st === 0) return [0]
+              return spreadNextSide === 'left' ? [st + 1, st] : [st, st + 1]
+            })().map(
               (idx) => {
                 if (!images[idx]) return null
                 const half = Math.round(sw / 2)
@@ -826,7 +943,7 @@ export default function Reader({
                   <TranslatedImage
                     key={idx}
                     src={images[idx]}
-                    translate={idx === pageIdx ? translate : false}
+                    translate={idx === spreadStart(pageIdx, coverSingle) ? translate : false}
                     langHint={langHint}
                     style={style}
                   />
@@ -849,8 +966,8 @@ export default function Reader({
               }
             )}
           </div>
-          <div className="paged-hint left"><KeyboardArrowLeftIcon /></div>
-          <div className="paged-hint right"><KeyboardArrowRightIcon /></div>
+          <div className={`paged-hint left ${hintsGone ? 'gone' : ''}`}><KeyboardArrowLeftIcon /></div>
+          <div className={`paged-hint right ${hintsGone ? 'gone' : ''}`}><KeyboardArrowRightIcon /></div>
         </div>
       ) : (
         <div className="reader-content paged" ref={contentRef} onClick={onPagedClick}>
@@ -869,14 +986,26 @@ export default function Reader({
               />
             ) : null
           )}
-          <div className="paged-hint left"><KeyboardArrowLeftIcon /></div>
-          <div className="paged-hint right"><KeyboardArrowRightIcon /></div>
+          <div className={`paged-hint left ${hintsGone ? 'gone' : ''}`}><KeyboardArrowLeftIcon /></div>
+          <div className={`paged-hint right ${hintsGone ? 'gone' : ''}`}><KeyboardArrowRightIcon /></div>
         </div>
       )}
 
       {images.length > 0 && (
+        <div className="chrome-slide reader-chrome">
+        <div className="chrome-clip">
+        <div className={`reader-bottom-wrap ${barOpen ? 'open' : ''}`}>
         <div className="reader-bottom">
-          {/* Mode / fit on the left; 번역 and the chapter nav on the right. */}
+          {/* Option-row toggle at the far left; then mode / fit; 번역 and the
+              chapter nav on the right. */}
+          <button
+            className="mini icon reader-bar-toggle"
+            onClick={() => setBarOpen((v) => !v)}
+            title={barOpen ? '옵션 닫기' : '옵션 열기'}
+            aria-expanded={barOpen}
+          >
+            <ArrowUpIcon />
+          </button>
           <span className="flat-group reader-btns">
             <button
               className="mini mode-toggle"
@@ -980,6 +1109,78 @@ export default function Reader({
               </button>
             </div>
           )}
+        </div>
+        {/* Extra reader options under the main bar. Always mounted so it can
+            animate open/closed (inert while closed); add more groups here. */}
+        <div className="reader-options-slide" inert={!barOpen}>
+          <div className="reader-options-clip">
+          <div className="reader-options">
+            {/* Per reading mode: scroll → page gap; click paging → wheel flip +
+                click side; two pages → those + next-page side + cover alone.
+                포커스 모드 shows in every mode. */}
+            <span className="flat-group reader-btns reader-opt-btns">
+              {mode === 'scroll' && (
+                <OptBtn
+                  icon={<PageGapIcon />}
+                  label="페이지 간격"
+                  state={pageGap ? 'ON' : 'OFF'}
+                  on={pageGap}
+                  title="스크롤 감상 시 페이지 사이에 간격을 둡니다"
+                  onClick={() => patchSettings({ readerPageGap: !pageGap })}
+                />
+              )}
+              {mode !== 'scroll' && (
+                <>
+                  <OptBtn
+                    icon={wheelFlip ? <WheelFlipOnIcon /> : <WheelFlipOffIcon className="opt-ico-pointer" />}
+                    label="스크롤 넘김"
+                    state={wheelFlip ? 'ON' : 'OFF'}
+                    on={wheelFlip}
+                    title="휠 스크롤로도 페이지를 넘깁니다"
+                    onClick={() => patchSettings({ pagedWheelFlip: !wheelFlip })}
+                  />
+                  <OptBtn
+                    icon={pagedFlipSide === 'left' ? <ClickLeftIcon /> : <ClickRightIcon />}
+                    label="넘김 클릭"
+                    state={pagedFlipSide === 'left' ? '왼쪽' : '오른쪽'}
+                    title="화면의 이쪽 절반을 클릭하면 다음 페이지로 넘어갑니다"
+                    onClick={() => patchSettings({ pagedFlipSide: pagedFlipSide === 'left' ? 'right' : 'left' })}
+                  />
+                </>
+              )}
+              {mode === 'spread' && (
+                <>
+                  <OptBtn
+                    icon={spreadNextSide === 'right' ? <NextRightIcon /> : <NextLeftIcon />}
+                    label="다음 페이지"
+                    state={spreadNextSide === 'right' ? '오른쪽' : '왼쪽'}
+                    title="두 페이지 보기에서 다음 페이지가 놓이는 쪽"
+                    onClick={() => patchSettings({ spreadNextSide: spreadNextSide === 'left' ? 'right' : 'left' })}
+                  />
+                  <OptBtn
+                    icon={<CoverSingleIcon />}
+                    label="첫 페이지 단독"
+                    state={coverSingle ? 'ON' : 'OFF'}
+                    on={coverSingle}
+                    title="첫 페이지(표지)를 한 장으로 보여 주고 다음 쪽부터 짝을 맞춥니다"
+                    onClick={() => patchSettings({ spreadCoverSingle: !coverSingle })}
+                  />
+                </>
+              )}
+              <OptBtn
+                icon={<FocusLevelIcon level={focusMode} />}
+                label="포커스 모드"
+                state={focusMode ? `${focusMode}단계` : 'OFF'}
+                on={focusMode > 0}
+                title="감상을 시작하면 막대를 숨깁니다 (끔 → 1 → 2 → 3단계). 단계 설명은 설정 > 스타일"
+                onClick={() => patchSettings({ focusMode: ((focusMode + 1) % 4) as 0 | 1 | 2 | 3 })}
+              />
+            </span>
+          </div>
+          </div>
+        </div>
+        </div>
+        </div>
         </div>
       )}
     </div>
