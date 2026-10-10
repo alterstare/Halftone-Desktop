@@ -35,8 +35,13 @@ win:
   target:
     - nsis
     - zip
-  # Ship only this platform's onnxruntime binaries.
+  # Ship only this platform's onnxruntime binaries. A platform `files` list with
+  # only exclusions makes electron-builder fall back to "**/*" (the whole project
+  # dir — old dist/ installers, src, docs went into app.asar: 118MB → 490MB
+  # setup), so repeat the includes here.
   files:
+    - out/**/*
+    - package.json
     - '!node_modules/onnxruntime-node/bin/napi-v*/linux/**'
     - '!node_modules/onnxruntime-node/bin/napi-v*/darwin/**'
     - '!node_modules/onnxruntime-node/bin/napi-v*/win32/arm64/**'
@@ -51,6 +56,8 @@ linux:
     - AppImage
     - tar.gz
   files:
+    - out/**/*
+    - package.json
     - '!node_modules/onnxruntime-node/bin/napi-v*/win32/**'
     - '!node_modules/onnxruntime-node/bin/napi-v*/darwin/**'
     - '!node_modules/onnxruntime-node/bin/napi-v*/linux/arm64/**'
