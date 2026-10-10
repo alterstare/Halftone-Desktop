@@ -33,7 +33,9 @@ export default function Pager({ page, lastPage, onPage, small, hasNext }: Props)
           className="page-input"
           value={val}
           onChange={(e) => setVal(e.target.value.replace(/[^0-9]/g, ''))}
-          onKeyDown={(e) => e.key === 'Enter' && go()}
+          // Enter jumps via blur (onBlur → go) and drops focus, so the next
+          // click/key acts right away instead of first leaving the input.
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
           onBlur={go}
         />
         {lastPage >= 0 && <span> / {lastPage + 1}</span>}

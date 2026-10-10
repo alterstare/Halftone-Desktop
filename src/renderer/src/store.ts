@@ -588,7 +588,9 @@ function applyNav(
 
 export const useStore = create<AppState>((set, get) => ({
   works: [],
-  settings: { ...DEFAULT_SETTINGS },
+  // Theme from the preload (already on <html>), so the first render doesn't
+  // flip a dark start back to light before settings arrive.
+  settings: { ...DEFAULT_SETTINGS, theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light' },
   loading: false,
 
   view: 'home',

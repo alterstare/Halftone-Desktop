@@ -8,7 +8,7 @@ import { fitName } from '../../shared/nameFit'
 import type { Settings, SessionState, Work } from '../../shared/types'
 import type { CloseDecision, TransBlock, TransContext } from '../../shared/ipc'
 import { IPC } from '../../shared/ipc'
-import { store, appState, getMainWindow, sendToRenderer } from '../context'
+import { store, appState, getMainWindow, sendToRenderer, themeBg } from '../context'
 import { scanLibrary, scanRoot, listImages, normalRoots } from '../lib/scanner'
 import { parseName } from '../lib/parser'
 import { setGroupFolder, mergeSeries, moveWorkToFolder, renameGroupFolders, safeName } from '../lib/favorites'
@@ -69,6 +69,9 @@ export function registerLibraryIpc(): void {
   })
 
   ipcMain.handle(IPC.getSettings, () => store.settings)
+  ipcMain.on(IPC.themeSync, (e) => {
+    e.returnValue = store.settings.theme
+  })
 
   ipcMain.handle(IPC.saveSettings, async (_e, s: Settings) => {
     const saved = await store.saveSettings(s)
@@ -76,6 +79,7 @@ export function registerLibraryIpc(): void {
     applyQuitShortcut(saved) // 설정 › 단축키 › 강제 종료
     applyAutoUpdate(saved.autoUpdate !== false) // 설정 › 관리 › 자동 업데이트
     nativeTheme.themeSource = saved.theme // keep the OS caption in sync with the app theme
+    getMainWindow()?.setBackgroundColor(themeBg(saved.theme))
     return saved
   })
 

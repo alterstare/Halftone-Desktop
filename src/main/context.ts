@@ -30,3 +30,9 @@ export function sendToRenderer(channel: string, payload?: unknown): void {
 }
 
 export const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+
+// Window background (= the --bg token) shown while the page (re)loads — on start
+// and on F5 — so a reload never flashes the other theme.
+export function themeBg(theme: string): string {
+  return theme === 'light' ? '#f4f5f8' : '#0b0d13'
+}

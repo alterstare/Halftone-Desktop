@@ -58,6 +58,8 @@ export const IPC = {
   pickFolder: 'dialog:pickFolder',
   smbConnect: 'smb:connect',
   getSettings: 'settings:get',
+  // Sync (sendSync) theme read for the preload, so the first paint is already themed.
+  themeSync: 'settings:themeSync',
   saveSettings: 'settings:save',
   scanLibrary: 'library:scan',
   scanFolder: 'library:scanFolder', // rescan one folder, infer favorite/group from location

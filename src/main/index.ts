@@ -12,7 +12,7 @@ import { setAutoUpdateApplier } from './lib/updatePref'
 import { join } from 'path'
 import { IPC } from '../shared/ipc'
 import type { UpdateStatus } from '../shared/ipc'
-import { store, appState, setMainWindow, getMainWindow, sendToRenderer } from './context'
+import { store, appState, setMainWindow, getMainWindow, sendToRenderer, themeBg } from './context'
 import { moveFromFavorites } from './lib/favorites'
 import { scannedFavorite, migrateFavorites } from './lib/favoriteSync'
 import { setComicChallengeHandler, setComicStatusHandler } from './lib/comic'
@@ -58,7 +58,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: store.settings.theme === 'light' ? '#f4f5f8' : '#0c0e12',
+    backgroundColor: themeBg(store.settings.theme),
     autoHideMenuBar: true,
     show: false,
     // Dev only: window/taskbar icon from the source asset. Packaged builds use

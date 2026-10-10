@@ -186,4 +186,30 @@ const api: Api = {
 // the 캐릭터 분류 frame (sorta.html) gets Sorta's API; the top page gets
 // Halftone's; any other frame gets nothing.
 if (/\/sorta\.html$/.test(location.pathname)) contextBridge.exposeInMainWorld('api', createSortaApi(ipcRenderer))
-else if (window.top === window) contextBridge.exposeInMainWorld('api', api)
+else if (window.top === window) {
+  contextBridge.exposeInMainWorld('api', api)
+  applyInitialTheme()
+}
+
+// Stamp the saved theme on <html> before the page's first paint — settings load
+// asynchronously, so without this a dark-theme start flashes the light tokens.
+// The renderer store reads it back as its initial theme.
+function applyInitialTheme(): void {
+  let theme = 'light'
+  try {
+    theme = ipcRenderer.sendSync(IPC.themeSync) === 'dark' ? 'dark' : 'light'
+  } catch {
+    return
+  }
+  const set = (): boolean => {
+    const el = document.documentElement
+    if (!el) return false
+    el.setAttribute('data-theme', theme)
+    return true
+  }
+  if (set()) return
+  const mo = new MutationObserver(() => {
+    if (set()) mo.disconnect()
+  })
+  mo.observe(document, { childList: true })
+}
