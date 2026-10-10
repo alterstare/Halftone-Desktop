@@ -145,6 +145,8 @@ export const IPC = {
   comicList: 'comic:list',
   comicChapters: 'comic:chapters',
   comicReadUrls: 'comic:readUrls',
+  comicReadCancel: 'comic:readCancel',
+  comicReadPartial: 'comic:readPartial', // main -> renderer event
   comicDownload: 'comic:download',
   comicDownloadChapters: 'comic:downloadChapters',
   comicRegenCover: 'comic:regenCover',
@@ -402,7 +404,12 @@ export interface Api {
   // General-manga online (manga-site-family). Scraped via a hidden BrowserWindow.
   comicList: (source: ComicListSource, page: number) => Promise<ComicListResult>
   comicChapters: (seriesUrl: string) => Promise<ComicChapter[]>
-  comicReadUrls: (chapterUrl: string, fresh?: boolean) => Promise<string[]> // wrapped image urls; fresh = reload the page
+  // wrapped image urls; fresh = reload the page; view = reader pane key — an
+  // older request from the same pane still waiting in the queue is dropped
+  comicReadUrls: (chapterUrl: string, fresh?: boolean, view?: string) => Promise<string[]>
+  comicReadCancel: (view: string) => Promise<void> // drop that reader pane's chapter load
+  // Leading pages of a chapter still being collected (comicReadUrls with `view`).
+  onComicReadPartial: (cb: (p: { view: string; code: string; urls: string[] }) => void) => () => void
   // Download every chapter of a series into the general-manga library. Progress
   // is reported on the doujinProgress channel (code = seriesUrl). Returns the
   // newly scanned chapter works.

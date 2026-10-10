@@ -879,9 +879,12 @@ export async function comicAuthorForTitle(base: string, title: string): Promise<
 // Scroll the (hidden) page top to bottom collecting <img alt="page N"> → src.
 // No backslashes in here on purpose: inside this template literal "\D" would
 // silently become "D" and break the regex (bit the mobile port).
+// The pages found so far sit in window.__hfGot so COLLECT_SNAP can hand the
+// reader the leading pages while the scroll is still going.
 const COLLECT_SCRIPT = `(async () => {
   const se = document.scrollingElement || document.documentElement
   const got = new Map()
+  window.__hfGot = got
   const grab = () => {
     for (const img of document.querySelectorAll('.vw-imgs img, img.viewer-ratio-img, img.viewer-lazy-img')) {
       const n = parseInt((img.getAttribute('alt') || '').replace(/[^0-9]/g, ''))
@@ -905,6 +908,15 @@ const COLLECT_SCRIPT = `(async () => {
   return [...got.keys()].sort((a, b) => a - b).map((k) => got.get(k))
 })()`
 
+// Pages 1..n collected so far, stopping at the first gap (only an unbroken run
+// from page 1 can be shown).
+const COLLECT_SNAP = `(() => {
+  const g = window.__hfGot
+  const out = []
+  if (g) for (let n = 1; g.has(n); n++) out.push(g.get(n))
+  return out
+})()`
+
 // Whether the viewer is virtualized: some of its children are height-only
 // spacers without an <img>. Chapters rendered in full (every page an <img>)
 // skip the 5–10s scroll. No .vw-imgs (unknown layout) → collect to be safe.
@@ -915,22 +927,86 @@ const NEEDS_COLLECT = `(() => {
 })()`
 
 const HAS_PAGE_IMG = `!!document.querySelector('.vw-imgs img, img.viewer-lazy-img, img.viewer-ratio-img')`
-async function waitPageImages(ms: number): Promise<void> {
+async function waitPageImages(ms: number, stale?: () => boolean): Promise<void> {
   const end = Date.now() + ms
-  while (!(await evalPage<boolean>(HAS_PAGE_IMG, false)) && Date.now() < end) await delay(300)
+  while (!(await evalPage<boolean>(HAS_PAGE_IMG, false)) && Date.now() < end) {
+    if (stale?.()) return
+    await delay(300)
+  }
+}
+
+// Thrown by comicReadUrls when `stale()` says the caller moved on (the reader
+// skipped past this chapter, or was closed) — the queue moves on at once.
+export const READ_SUPERSEDED = 'READ_SUPERSEDED'
+
+// Rejects with READ_SUPERSEDED as soon as `stale()` turns true, so a long
+// in-page step (collecting a webtoon's pages) stops holding the queue.
+function unlessStale<T>(p: Promise<T>, stale?: () => boolean): Promise<T> {
+  if (!stale) return p
+  return new Promise<T>((resolve, reject) => {
+    const t = setInterval(() => {
+      if (!stale()) return
+      clearInterval(t)
+      reject(new Error(READ_SUPERSEDED))
+    }, 200)
+    p.then(
+      (v) => (clearInterval(t), resolve(v)),
+      (e) => (clearInterval(t), reject(e))
+    )
+  })
 }
 
 // `fresh` reloads the chapter page even if it's already open (다시 불러오기).
-export async function comicReadUrls(_base: string, chapterUrl: string, fresh = false): Promise<string[]> {
+// `stale` is checked between steps: true → give up and free the queue. (The
+// navigation itself isn't cut short: it may be in a Cloudflare wait.)
+// `onPartial` gets the leading pages found so far while a long viewer is still
+// being collected, so the reader can show them before the full list is in.
+export async function comicReadUrls(
+  _base: string,
+  chapterUrl: string,
+  fresh = false,
+  stale?: () => boolean,
+  onPartial?: (urls: string[]) => void
+): Promise<string[]> {
   return queue(async () => {
+    const check = (): void => {
+      if (stale?.()) throw new Error(READ_SUPERSEDED)
+    }
+    check()
     await ensure(chapterUrl, true, fresh)
+    check()
     status('만화 이미지를 기다리는 중…')
-    await waitPageImages(20000)
+    await waitPageImages(20000, stale)
+    check()
     const read = await evalPage<string[]>(READ_SCRIPT, [])
     if (!(await evalPage<boolean>(NEEDS_COLLECT, true))) return read
+    check()
     status('전체 페이지를 모으는 중…')
-    // Long webtoons (hundreds of pages) take a while to scroll through.
-    const collected = await evalPage<string[]>(COLLECT_SCRIPT, [], 120000)
+    let shown = 0
+    const show = (urls: string[]): void => {
+      if (urls.length <= shown) return
+      shown = urls.length
+      onPartial?.(urls)
+    }
+    show(read)
+    // Long webtoons (hundreds of pages) take a while to scroll through; hand
+    // over what's collected so far every so often meanwhile.
+    let polling = false
+    const poll = onPartial
+      ? setInterval(() => {
+          if (polling) return
+          polling = true
+          evalPage<string[]>(COLLECT_SNAP, [], 2000)
+            .then(show)
+            .finally(() => (polling = false))
+        }, 700)
+      : null
+    let collected: string[]
+    try {
+      collected = await unlessStale(evalPage<string[]>(COLLECT_SCRIPT, [], 120000), stale)
+    } finally {
+      if (poll) clearInterval(poll)
+    }
     // Older viewers without alt="page N" only work with READ_SCRIPT.
     return collected.length > read.length ? collected : read
   })

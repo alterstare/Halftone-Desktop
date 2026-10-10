@@ -6,7 +6,7 @@ import { promises as fs } from 'fs'
 import type { Work } from '../../shared/types'
 import type { ComicListSource, ComicChapter } from '../../shared/ipc'
 import { IPC } from '../../shared/ipc'
-import { store } from '../context'
+import { store, sendToRenderer } from '../context'
 import { scanRoot, normalRoots } from '../lib/scanner'
 import {
   comicList,
@@ -77,9 +77,28 @@ export function registerComicIpc(): void {
     return { ...r, items: r.items.map((it) => ({ ...it, thumb: it.thumb ? encodeComic(it.thumb) : null })) }
   })
   ipcMain.handle(IPC.comicChapters, (_e, seriesUrl: string) => comicChapters(store.settings.comicBaseUrl, seriesUrl))
-  ipcMain.handle(IPC.comicReadUrls, async (_e, chapterUrl: string, fresh?: boolean) =>
-    (await comicReadUrls(store.settings.comicBaseUrl, chapterUrl, fresh === true)).map(encodeComic)
-  )
+  // A reader pane (`view` = tab:side) only wants its latest chapter: wheeling
+  // through chapters queues one page load each, so the ones it already skipped
+  // past are dropped before they reach the scraper.
+  const viewGen = new Map<string, number>()
+  ipcMain.handle(IPC.comicReadUrls, async (_e, chapterUrl: string, fresh?: boolean, view?: string) => {
+    let stale: (() => boolean) | undefined
+    if (view) {
+      const gen = (viewGen.get(view) ?? 0) + 1
+      viewGen.set(view, gen)
+      stale = () => viewGen.get(view) !== gen
+    }
+    // Leading pages while the rest are still being collected → that pane only.
+    const onPartial = view
+      ? (urls: string[]): void => sendToRenderer(IPC.comicReadPartial, { view, code: chapterUrl, urls: urls.map(encodeComic) })
+      : undefined
+    return (await comicReadUrls(store.settings.comicBaseUrl, chapterUrl, fresh === true, stale, onPartial)).map(encodeComic)
+  })
+  // The pane closed (tab closed / back to the list): drop its pending or
+  // running chapter load so the list doesn't wait behind it.
+  ipcMain.handle(IPC.comicReadCancel, (_e, view: string) => {
+    viewGen.set(view, (viewGen.get(view) ?? 0) + 1)
+  })
   ipcMain.handle(IPC.comicSeriesAuthor, (_e, seriesUrl: string) => comicSeriesAuthor(store.settings.comicBaseUrl, seriesUrl))
   ipcMain.handle(IPC.comicSeriesTitle, (_e, seriesUrl: string) => comicSeriesTitle(store.settings.comicBaseUrl, seriesUrl))
 

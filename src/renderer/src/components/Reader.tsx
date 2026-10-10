@@ -176,6 +176,9 @@ export default function Reader({
   const [, setTick] = useState(0)
   const [images, setImages] = useState<string[]>([])
   const [loadingImgs, setLoadingImgs] = useState(true)
+  const lastLoadAt = useRef(0) // when this pane last started loading a work
+  // Showing only the leading pages of a chapter whose full list is still coming.
+  const partialRef = useRef(false)
   const [downloading, setDownloading] = useState(false)
   const [dlDone, setDlDone] = useState(false)
   const [pageIdx, setPageIdx] = useState(0)
@@ -236,6 +239,8 @@ export default function Reader({
   }, [online?.kind, online?.seriesUrl])
   const comicIdx = online ? comicChs.findIndex((c) => c.url === online.code) : -1
   const goComicChapter = (delta: number): boolean => {
+    // More pages are still coming → the end of the list isn't the chapter's end.
+    if (delta > 0 && partialRef.current) return true
     const n = comicChs[comicIdx + delta]
     if (n && online) {
       replaceTabOnline(tabId, {
@@ -303,11 +308,37 @@ export default function Reader({
     ratioRef.current = [] // …and decoded aspect ratios
     // Online galleries remember the page you were on across close/reopen.
     const pp = side === 'right' ? tab.rightPagePos : tab.pagePos
-    setPageIdx(online ? onlineProgress[online.code]?.pageIdx ?? 0 : pp && pp.workId === paneWorkId ? pp.idx : 0)
+    const startIdx = online ? onlineProgress[online.code]?.pageIdx ?? 0 : pp && pp.workId === paneWorkId ? pp.idx : 0
+    setPageIdx(startIdx)
     // NB: zoom is NOT reset here — prev/next-chapter (same tab) keeps the zoom.
-    const loader = online ? getOnlineImages(online.code) : work ? getImages(work.id) : Promise.resolve([])
+    // Wheeling through chapters (continuous reading) switches work every few
+    // ticks: while that's going on, wait until it settles so only the chapter
+    // the user stops on is fetched, not every one scrolled past.
+    const now = Date.now()
+    const rapid = now - lastLoadAt.current < 1000
+    lastLoadAt.current = now
+    const view = `${tabId}:${side}`
+    const load = (): Promise<string[]> =>
+      online ? getOnlineImages(online.code, view) : work ? getImages(work.id) : Promise.resolve([])
+    partialRef.current = false
+    // Long online chapters: show the leading pages as they're collected.
+    const offPartial =
+      online?.kind === 'comic'
+        ? window.api.onComicReadPartial((p) => {
+            if (!alive || p.view !== view || p.code !== online.code) return
+            // Resuming further in → wait until the saved page is among them.
+            if (p.urls.length <= startIdx) return
+            partialRef.current = true
+            setImages((cur) => (p.urls.length > cur.length ? p.urls : cur))
+            setLoadingImgs(false)
+          })
+        : null
+    const loader = rapid
+      ? new Promise<void>((r) => window.setTimeout(r, 350)).then(() => (alive ? load() : []))
+      : load()
     loader.then((imgs) => {
       if (!alive) return
+      partialRef.current = false
       // Show the pages right away — the first (visible) page can paint at once.
       setImages(imgs)
       setLoadingImgs(false)
@@ -331,11 +362,25 @@ export default function Reader({
           }
         })
       }
+    }).catch(() => {
+      // Failed, or dropped because this pane moved on to another chapter.
+      partialRef.current = false
+      if (alive) setLoadingImgs(false)
     })
     return () => {
       alive = false
+      offPartial?.()
     }
   }, [key, reloadNonce])
+
+  // Leaving the reader (tab closed, back to the list) drops this pane's chapter
+  // load still waiting or running in the scraper queue, so the list loads now.
+  useEffect(() => {
+    const view = `${tabId}:${side}`
+    return () => {
+      window.api.comicReadCancel(view).catch(() => {})
+    }
+  }, [tabId, side])
 
   // Sync zoom back onto the tab so switching away and back (or a new tab that
   // inherits it) keeps the same magnification. Also persist it per library
@@ -838,7 +883,7 @@ export default function Reader({
               onClick={() => {
                 // Fetch this chapter's page list again (reloading the site page),
                 // then reload the tab with it.
-                reloadOnlineImages(online.code)
+                reloadOnlineImages(online.code, `${tabId}:${side}`)
                 useStore.getState().refreshTab(tabId)
               }}
               disabled={loadingImgs}

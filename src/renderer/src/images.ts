@@ -40,21 +40,31 @@ export async function getCover(workId: string): Promise<string | null> {
 // Online (streamed) gallery image urls, keyed by doujin code.
 const onlineCache = new Map<string, Promise<string[]>>()
 
-export function getOnlineImages(code: string): Promise<string[]> {
+// `view` (reader pane key) lets main drop this request if the same pane asks for
+// another chapter before this one's turn comes up.
+export function getOnlineImages(code: string, view?: string): Promise<string[]> {
   let p = onlineCache.get(code)
   if (!p) {
     // A manga-site "code" is the chapter viewer URL (http…); a doujin code is numeric.
-    p = isComicCode(code) ? window.api.comicReadUrls(code) : window.api.doujinReadUrls(code)
-    onlineCache.set(code, p)
+    p = isComicCode(code) ? window.api.comicReadUrls(code, false, view) : window.api.doujinReadUrls(code)
+    keepOnSuccess(code, p)
   }
   return p
+}
+
+// Cache the list, but forget a failed (or dropped) one so the next ask retries.
+function keepOnSuccess(code: string, p: Promise<string[]>): void {
+  onlineCache.set(code, p)
+  p.catch(() => {
+    if (onlineCache.get(code) === p) onlineCache.delete(code)
+  })
 }
 
 // 다시 불러오기: drop the cached list and fetch it again, reloading the
 // chapter page (a page list cut short by the site's lazy viewer, or a dead
 // image host the site has since swapped out).
-export function reloadOnlineImages(code: string): Promise<string[]> {
-  const p = isComicCode(code) ? window.api.comicReadUrls(code, true) : window.api.doujinReadUrls(code)
-  onlineCache.set(code, p)
+export function reloadOnlineImages(code: string, view?: string): Promise<string[]> {
+  const p = isComicCode(code) ? window.api.comicReadUrls(code, true, view) : window.api.doujinReadUrls(code)
+  keepOnSuccess(code, p)
   return p
 }
