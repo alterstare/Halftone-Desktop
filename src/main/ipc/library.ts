@@ -4,6 +4,7 @@
 import { app, ipcMain, dialog, shell, nativeTheme, clipboard } from 'electron'
 import { join, resolve, sep, basename, dirname } from 'path'
 import { promises as fs } from 'fs'
+import { fitName } from '../../shared/nameFit'
 import type { Settings, SessionState, Work } from '../../shared/types'
 import type { CloseDecision, TransBlock, TransContext } from '../../shared/ipc'
 import { IPC } from '../../shared/ipc'
@@ -301,8 +302,7 @@ export function registerLibraryIpc(): void {
   // target name ("<n>화 <subtitle>"); here we just rename the folder within its
   // parent (skipping no-ops and collections) and update the stored path.
   ipcMain.handle(IPC.renameNormalChapters, async (_e, items: { id: string; name: string }[]) => {
-    const clean = (s: string): string =>
-      s.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120) || 'untitled'
+    const clean = (s: string): string => fitName(s) // shared length rule (shared/nameFit)
     const updated: Work[] = []
     for (const it of items) {
       const w = store.get(it.id)

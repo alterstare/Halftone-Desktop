@@ -17,9 +17,10 @@ import { moveFromFavorites } from './lib/favorites'
 import { scannedFavorite, migrateFavorites } from './lib/favoriteSync'
 import { setComicChallengeHandler, setComicStatusHandler } from './lib/comic'
 import { applyNetwork } from './lib/network'
+import { queueSummaries, setSummaryProgressHandler } from './lib/summaries'
 import { registerImageScheme, handleImageProtocol, initThumbDir } from './lib/media'
 import { registerLibraryIpc } from './ipc/library'
-import { registerFavoritesIpc } from './ipc/favorites'
+import { registerFavoritesIpc, backfillFavMeta } from './ipc/favorites'
 import { registerDoujinIpc } from './ipc/doujin'
 import { registerComicIpc } from './ipc/comic'
 import { applyQuitShortcut } from './lib/quitShortcut'
@@ -209,6 +210,15 @@ app.whenReady().then(async () => {
   // Cloudflare check window shown/cleared → "인증 필요" banner in the renderer.
   setComicChallengeHandler((active) => sendToRenderer(IPC.comicChallenge, active))
   setComicStatusHandler((msg) => sendToRenderer(IPC.comicStatus, msg))
+
+  // Favorites' summaries (title / thumb / tags): queue progress → activity bar,
+  // and continue whatever an earlier run didn't finish fetching.
+  setSummaryProgressHandler((p) => sendToRenderer(IPC.summarySyncProgress, p))
+  setTimeout(async () => {
+    await backfillFavMeta() // titles / thumbs for favorites already summarized
+    const codes = [...store.onlineFavs.values()].filter((f) => f.favorite).map((f) => f.code)
+    void queueSummaries(codes)
+  }, 3000)
 
   if (app.isPackaged) setupAutoUpdate(store.settings.autoUpdate !== false)
 

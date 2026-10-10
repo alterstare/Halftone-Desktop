@@ -12,11 +12,11 @@ import ContextMenu from './ContextMenu'
 import { useTagMenu } from './useTagMenu'
 import Stars from './Stars'
 import { favMeta, tagTokens, tagToken, tokenLabel, FAV_BASE } from '../util'
-import { useFavSummaries } from '../favSummaries'
+import { useFavSummaries, fetchSummaries } from '../favSummaries'
 import Caret from './Caret'
 import Dropdown from './Dropdown'
 import { CheckIcon, PauseIcon, PlayIcon, SearchIcon, SyncIcon, GridIcon, MenuIcon, FavoriteIcon, DownloadIcon, CloseIcon } from './icons'
-import { OnlineOnlyToggle, FavSortSelect } from './FavDlToggle'
+import { OnlineOnlyToggle, FavSortSelect, type FavSort } from './FavDlToggle'
 import { doujinFavCodes, doujinFavGalleries } from '../favorites'
 import type { OnlineGallery } from '../store'
 import EditionsPanel from './EditionsPanel'
@@ -57,7 +57,7 @@ export default function Browse(): JSX.Element {
   const downloads = useStore((s) => s.downloads)
   const works = useStore((s) => s.works)
   const [favMode, setFavMode] = useState(false)
-  const [favSort, setFavSort] = useState<'rank' | 'recent'>('recent')
+  const [favSort, setFavSort] = useState<FavSort>('recent')
   const onlineFavLists = useStore((s) => s.settings.onlineFavLists ?? [])
   const pageSize = useStore((s) => s.settings.pageSize || 50)
   const marginWidth = useStore((s) => s.settings.marginWidth)
@@ -217,11 +217,12 @@ export default function Browse(): JSX.Element {
   const sumVer = useFavSummaries(favMode ? favCodes : [])
   // Unified favorites (online + locally favorited coded works), sorted by
   // favorite time or rating. sumVer re-runs it as summaries (tags) arrive.
-  const favGalleries = useMemo(
-    () => doujinFavGalleries(onlineFavs, works, favSort),
+  // 작품 최신순 = higher gallery number first (numbers grow over time).
+  const favGalleries = useMemo(() => {
+    const rows = doujinFavGalleries(onlineFavs, works, favSort === 'rank' ? 'rank' : 'recent')
+    return favSort === 'newest' ? [...rows].sort((a, b) => Number(b.code) - Number(a.code)) : rows
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [onlineFavs, favSort, works, sumVer]
-  )
+  }, [onlineFavs, favSort, works, sumVer])
   // Checked online lists → fetch their gallery summaries (union of codes). '기본'
   // has no codes (it's the app's own online favorites), so it isn't fetched.
   useEffect(() => {
@@ -236,8 +237,7 @@ export default function Browse(): JSX.Element {
     }
     let alive = true
     setListLoading(true)
-    window.api
-      .doujinSummaries(codes)
+    fetchSummaries(codes)
       .then((r) => alive && setListGallery(r))
       .finally(() => alive && setListLoading(false))
     return () => {
@@ -251,8 +251,13 @@ export default function Browse(): JSX.Element {
     // each imported list contributes its fetched summaries.
     const base = favSelected.includes(FAV_BASE) ? favGalleries : []
     const seen = new Set<string>()
-    return [...base, ...listGallery].filter((g) => !seen.has(g.code) && seen.add(g.code))
-  }, [favMode, favSelected, items, favGalleries, listGallery])
+    // The language picker applies to favorites too (it only drove browse /
+    // search before). Unknown language = no summary yet → hidden while a
+    // specific language is picked.
+    return [...base, ...listGallery].filter(
+      (g) => !seen.has(g.code) && seen.add(g.code) && (lang === 'all' || g.language === lang)
+    )
+  }, [favMode, favSelected, items, favGalleries, listGallery, lang])
   // Library lookups by gallery code (downloaded? local cover? local heart?).
   const { libCodes, codeWorkId, localFavCodes } = useLibraryCodes()
 
@@ -269,7 +274,7 @@ export default function Browse(): JSX.Element {
       : gallery
     : items
   const favLastPage = Math.max(0, Math.ceil(base.length / pageSize) - 1)
-  useEffect(() => setFavPage(0), [favMode, favSort, favSelected, base.length])
+  useEffect(() => setFavPage(0), [favMode, favSort, favSelected, base.length, lang])
   const ordered = reverse ? [...base].reverse() : base
   const shown = favMode ? ordered.slice(favPage * pageSize, favPage * pageSize + pageSize) : ordered
 
@@ -293,7 +298,9 @@ export default function Browse(): JSX.Element {
 
         <div className="search-row">
           <Dropdown<string> className="field" value={lang} onChange={setLang} options={LANGS} />
-          <Dropdown<OnlineSort> className="field" value={sort} onChange={changeSort} options={SORTS} />
+          {/* Browse / search sort. Favorites have their own sort chip below
+              (popularity doesn't apply to them). */}
+          {!favMode && <Dropdown<OnlineSort> className="field" value={sort} onChange={changeSort} options={SORTS} />}
           <TagSearchInput
             value={query}
             onChange={setQuery}
@@ -394,7 +401,7 @@ export default function Browse(): JSX.Element {
             )}
           </div>
           {favMode && <OnlineOnlyToggle />}
-          {favMode && <FavSortSelect value={favSort} onChange={setFavSort} />}
+          {favMode && <FavSortSelect value={favSort} onChange={setFavSort} withNewest />}
         </div>
       </div>
 

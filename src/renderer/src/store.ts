@@ -1764,7 +1764,8 @@ export const useStore = create<AppState>((set, get) => ({
         view: 'browse',
         libraryMode: 'doujin', // online browse is the doujin gallery index
         browsePage: 0,
-        browseSource: { kind: 'search', query, language: null, sort: 'date' }
+        // Keep the language picked in the online browse (it was forced to "all").
+        browseSource: { kind: 'search', query, language: get().browseSource.language ?? null, sort: 'date' }
       })
     ),
   searchLocal: (query) =>

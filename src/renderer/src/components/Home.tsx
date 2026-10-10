@@ -18,6 +18,7 @@ import TagSearchInput from './TagSearchInput'
 import Pager from './Pager'
 import ConfirmModal from './ConfirmModal'
 import { mergeFavorites, type FavEntry } from '../favorites'
+import { useFavSummaries, getFavLanguage, loadFavLanguages } from '../favSummaries'
 import GroupName from './GroupName'
 import { useLock } from '../lock'
 
@@ -171,6 +172,10 @@ export default function Home(): JSX.Element {
   // Category filter: choose whether coded / uncoded works appear, and which
   // languages. Works with unknown (null) language always pass the language gate.
   const allLang = langFilter.korean && langFilter.english && langFilter.japanese && langFilter.other
+  const langPass = (lang: string | null): boolean => {
+    const lc = langCategory(lang)
+    return lc === null || langFilter[lc]
+  }
   const allGroups = modeGroups.every((g) => groupFilter[g.id] !== false) && showUngrouped
   const categoryWorks = useMemo(
     () =>
@@ -296,6 +301,23 @@ export default function Home(): JSX.Element {
   // Unified favorites view: online favorites NOT in the library show as online
   // cards next to the local ones ("다운로드한 것만" toggle hides them). Per mode:
   // doujin = numeric codes, general manga = manga-site urls (matched by title).
+  // The 언어 분류 below needs every online favorite's language BEFORE filtering
+  // (else unknown-language entries — really Korean, say — passed as blank
+  // cards). Load just code → language for all of them in one call; full
+  // summaries (title / thumb / tags) are fetched for nearby pages only (below).
+  const favSummaryCodes = useMemo(
+    () =>
+      favActive && !normal
+        ? Object.values(onlineFavs)
+            .filter((f) => f.favorite && /^\d+$/.test(f.code))
+            .map((f) => f.code)
+        : [],
+    [favActive, normal, onlineFavs]
+  )
+  useEffect(() => {
+    if (favSummaryCodes.length) void loadFavLanguages(favSummaryCodes)
+  }, [favSummaryCodes])
+  const sumVer = useFavSummaries([]) // bumps as languages / summaries land
   const onlineOnlyFavs = useMemo(() => {
     if (!favActive || favDownloadedOnly) return []
     // Only with 기본 (the hearts) checked — imported lists show downloaded works only.
@@ -307,10 +329,16 @@ export default function Home(): JSX.Element {
           f.favorite &&
           isComicCode(f.code) === normal &&
           !libCodes.has(f.code) &&
-          !(normal && localSeriesKeys.has(titleKey(f.title)))
+          !(normal && localSeriesKeys.has(titleKey(f.title))) &&
+          // The category chips apply here too, like on the local works:
+          // online-only entries are coded (작품 분류), have a language
+          // (언어 분류, unknown passes) and no group (그룹 분류 → 그룹 없음).
+          showUngrouped &&
+          (normal || (showCoded && langPass(f.language ?? getFavLanguage(f.code) ?? null)))
       )
       .sort((a, b) => (favSort === 'rank' ? b.rank - a.rank || b.addedAt - a.addedAt : b.addedAt - a.addedAt))
-  }, [favActive, favDownloadedOnly, filter, onlineFavs, works, normal, favSort, localSeriesKeys])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [favActive, favDownloadedOnly, filter, onlineFavs, works, normal, favSort, localSeriesKeys, showCoded, showUngrouped, langFilter, sumVer])
   // One merged favorites list (local works / series + online-only), sorted
   // together by favorite time (최근 추가순) or rating (평점 높은순), then paged.
   const favMerged = useMemo(
@@ -373,6 +401,17 @@ export default function Home(): JSX.Element {
     if (normal) return seriesList.slice(at, at + pageSize).map((series) => ({ kind: 'series', series, t: 0, r: 0 }))
     return list.slice(at, at + pageSize).map((work) => ({ kind: 'local', work, t: 0, r: 0 }))
   }, [favMerged, normal, seriesList, list, page, pageSize])
+
+  // Full summaries for the online cards of this page and the ones next to it,
+  // so paging is instant without loading thousands up front.
+  const nearbyFavCodes = useMemo(() => {
+    if (!favMerged) return []
+    const from = Math.max(0, (page - 1) * pageSize)
+    return favMerged
+      .slice(from, (page + 2) * pageSize)
+      .flatMap((e) => (e.kind === 'online' && /^\d+$/.test(e.fav.code) ? [e.fav.code] : []))
+  }, [favMerged, page, pageSize])
+  useFavSummaries(nearbyFavCodes)
 
   const artistCount = useMemo(
     () => new Set(modeWorks.map((w) => w.artist).filter(Boolean)).size,

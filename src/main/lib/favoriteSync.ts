@@ -62,6 +62,32 @@ export async function setFavoriteByCode(
   return { fav: entry, works }
 }
 
+// Heart many codes at once (favorites file import). Same effect as calling
+// setFavoriteByCode per code, but the local-works lookup is built once and
+// works.json is written once — per code it rescanned every work and rewrote
+// the whole file, so a 7000-code Pupil backup never finished.
+// Returns how many codes have a local copy.
+export async function setFavoritesByCodes(codes: string[], fav: boolean): Promise<number> {
+  const byKey = new Map<string, Work[]>()
+  for (const w of store.works.values()) {
+    const k = listKeyOf(w)
+    if (!k) continue
+    const arr = byKey.get(k)
+    if (arr) arr.push(w)
+    else byKey.set(k, [w])
+  }
+  let matched = 0
+  for (const code of codes) {
+    const locals = byKey.get(code) ?? []
+    store.setOnlineFav(code, { favorite: fav }, locals[0] ? metaOf(locals[0]) : undefined, false)
+    if (locals.length) matched++
+    for (const w of locals) if (w.favorite !== fav) await applyToWork(w, fav)
+  }
+  await store.flushWorks()
+  await store.saveOnline()
+  return matched
+}
+
 // Heart / unheart a local work (routes coded works through the list).
 export async function setWorkFavorite(workId: string, fav: boolean): Promise<Work> {
   const w = store.get(workId)

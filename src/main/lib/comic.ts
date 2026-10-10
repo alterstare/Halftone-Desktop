@@ -15,7 +15,8 @@
 // `li.ep-row-v2 > a.ep-row-v2-link`; chapter images are tuned live (no saved
 // viewer page).
 import { BrowserWindow, session, app } from 'electron'
-import { promises as fs } from 'fs'
+import { promises as fs, existsSync } from 'fs'
+import { fitName } from '../../shared/nameFit'
 import { join } from 'path'
 import type {
   ComicListSource,
@@ -1066,7 +1067,7 @@ export async function downloadGenericChapters(
   const pick = only ? new Set(only) : null
   const targets = pick ? chapters.filter((c) => pick.has(c.url)) : chapters
   if (!targets.length) throw new Error('다운로드할 화가 없습니다')
-  const seriesDir = join(destRoot, safeName(title))
+  const seriesDir = dirFor(destRoot, title)
   await fs.mkdir(seriesDir, { recursive: true })
   const total = targets.length
   for (let i = 0; i < targets.length; i++) {
@@ -1085,7 +1086,7 @@ export async function downloadGenericChapters(
       /* keep chapter url */
     }
     const n = Math.floor(ch.num || i + 1)
-    const chDir = join(seriesDir, safeName(chapterFolderName(title, ch.title, n)))
+    const chDir = dirFor(seriesDir, chapterFolderName(title, ch.title, n))
     await fs.mkdir(chDir, { recursive: true })
     let idx = 0
     const workers = Array.from({ length: 4 }, async () => {
@@ -1166,9 +1167,16 @@ export async function fetchComicBuffer(base: string, url: string): Promise<Buffe
 }
 
 // --- download a whole series into the local general-manga library ---
-function safeName(s: string): string {
-  // Also strip a trailing '.'/space — Windows forbids them on a path segment and
-  // silently drops them, breaking the recorded path.
+// Series / chapter folder: shared length rule (shared/nameFit — 80 chars / 180
+// bytes, cut from the end). Names used to be cut at 120 chars instead, so a
+// series or chapter already downloaded under that longer name keeps its folder
+// and 이어서 받기 still finds it.
+function dirFor(parent: string, name: string): string {
+  const fresh = join(parent, fitName(name))
+  const old = join(parent, legacyName(name))
+  return old !== fresh && existsSync(old) ? old : fresh
+}
+function legacyName(s: string): string {
   return (
     s
       .replace(/[\\/:*?"<>|]/g, '')
@@ -1222,7 +1230,7 @@ export async function comicDownloadSeries(
   const pick = only ? new Set(only) : null
   const chapters = pick ? all.filter((c) => pick.has(c.url)) : all
   if (!chapters.length) throw new Error('다운로드할 화가 없습니다')
-  const seriesDir = join(destRoot, safeName(title))
+  const seriesDir = dirFor(destRoot, title)
   await fs.mkdir(seriesDir, { recursive: true })
   const total = chapters.length
   for (let i = 0; i < chapters.length; i++) {
@@ -1243,7 +1251,7 @@ export async function comicDownloadSeries(
     // Folder = "<n>화 <subtitle>" (series name is only on the parent). The chapter
     // number sorts/merges subset & 이어서 downloads correctly on its own.
     const n = Math.floor(ch.num || i + 1)
-    const chDir = join(seriesDir, safeName(chapterFolderName(title, ch.title, n)))
+    const chDir = dirFor(seriesDir, chapterFolderName(title, ch.title, n))
     await fs.mkdir(chDir, { recursive: true })
     let idx = 0
     const workers = Array.from({ length: 4 }, async () => {

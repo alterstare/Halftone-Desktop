@@ -13,6 +13,7 @@ import TagPickInput from "../TagPickInput";
 import TagSearchInput from "../TagSearchInput";
 import { useSettings } from "./context";
 import { ChipList, FolderRow } from "./parts";
+import ConfirmModal from "../ConfirmModal";
 
 // Last path segment, for compact folder buttons.
 const shortPath = (p: string): string =>
@@ -184,23 +185,62 @@ function Favorites(): JSX.Element {
   const setWorks = useStore((s) => s.setWorks);
   const setOnlineFavs = useStore((s) => s.setOnlineFavs);
   const [preloading, setPreloading] = useState(false);
-  const lists = draft.onlineFavLists ?? [];
-
-  const preload = async (): Promise<void> => {
-    setPreloading(true);
+  // 즐겨찾기 초기화: two confirmations (1/2 → 2/2) before anything changes.
+  const [resetStep, setResetStep] = useState<0 | 1 | 2>(0);
+  const [resetting, setResetting] = useState(false);
+  const favCount = useStore(
+    (s) => Object.values(s.onlineFavs).filter((f) => f.favorite).length,
+  );
+  const [pruning, setPruning] = useState(false);
+  const [confirmPrune, setConfirmPrune] = useState(false);
+  const pruneDeleted = async (): Promise<void> => {
+    setConfirmPrune(false);
+    setPruning(true);
     const { startJob, updateJob, endJob } = useStore.getState();
-    const jid = startJob("meta", "doujin", "즐겨찾기 목록 미리 불러오기");
-    const off = window.api.onOnlineFavPreload(({ done, total }) =>
+    const jid = startJob("meta", "doujin", "삭제된 즐겨찾기 정리");
+    const off = window.api.onPruneDeletedProgress(({ done, total }) =>
       updateJob(jid, { done, total }),
     );
     try {
-      const r = await window.api.preloadOnlineFavLists();
-      endJob(jid, { status: "done", detail: `${r.cached}/${r.total}개` });
-      notify(`미리 불러오기 완료 — ${r.cached}/${r.total}개 준비됨.`);
+      const r = await window.api.pruneDeletedFavorites();
+      endJob(jid, { status: "done", detail: `${r.removed}개 제거` });
+      setOnlineFavs(await window.api.getOnlineFavs());
+      notify(
+        `${r.checked}개 확인 — 삭제된 작품 ${r.removed}개를 즐겨찾기에서 뺐습니다.` +
+          (r.uncertain ? ` (연결 문제로 확인 못 한 작품 ${r.uncertain}개는 그대로 둠)` : ""),
+      );
     } catch (e: any) {
       endJob(jid, { status: "error", error: String(e?.message ?? e) });
     } finally {
       off();
+      setPruning(false);
+    }
+  };
+  const resetFavorites = async (): Promise<void> => {
+    setResetStep(0);
+    setResetting(true);
+    try {
+      const r = await window.api.resetFavorites();
+      setWorks(await window.api.getWorks());
+      setOnlineFavs(await window.api.getOnlineFavs());
+      notify(`즐겨찾기 ${r.count}개를 해제했습니다.`);
+    } catch (e: any) {
+      notify(`즐겨찾기 초기화 실패 — ${String(e?.message ?? e)}`);
+    } finally {
+      setResetting(false);
+    }
+  };
+  const lists = draft.onlineFavLists ?? [];
+
+  const preload = async (): Promise<void> => {
+    setPreloading(true);
+    // Progress shows in the activity bar's shared "즐겨찾기 정보 불러오기" row.
+    try {
+      const r = await window.api.preloadOnlineFavLists();
+      notify(`미리 불러오기 완료 — ${r.cached}/${r.total}개 준비됨.`);
+    } catch (e: any) {
+      notify(`미리 불러오기 실패 — ${String(e?.message ?? e)}`);
+    } finally {
       setPreloading(false);
     }
   };
@@ -235,9 +275,12 @@ function Favorites(): JSX.Element {
             onClick={async () => {
               const r = await window.api.importOnlineFavList();
               if (!r.ok) return;
-              patch({
-                onlineFavLists: (await window.api.getSettings()).onlineFavLists,
-              });
+              // Main saved it already: refresh the app's settings too (not
+              // just this screen's draft), or the online favorites keep the
+              // old lists and a later settings save writes them back.
+              const saved = await window.api.getSettings();
+              useStore.getState().setSettings(saved);
+              patch({ onlineFavLists: saved.onlineFavLists });
               notify(`목록 “${r.name}” — ${r.total}개 추가.`);
             }}
           >
@@ -253,9 +296,9 @@ function Favorites(): JSX.Element {
               className="mini danger"
               onClick={async () => {
                 await window.api.removeOnlineFavList(l.name);
-                patch({
-                  onlineFavLists: lists.filter((x) => x.name !== l.name),
-                });
+                const saved = await window.api.getSettings();
+                useStore.getState().setSettings(saved); // see 파일 추가
+                patch({ onlineFavLists: saved.onlineFavLists });
               }}
             >
               제거
@@ -314,7 +357,60 @@ function Favorites(): JSX.Element {
         >
           파일 병합
         </button>
+        <button
+          className="mini danger"
+          disabled={resetting}
+          onClick={() => setResetStep(1)}
+        >
+          {resetting ? "초기화 중…" : "초기화"}
+        </button>
       </SettingRow>
+      {resetStep === 1 && (
+        <ConfirmModal
+          danger
+          title="즐겨찾기를 초기화할까요? (1/2)"
+          desc={`즐겨찾기 ${favCount.toLocaleString()}개의 하트를 모두 해제합니다. 즐겨찾기 폴더로 옮겨졌던 작품은 원래 위치로 돌아갑니다. 평점과 즐겨찾는 태그, 즐겨찾기 목록은 유지됩니다.`}
+          confirmLabel="다음"
+          onConfirm={() => setResetStep(2)}
+          onCancel={() => setResetStep(0)}
+        />
+      )}
+      <SettingRow
+        title="삭제된 작품 즐겨찾기에서 빼기"
+        desc="사이트에서 삭제된 작품(정보를 불러올 수 없는 작품)을 즐겨찾기에서 뺍니다. 받아 둔 작품은 빼지 않고, 연결 문제로 확인이 안 되면 그대로 둡니다. 켜 두면 정보를 불러올 때 자동으로 확인합니다."
+      >
+        <button
+          className="mini"
+          disabled={pruning}
+          onClick={() => setConfirmPrune(true)}
+        >
+          {pruning ? "확인 중…" : "지금 정리"}
+        </button>
+        <Toggle
+          checked={draft.pruneDeletedFavorites === true}
+          onChange={(v) => patch({ pruneDeletedFavorites: v })}
+        />
+      </SettingRow>
+      {confirmPrune && (
+        <ConfirmModal
+          danger
+          title="삭제된 작품을 즐겨찾기에서 뺄까요?"
+          desc="정보가 없는 즐겨찾기를 사이트에서 하나씩 확인해, 삭제된 작품(받아 둔 사본이 없는 것)만 즐겨찾기에서 뺍니다. 평점은 남습니다."
+          confirmLabel="정리"
+          onConfirm={pruneDeleted}
+          onCancel={() => setConfirmPrune(false)}
+        />
+      )}
+      {resetStep === 2 && (
+        <ConfirmModal
+          danger
+          title="마지막 확인 (2/2)"
+          desc="되돌릴 수 없습니다. 필요하면 먼저 '내보내기'로 즐겨찾기를 파일로 저장해 두세요."
+          confirmLabel="초기화"
+          onConfirm={resetFavorites}
+          onCancel={() => setResetStep(0)}
+        />
+      )}
 
       <RatingFileRow />
     </>
@@ -324,6 +420,7 @@ function Favorites(): JSX.Element {
 export default function TagSection(): JSX.Element {
   const { draft, patch, isDoujin, works } = useSettings();
   const [tagInput, setTagInput] = useState("");
+  const [confirmClearTags, setConfirmClearTags] = useState(false);
   const [excludeInput, setExcludeInput] = useState("");
   const [favSearchInput, setFavSearchInput] = useState("");
   // Every tag used in the library — autocomplete source for the inputs.
@@ -346,7 +443,29 @@ export default function TagSection(): JSX.Element {
           <SettingRow
             title="즐겨찾는 태그"
             desc="여기 등록한 태그는 목록에서 강조됩니다. 태그 입력 후 Enter."
-          />
+          >
+            {draft.favoriteTags.length > 0 && (
+              <button
+                className="mini danger"
+                onClick={() => setConfirmClearTags(true)}
+              >
+                전체 삭제
+              </button>
+            )}
+          </SettingRow>
+          {confirmClearTags && (
+            <ConfirmModal
+              danger
+              title="즐겨찾는 태그를 모두 지울까요?"
+              desc={`등록된 태그 ${draft.favoriteTags.length}개를 지웁니다. 설정을 저장해야 반영됩니다.`}
+              confirmLabel="전체 삭제"
+              onConfirm={() => {
+                patch({ favoriteTags: [] });
+                setConfirmClearTags(false);
+              }}
+              onCancel={() => setConfirmClearTags(false)}
+            />
+          )}
           <TagPickInput
             value={tagInput}
             onChange={setTagInput}

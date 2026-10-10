@@ -10,11 +10,12 @@ import { ipcMain, dialog } from 'electron'
 import { basename, dirname } from 'path'
 import { promises as fs } from 'fs'
 import type { OnlineFav } from '../../shared/types'
-import { IPC } from '../../shared/ipc'
+import { IPC, type GallerySummary } from '../../shared/ipc'
 import { store, sendToRenderer } from '../context'
 import { parseIds, tagToEntry, parseFavoriteTags, listNameFromFile } from '../lib/favfile'
-import { ensureSummaries } from '../lib/summaries'
-import { isGalleryCode, setFavoriteByCode } from '../lib/favoriteSync'
+import { ensureSummaries, queueSummaries, setSummaryArrivedHandler, setSummaryFailedHandler, allCachedSummaries, cachedSummariesNow } from '../lib/summaries'
+import { doujinExists } from '../lib/doujin'
+import { isGalleryCode, setFavoriteByCode, setFavoritesByCodes, setWorkFavorite } from '../lib/favoriteSync'
 
 const JSON_FILTER = [{ name: 'JSON', extensions: ['json'] }]
 
@@ -35,6 +36,61 @@ async function saveJsonAs(title: string, defaultPath: string): Promise<string | 
 
 const readJson = async (path: string): Promise<any> => JSON.parse(await fs.readFile(path, 'utf-8'))
 const writeJson = (path: string, data: unknown): Promise<void> => fs.writeFile(path, JSON.stringify(data), 'utf-8')
+
+// Favorites imported from a file hold only the code (title = code, no
+// thumbnail). Once its summary is fetched, store title / artist / thumbnail /
+// language / pages on the entry, so every favorites view and the exported file
+// show them. Saved in one debounced write.
+let favMetaTimer: ReturnType<typeof setTimeout> | null = null
+function fillFavMeta(g: GallerySummary): boolean {
+  const f = store.onlineFavs.get(g.code)
+  if (!f || (f.title && f.title !== f.code && f.thumbUrl)) return false
+  store.setOnlineFav(
+    g.code,
+    {},
+    {
+      title: f.title && f.title !== f.code ? f.title : g.title,
+      artist: f.artist ?? (g.artists.length ? g.artists.join(', ') : null),
+      language: f.language ?? g.language,
+      pageCount: f.pageCount || g.pageCount,
+      thumbUrl: f.thumbUrl ?? g.thumbUrl
+    },
+    false
+  )
+  return true
+}
+function saveFavMetaSoon(): void {
+  if (!favMetaTimer)
+    favMetaTimer = setTimeout(() => {
+      favMetaTimer = null
+      void store.saveOnline()
+    }, 2000)
+}
+// A favorite whose gallery is gone from the site (404) and that was never
+// downloaded is dropped from the favorites (its rating, if any, is kept).
+// 'removed' | 'kept' | 'uncertain' — network errors are never read as deleted.
+async function pruneIfDeleted(code: string): Promise<'removed' | 'kept' | 'uncertain'> {
+  const f = store.onlineFavs.get(code)
+  if (!f?.favorite || !/^\d+$/.test(code)) return 'kept'
+  for (const w of store.works.values()) if (w.code === code && (w.library ?? 'doujin') !== 'normal') return 'kept'
+  const exists = await doujinExists(code)
+  if (exists === null) return 'uncertain'
+  if (exists) return 'kept'
+  store.setOnlineFav(code, { favorite: false }, undefined, false)
+  saveFavMetaSoon()
+  return 'removed'
+}
+
+// Startup: fill entries whose summary was cached earlier.
+export async function backfillFavMeta(): Promise<void> {
+  const cache = await allCachedSummaries()
+  let changed = false
+  for (const f of store.onlineFavs.values()) {
+    const g = cache[f.code]
+    if (g && fillFavMeta(g)) changed = true
+  }
+  if (changed) await store.saveOnline()
+}
 
 // Rating of a gallery: the better of the list entry and any local copy.
 function rankOf(code: string): number {
@@ -223,19 +279,96 @@ export function registerFavoritesIpc(): void {
     }
     const ids = parseIds(raw)
     const ranks: Record<string, unknown> = raw?.ranks ?? {}
-    let matched = 0
+    // 추가 시각 in file order, 1ms apart (Pupil lists oldest first), so
+    // 최근 추가순 follows the file. Applies to entries new to the list, and to
+    // existing ones whose time is shared with others — the mark of an earlier
+    // bulk import that stamped hundreds with one ms (re-importing the same file
+    // repairs that order). Hand-hearted favorites have distinct times; kept.
+    const sameTime = new Map<number, number>()
     for (const id of ids) {
-      const { works } = await setFavoriteByCode(id, true)
-      if (works.length) matched++
+      const t = store.onlineFavs.get(id)?.addedAt
+      if (t !== undefined) sameTime.set(t, (sameTime.get(t) ?? 0) + 1)
+    }
+    const restamp = ids.filter((id) => {
+      const f = store.onlineFavs.get(id)
+      return !f || (sameTime.get(f.addedAt) ?? 0) > 1
+    })
+    const matched = await setFavoritesByCodes(ids, true)
+    const t0 = Date.now() - restamp.length
+    restamp.forEach((id, i) => store.setOnlineFav(id, { addedAt: t0 + i }, undefined, false))
+    for (const id of ids) {
       const r = Number(ranks[id]) || 0
-      if (r > 0) store.setOnlineFav(id, { rank: r })
+      if (r > 0) store.setOnlineFav(id, { rank: r }, undefined, false)
     }
     const tags = parseFavoriteTags(raw)
     if (tags.length) {
       await store.saveSettings({ ...store.settings, favoriteTags: [...new Set([...store.settings.favoriteTags, ...tags])] })
     }
     await store.saveOnline()
+    // Start fetching their titles / thumbnails / tags now (saved as it goes,
+    // resumed on the next start) rather than when the favorites are opened.
+    void queueSummaries(ids)
     return { ok: true, matched, total: ids.length }
+  })
+
+  // 즐겨찾기 초기화: unheart every doujin favorite — the whole list (online and
+  // coded local copies) plus hearted uncoded doujin works. Same as unhearting
+  // each by hand: folders moved into the favorites folder go back home (per
+  // the setting). Ratings stay. General-manga favorites are separate, untouched.
+  // Each summary that lands: fill the favorite entry and push it to the
+  // renderer (batched), so screens that asked before it arrived update too.
+  let arrived: GallerySummary[] = []
+  let pushTimer: ReturnType<typeof setTimeout> | null = null
+  setSummaryArrivedHandler((g) => {
+    if (fillFavMeta(g)) saveFavMetaSoon()
+    arrived.push(g)
+    if (!pushTimer)
+      pushTimer = setTimeout(() => {
+        pushTimer = null
+        sendToRenderer(IPC.summaryArrived, arrived)
+        arrived = []
+      }, 500)
+  })
+  // Setting on: a summary that failed may mean the gallery was deleted.
+  setSummaryFailedHandler((code) => {
+    if (store.settings.pruneDeletedFavorites) void pruneIfDeleted(code)
+  })
+
+  // 지금 정리: check every favorite that has no summary (the ones the list
+  // can't show), 4 at a time, and drop those deleted from the site.
+  ipcMain.handle(IPC.pruneDeletedFavorites, async () => {
+    const cache = await allCachedSummaries()
+    const codes = [...store.onlineFavs.values()]
+      .filter((f) => f.favorite && /^\d+$/.test(f.code) && !cache[f.code])
+      .map((f) => f.code)
+    let done = 0
+    let removed = 0
+    let uncertain = 0
+    const queue = [...codes]
+    sendToRenderer(IPC.pruneDeletedProgress, { done, total: codes.length })
+    const worker = async (): Promise<void> => {
+      for (let code = queue.shift(); code; code = queue.shift()) {
+        const r = await pruneIfDeleted(code)
+        if (r === 'removed') removed++
+        else if (r === 'uncertain') uncertain++
+        sendToRenderer(IPC.pruneDeletedProgress, { done: ++done, total: codes.length })
+      }
+    }
+    await Promise.all(Array.from({ length: 4 }, worker))
+    await store.saveOnline()
+    return { checked: codes.length, removed, uncertain }
+  })
+
+  ipcMain.handle(IPC.resetFavorites, async () => {
+    const codes = [...store.onlineFavs.values()].filter((f) => f.favorite).map((f) => f.code)
+    await setFavoritesByCodes(codes, false)
+    let rest = 0
+    for (const w of [...store.works.values()]) {
+      if (!w.favorite || (w.library ?? 'doujin') === 'normal') continue
+      await setWorkFavorite(w.id, false)
+      rest++
+    }
+    return { count: codes.length + rest }
   })
 
   // Merge several favorite files into one new file (union of ids, tags, ranks
@@ -290,9 +423,19 @@ export function registerFavoritesIpc(): void {
 
   // Gallery summaries for `codes` (renders favorites / lists). Served from the
   // on-disk cache; only uncached codes are fetched.
-  ipcMain.handle(IPC.doujinSummaries, async (_e, codes: string[]) => {
-    const cache = await ensureSummaries(codes)
-    return codes.map((c) => cache[c]).filter(Boolean)
+  // What's cached, immediately. A screen used to wait here until every missing
+  // code in its request had been fetched — one slow / retrying gallery held up
+  // the whole batch, leaving cards blank although their data was on disk.
+  ipcMain.handle(IPC.doujinSummaries, (_e, codes: string[]) => cachedSummariesNow(codes))
+
+  // code → language for the 언어 분류 filter (cached summaries only; tiny
+  // compared with full summaries, so the whole favorites list can be filtered
+  // without loading every card's data).
+  ipcMain.handle(IPC.favLanguages, async (_e, codes: string[]) => {
+    const cache = await allCachedSummaries()
+    const out: Record<string, string | null> = {}
+    for (const c of codes) if (cache[c]) out[c] = cache[c].language
+    return out
   })
 
   // Cache every list's summaries in one go so viewing a list later is instant.

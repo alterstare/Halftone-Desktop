@@ -7,6 +7,7 @@ import { lookup as systemLookup } from 'dns'
 import type { LookupAddress } from 'dns'
 import type { DoujinMeta } from '../../shared/types'
 import { fillNamePattern, langCode } from '../../shared/pattern'
+import { fitDoujinName } from '../../shared/nameFit'
 import { titleSim, titleNorm } from '../../shared/title'
 import { dohAnswers } from './doh'
 
@@ -366,21 +367,23 @@ export function sanitize(name: string): string {
   )
 }
 
+// Download folder from the user's pattern (default "artist [code] title"),
+// fitted to the shared length rule: title shrinks first (…), then artist, then
+// group; the code is never cut (shared/nameFit).
 function folderName(meta: DoujinMeta, pattern?: string): string {
-  if (pattern && pattern.trim()) {
-    const groups = meta.tags.filter((t) => t.startsWith('group:')).map((t) => t.slice(6))
-    return sanitize(
-      fillNamePattern(pattern, {
+  const p = pattern && pattern.trim() ? pattern : '-artist- [-id-] -title-'
+  const groups = meta.tags.filter((t) => t.startsWith('group:')).map((t) => t.slice(6))
+  return fitDoujinName(
+    (x) =>
+      fillNamePattern(p, {
         id: meta.code,
-        title: meta.title,
-        artist: meta.artists.join(', '),
-        group: groups.join(', '),
+        title: x.title,
+        artist: x.artist,
+        group: x.group,
         language: langCode(meta.language)
-      })
-    )
-  }
-  const artist = meta.artists.length ? meta.artists.join(', ') + ' ' : ''
-  return sanitize(`${artist}[${meta.code}] ${meta.title}`)
+      }),
+    { title: meta.title, artist: meta.artists.join(', '), group: groups.join(', ') }
+  )
 }
 
 export interface DownloadResult {

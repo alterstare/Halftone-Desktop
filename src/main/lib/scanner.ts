@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import { join, basename, dirname, extname, resolve, sep } from 'path'
+import { fitName, nameFits } from '../../shared/nameFit'
 import type { Work, Settings } from '../../shared/types'
 import { IMAGE_EXTS } from '../../shared/types'
 import { parseName } from './parser'
@@ -317,7 +318,10 @@ async function makeWork(
 // Folder-name sanitizer mirroring favorites.ts, so a work sitting in
 // <base>/<group name>/<work> is matched back to its group.
 function safeName(name: string): string {
-  return name.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+$/g, '').trim() || 'group'
+  // Unchanged for names that already fit, so existing group folders still match;
+  // longer ones are cut by the shared length rule (shared/nameFit).
+  const base = name.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+$/g, '').trim()
+  return (nameFits(base) ? base : fitName(base, 'group', '_')) || 'group'
 }
 
 // Inside the doujin favorites folder? (General manga has no favorites folder.)

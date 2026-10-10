@@ -79,16 +79,18 @@ export function doujinFavGalleries(
     seen.add(f.code)
     const sum = getFavSummary(f.code)
     const local = byCode.get(f.code)
+    // Entries imported from a favorites file carry only the code (title = code,
+    // no thumbnail): fill whatever is missing from the fetched summary.
     rows.push({
       g: {
         code: f.code,
-        title: f.title,
+        title: f.title && f.title !== f.code ? f.title : sum?.title ?? f.title,
         artists: f.artist ? [f.artist] : sum?.artists ?? [],
         tags: local ? allTags(local) : sum?.tags ?? [],
         language: f.language ?? sum?.language ?? null,
-        type: null,
-        pageCount: f.pageCount,
-        thumbUrl: f.thumbUrl
+        type: sum?.type ?? null,
+        pageCount: f.pageCount || sum?.pageCount || 0,
+        thumbUrl: f.thumbUrl ?? sum?.thumbUrl ?? null
       },
       t: f.addedAt,
       r: Math.max(f.rank, local?.rank ?? 0)

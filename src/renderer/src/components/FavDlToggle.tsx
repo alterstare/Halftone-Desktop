@@ -55,22 +55,28 @@ export function OnlineOnlyToggle(): JSX.Element {
 }
 
 // Sort of every favorites view: 평점 높은순 / 최근 추가순 (by favorite time).
-export function FavSortSelect({
+export type FavSort = 'rank' | 'recent' | 'newest'
+// `withNewest` adds 작품 최신순 (by gallery number) where the view supports it.
+export function FavSortSelect<T extends FavSort>({
   value,
-  onChange
+  onChange,
+  withNewest = false
 }: {
-  value: 'rank' | 'recent'
-  onChange: (v: 'rank' | 'recent') => void
+  value: T
+  onChange: (v: T) => void
+  withNewest?: boolean
 }): JSX.Element {
+  const options: [FavSort, string][] = [
+    ['recent', '최근 추가순'],
+    ['rank', '평점 높은순'],
+    ...(withNewest ? ([['newest', '작품 최신순']] as [FavSort, string][]) : [])
+  ]
   return (
-    <Dropdown<'rank' | 'recent'>
+    <Dropdown<T>
       chip
       value={value}
       onChange={onChange}
-      options={[
-        ['rank', '평점 높은순'],
-        ['recent', '최근 추가순']
-      ]}
+      options={options as [T, string][]}
     />
   )
 }

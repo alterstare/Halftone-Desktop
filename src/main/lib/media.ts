@@ -15,6 +15,7 @@ import { pathToFileURL } from 'url'
 import { promises as fs } from 'fs'
 import { fetchDoujinBuffer } from './doujin'
 import { fetchComicBuffer } from './comic'
+import { cachedImage } from './imgCache'
 import { store } from '../context'
 
 // Must run before app 'ready' (Electron requirement for privileged schemes).
@@ -73,8 +74,11 @@ const MIME: Record<string, string> = {
     try {
       const host = new URL(req.url).host
       const target = decodeB64Path(req.url)
-      if (host === 'web') return bytes(await fetchDoujinBuffer(target))
-      if (host === 'comic') return bytes(await fetchComicBuffer(store.settings.comicBaseUrl, target))
+      // Remote images go through the disk cache (lib/imgCache) so a restart
+      // doesn't download every thumbnail / page again.
+      if (host === 'web') return bytes(await cachedImage(target, () => fetchDoujinBuffer(target)))
+      if (host === 'comic')
+        return bytes(await cachedImage(target, () => fetchComicBuffer(store.settings.comicBaseUrl, target)))
       // NAS (SMB) UNC paths become file://host/... URLs that net.fetch refuses —
       // read those directly.
       if (/^[\\/]{2}[^\\/]/.test(target)) {

@@ -14,8 +14,21 @@ import { useTagMenu } from './useTagMenu'
 // A favorite that isn't downloaded yet (doujin numeric code or manga-site http url),
 // shown inside the unified favorites grid alongside local work cards. Clicking
 // opens it online; the download button pulls it into the library.
-export default function OnlineFavCard({ fav, layout }: { fav: OnlineFav; layout: 'grid' | 'list' }): JSX.Element {
-  const isComic = isComicCode(fav.code)
+export default function OnlineFavCard({ fav: entry, layout }: { fav: OnlineFav; layout: 'grid' | 'list' }): JSX.Element {
+  const isComic = isComicCode(entry.code)
+  // Favorites imported from a file carry only the code (title = code, no
+  // thumbnail): fill what's missing from the fetched gallery summary.
+  useFavSummaries(isComic ? [] : [entry.code])
+  const sum = isComic ? undefined : getFavSummary(entry.code)
+  const fav: OnlineFav = sum
+    ? {
+        ...entry,
+        title: entry.title && entry.title !== entry.code ? entry.title : sum.title,
+        artist: entry.artist ?? (sum.artists.length ? sum.artists.join(', ') : null),
+        thumbUrl: entry.thumbUrl ?? sum.thumbUrl,
+        pageCount: entry.pageCount || sum.pageCount
+      }
+    : entry
   const openOnline = useStore((s) => s.openOnline)
   const openComic = useStore((s) => s.openComic)
   const startDownload = useStore((s) => s.startDownload)
@@ -38,9 +51,8 @@ export default function OnlineFavCard({ fav, layout }: { fav: OnlineFav; layout:
       onMenu={(x, e) => openTagMenu(e, tagToken(`artist:${x}`), x)}
     />
   )
-  // Stored favorites carry no tags → pull the cached gallery summary (doujin only).
-  useFavSummaries(isComic ? [] : [fav.code])
-  const tags = (getFavSummary(fav.code)?.tags ?? []).filter((t) => !t.startsWith('language:'))
+  // Stored favorites carry no tags → from the cached gallery summary (doujin only).
+  const tags = (sum?.tags ?? []).filter((t) => !t.startsWith('language:'))
 
   const phase = d?.phase
   const active = phase === 'queued' || phase === 'fetching' || phase === 'downloading' || phase === 'enriching'

@@ -101,6 +101,9 @@ export interface Settings {
   // location — see the favorites model in main/lib/favoriteSync.ts.
   favoritesDir: string | null
   favoriteMoveToFolder: boolean
+  // Drop favorites whose gallery was deleted from the site (404) — only when
+  // no downloaded copy exists. Checked when fetching its summary fails.
+  pruneDeletedFavorites: boolean
   downloadDir: string | null
   // Preferred image encoding when downloading doujin galleries. webp is more
   // widely supported by other viewers; avif is smaller. Falls back per-page when
@@ -381,6 +384,7 @@ export const DEFAULT_SETTINGS: Settings = {
   libraryRoots: [],
   favoritesDir: null,
   favoriteMoveToFolder: true,
+  pruneDeletedFavorites: false,
   downloadDir: null,
   downloadImageFormat: 'avif',
   normalRoots: [],

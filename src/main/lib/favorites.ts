@@ -1,10 +1,14 @@
 import { promises as fs } from 'fs'
 import { join, basename, dirname, resolve, sep } from 'path'
 import type { Work, WorkGroup } from '../../shared/types'
+import { fitName, nameFits } from '../../shared/nameFit'
 
 // Sanitize a group name for use as a folder name (strip illegal chars).
 export function safeName(name: string): string {
-  return name.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+$/g, '').trim() || 'group'
+  // Unchanged for names that already fit, so existing group folders still match;
+  // longer ones are cut by the shared length rule (shared/nameFit).
+  const base = name.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+$/g, '').trim()
+  return (nameFits(base) ? base : fitName(base, 'group', '_')) || 'group'
 }
 
 async function rmdirIfEmpty(dir: string): Promise<void> {

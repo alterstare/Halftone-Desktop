@@ -119,7 +119,10 @@ export class Store {
   setOnlineFav(
     code: string,
     patch: { favorite?: boolean; rank?: number; addedAt?: number },
-    meta?: Partial<OnlineFav>
+    meta?: Partial<OnlineFav>,
+    // false = caller batches many changes and calls saveOnline() once at the end
+    // (one write per change raced thousands of writes to the same file).
+    save = true
   ): OnlineFav {
     const prev = this.onlineFavs.get(code)
     const next: OnlineFav = {
@@ -143,7 +146,7 @@ export class Store {
 
     if (!next.favorite && next.rank === 0) this.onlineFavs.delete(code)
     else this.onlineFavs.set(code, next)
-    void this.saveOnline()
+    if (save) void this.saveOnline()
     return next
   }
 
@@ -248,8 +251,21 @@ async function readJson<T>(file: string, fallback: T): Promise<T> {
   }
 }
 
-async function writeJson(file: string, data: unknown): Promise<void> {
-  const tmp = file + '.tmp'
-  await fs.writeFile(tmp, JSON.stringify(data), 'utf-8')
-  await fs.rename(tmp, file)
+// Writes to one file are serialized: overlapping saves (e.g. many
+// setOnlineFav calls) shared the same .tmp and could rename a half-written mix
+// into place. Each write still goes tmp → rename, so a crash mid-write keeps
+// the previous file intact.
+const writeChains = new Map<string, Promise<void>>()
+function writeJson(file: string, data: unknown): Promise<void> {
+  const text = JSON.stringify(data) // snapshot now, write in turn
+  const prev = writeChains.get(file) ?? Promise.resolve()
+  const next = prev
+    .catch(() => {})
+    .then(async () => {
+      const tmp = file + '.tmp'
+      await fs.writeFile(tmp, text, 'utf-8')
+      await fs.rename(tmp, file)
+    })
+  writeChains.set(file, next)
+  return next
 }

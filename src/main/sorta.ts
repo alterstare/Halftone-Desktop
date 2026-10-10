@@ -23,6 +23,8 @@ export function setupSorta(): void {
     dataDir: process.env['SORTA_DATA_DIR'] || join(app.getPath('appData'), 'Sorta'),
     appName: 'Halftone',
     appVersion: SORTA_VERSION,
+    // dev runs (electron.exe) need it for Sorta's own windows; packaged use the exe icon
+    icon: join(__dirname, '../../build/icon.png'),
     embedded: true,
     lazy: true,
     window: getMainWindow,

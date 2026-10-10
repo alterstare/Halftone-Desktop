@@ -82,8 +82,14 @@ export const IPC = {
   importOnlineFavList: 'fav:importOnlineList',
   removeOnlineFavList: 'fav:removeOnlineList',
   doujinSummaries: 'doujin:summaries',
+  resetFavorites: 'fav:reset',
+  favLanguages: 'fav:languages',
+  pruneDeletedFavorites: 'fav:pruneDeleted',
+  pruneDeletedProgress: 'fav:pruneProgress', // main -> renderer: {done, total}
   preloadOnlineFavLists: 'fav:preloadOnline',
   onlineFavPreloadProgress: 'fav:preloadProgress',
+  summarySyncProgress: 'doujin:summarySync', // main -> renderer: {done, total, running} of the summary queue
+  summaryArrived: 'doujin:summaryArrived', // main -> renderer: GallerySummary[] fetched since the last push
   mergeFavorites: 'fav:merge',
   exportRatings: 'ratings:export',
   importRatings: 'ratings:import',
@@ -284,6 +290,17 @@ export interface Api {
   importOnlineFavList: () => Promise<{ ok: boolean; name: string; total: number }>
   removeOnlineFavList: (name: string) => Promise<{ ok: boolean }>
   doujinSummaries: (codes: string[]) => Promise<GallerySummary[]>
+  // 즐겨찾기 초기화: unheart every doujin favorite (ratings kept). Returns how many.
+  resetFavorites: () => Promise<{ count: number }>
+  // code → language of the cached summaries among `codes` (missing = not fetched yet).
+  favLanguages: (codes: string[]) => Promise<Record<string, string | null>>
+  // Check favorites with no summary; drop the ones deleted from the site (404)
+  // that have no downloaded copy. uncertain = couldn't tell (network).
+  pruneDeletedFavorites: () => Promise<{ checked: number; removed: number; uncertain: number }>
+  onPruneDeletedProgress: (cb: (p: { done: number; total: number }) => void) => () => void
+  // Background summary queue (favorites' title/thumb/tags) → activity bar.
+  onSummarySync: (cb: (p: { done: number; total: number; running: boolean }) => void) => () => void
+  onSummaryArrived: (cb: (list: GallerySummary[]) => void) => () => void
   preloadOnlineFavLists: () => Promise<{ ok: boolean; total: number; cached: number }>
   onOnlineFavPreload: (cb: (p: { done: number; total: number }) => void) => () => void
   // Merge 2+ favorite files into one new file (union); no library change.

@@ -38,6 +38,24 @@ const api: Api = {
   importOnlineFavList: () => ipcRenderer.invoke(IPC.importOnlineFavList),
   removeOnlineFavList: (name: string) => ipcRenderer.invoke(IPC.removeOnlineFavList, name),
   doujinSummaries: (codes: string[]) => ipcRenderer.invoke(IPC.doujinSummaries, codes),
+  resetFavorites: () => ipcRenderer.invoke(IPC.resetFavorites),
+  favLanguages: (codes: string[]) => ipcRenderer.invoke(IPC.favLanguages, codes),
+  pruneDeletedFavorites: () => ipcRenderer.invoke(IPC.pruneDeletedFavorites),
+  onPruneDeletedProgress: (cb: (p: { done: number; total: number }) => void) => {
+    const listener = (_e: unknown, p: any): void => cb(p)
+    ipcRenderer.on(IPC.pruneDeletedProgress, listener)
+    return () => ipcRenderer.removeListener(IPC.pruneDeletedProgress, listener)
+  },
+  onSummaryArrived: (cb: (list: any[]) => void) => {
+    const listener = (_e: unknown, list: any[]): void => cb(list)
+    ipcRenderer.on(IPC.summaryArrived, listener)
+    return () => ipcRenderer.removeListener(IPC.summaryArrived, listener)
+  },
+  onSummarySync: (cb: (p: { done: number; total: number; running: boolean }) => void) => {
+    const listener = (_e: unknown, p: any): void => cb(p)
+    ipcRenderer.on(IPC.summarySyncProgress, listener)
+    return () => ipcRenderer.removeListener(IPC.summarySyncProgress, listener)
+  },
   preloadOnlineFavLists: () => ipcRenderer.invoke(IPC.preloadOnlineFavLists),
   onOnlineFavPreload: (cb: (p: { done: number; total: number }) => void) => {
     const listener = (_e: unknown, p: any): void => cb(p)

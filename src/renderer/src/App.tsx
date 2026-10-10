@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
+import { watchSummarySync } from './favSummaries'
 import { useStore } from './store'
 import ExitModal from './components/ExitModal'
 import TabBar from './components/TabBar'
@@ -169,6 +170,8 @@ export default function App(): JSX.Element {
     await window.api.comicChallengeAction('retry')
   }
   useEffect(() => window.api.onComicChallenge((active) => setCfChallenge(active)), [])
+  // Favorites' summary queue (main) → one activity-bar row.
+  useEffect(() => watchSummarySync(), [])
 
   // 포커스 모드: chrome hidden once reading starts (Reader sets focusHidden).
   // Leaving the reader, switching tabs or turning the mode off shows it again.
