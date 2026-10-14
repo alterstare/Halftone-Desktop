@@ -1,7 +1,8 @@
 // 음성 플레이어: Envelope's screen (envelope.html) in ONE frame that never moves
 // in the page — moving a frame reloads it and would stop the sound. Only its
-// box changes: the right panel (under the tab bar, above the activity bar,
-// widened by dragging its left edge), the bar along Halftone's bottom (as wide
+// box changes: the right panel (the window's full height beside Halftone —
+// Halftone's tab bar, page and activity bar end at its edge, so the two look
+// like windows side by side; widened by dragging its left edge), the bar along Halftone's bottom (as wide
 // as Halftone), or hidden while its separate big window shows it (it keeps
 // playing). The frame asks for those shapes with postMessage; keys Halftone
 // doesn't use itself go down to it.
@@ -31,37 +32,22 @@ export default function EnvelopeDock(): JSX.Element | null {
   const frame = useRef<HTMLIFrameElement>(null)
   const [width, setWidth] = useState(savedWidth)
   const [dragging, setDragging] = useState(false)
-  const [box, setBox] = useState({ top: 0, bottom: 0 })
 
   // tell the frame its shape — only once its page has loaded: touching the
   // frame's window before that (its first, empty page) keeps Electron from
   // giving the real page its API
   const loaded = useRef(false)
+  // (with the height of Halftone's tab bar: the panel's top bar matches it)
   const sendShape = (): void => {
-    if (loaded.current) frame.current?.contentWindow?.postMessage({ type: 'env-mode', mode: shape }, '*')
+    const topH = (document.querySelector('.app > .tabbar-chrome') as HTMLElement | null)?.getBoundingClientRect().height || 42
+    if (loaded.current) frame.current?.contentWindow?.postMessage({ type: 'env-mode', mode: shape, topH: Math.round(topH) }, '*')
   }
   useEffect(sendShape, [shape, open])
+  const sendShapeRef = useRef(sendShape)
+  sendShapeRef.current = sendShape
   useEffect(() => {
     if (!open) loaded.current = false
   }, [open])
-
-  // the panel sits between the tab bar and the activity bar: follow the page body
-  useEffect(() => {
-    if (!open) return
-    const body = document.querySelector('.app > .body') as HTMLElement | null
-    const app = document.querySelector('.app') as HTMLElement | null
-    if (!body || !app) return
-    const measure = (): void => {
-      const b = body.getBoundingClientRect()
-      const a = app.getBoundingClientRect()
-      setBox({ top: b.top - a.top, bottom: a.bottom - b.bottom })
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(body)
-    ro.observe(app)
-    return () => ro.disconnect()
-  }, [open, shape])
 
   // the page makes room for it
   useEffect(() => {
@@ -79,6 +65,11 @@ export default function EnvelopeDock(): JSX.Element | null {
       if (!frame.current || e.source !== frame.current.contentWindow) return
       const st = useStore.getState()
       if (e.data?.type === 'env-job') st.envelopeJob(e.data.event)
+      // its screen listens now: send it its shape
+      if (e.data?.type === 'env-ready') {
+        loaded.current = true
+        sendShapeRef.current()
+      }
       if (e.data?.type !== 'env-request') return
       const r = e.data.request as { what: string; px?: number }
       if (r.what === 'window') {
@@ -147,7 +138,7 @@ export default function EnvelopeDock(): JSX.Element | null {
 
   const style: React.CSSProperties =
     shape === 'panel'
-      ? { top: box.top, bottom: box.bottom, right: 0, width }
+      ? { top: 0, bottom: 0, right: 0, width }
       : shape === 'bar'
         ? { left: 0, right: 0, bottom: 0, height: BAR_H + lift }
         : { right: 0, bottom: 0, width: 1, height: 1 }

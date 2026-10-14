@@ -141,11 +141,17 @@ function Main(): JSX.Element {
               if (m.type === 'env-mode') {
                 useStore.setState({ hostMode: m.mode })
                 document.documentElement.classList.toggle('env-bar', m.mode === 'bar')
+                // the panel stands beside Halftone: its top bar as tall as Halftone's
+                document.documentElement.classList.toggle('env-panel', m.mode === 'panel')
+                if (m.topH) document.documentElement.style.setProperty('--host-top-h', `${m.topH}px`)
               } else window.dispatchEvent(new KeyboardEvent('keydown', m.init))
             }),
             serveRemote()
           ]
         : []),
+      // listening now: Halftone sends this frame its shape (a message sent
+      // before this point would be lost)
+      ...(embedded ? [(window.parent.postMessage({ type: 'env-ready' }, '*'), () => {})] : []),
       ...(remote ? [followRemote()] : []),
       serveDecoding()
     ]

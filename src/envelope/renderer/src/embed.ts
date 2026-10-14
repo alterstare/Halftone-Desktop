@@ -52,7 +52,7 @@ export function requestHost(r: import('../../shared/ipc').HostRequest): void {
 
 // Messages from Halftone to the frame: its shape, and keys pressed in
 // Halftone that Halftone itself doesn't use.
-export function onHostMessage(cb: (m: { type: 'env-mode'; mode: HostMode } | { type: 'env-key'; init: KeyboardEventInit }) => void): () => void {
+export function onHostMessage(cb: (m: { type: 'env-mode'; mode: HostMode; topH?: number } | { type: 'env-key'; init: KeyboardEventInit }) => void): () => void {
   if (!embedded) return () => {}
   const h = (e: MessageEvent): void => {
     if (e.source !== window.parent) return

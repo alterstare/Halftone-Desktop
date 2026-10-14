@@ -7537,8 +7537,10 @@ select:hover,
 .app {
   position: relative;
 }
-.app.env-panel > .body {
-  margin-right: var(--env-w);
+/* the panel stands beside Halftone: the tab bar, page and activity bar all
+   end at its edge */
+.app.env-panel {
+  padding-right: var(--env-w);
 }
 .app.env-bar {
   padding-bottom: var(--env-bar-h);
