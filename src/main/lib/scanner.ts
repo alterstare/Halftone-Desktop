@@ -141,6 +141,39 @@ export async function scanRoot(
   return applyCollections(works, settings)
 }
 
+// Rebuild just these work folders (작품 통합 / 해제): their own images only,
+// library from the normal roots, artist from an artist-folder root. The manual
+// collections in `settings` then fold them as a full scan would. (Callers fall
+// back to a full scan when artist-folder auto collections are on — those need
+// every folder of the artist.)
+export async function scanDirs(dirs: string[], settings: Settings): Promise<Work[]> {
+  const nRoots = normalRoots(settings).map((r) => resolve(r))
+  const fRoots = flattenRoots(settings).map((r) => resolve(r))
+  const works: Work[] = []
+  for (const dir of [...new Set(dirs)]) {
+    let entries: import('fs').Dirent[]
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    const images = entries.filter((e) => e.isFile() && isImage(e.name)).length
+    if (!images) continue
+    const rp = resolve(dir)
+    const library = nRoots.some((r) => rp === r || rp.startsWith(r + sep)) ? 'normal' : 'doujin'
+    const af = artistFolderOf(rp, fRoots)
+    works.push(await makeWork(dir, images, settings, library, af ? basename(af) : null))
+  }
+  return applyCollections(works, settings)
+}
+
+// Is any of `dirs` under an artist-folder root with auto collections on?
+export function needsFullScan(dirs: string[], settings: Settings): boolean {
+  if ((settings.flattenCollectThreshold ?? 0) <= 0) return false
+  const fRoots = flattenRoots(settings).map((r) => resolve(r))
+  return dirs.some((d) => artistFolderOf(resolve(d), fRoots) !== null)
+}
+
 // Fold "collection" works out of a scanned work list. Two sources:
 //  1. auto: under an artist folder (flattenRoots), work folders with pageCount
 //     <= flattenCollectThreshold are merged into one "<artist> collection".

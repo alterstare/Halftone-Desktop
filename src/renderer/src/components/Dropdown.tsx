@@ -38,15 +38,15 @@ export default function Dropdown<T extends string>({
   return (
     <div className={`dropdown ${className}`} ref={ref}>
       {mini ? (
-        <button type="button" className="mini dd-mini" onClick={() => setOpen((o) => !o)}>
-          {label} <span className={`dt ${open ? 'up' : ''}`} />
+        <button type="button" className={`mini dd-mini ${open ? 'open' : ''}`} onClick={() => setOpen((o) => !o)}>
+          {label} <Caret up={open} />
         </button>
       ) : chip ? (
-        <button type="button" className="chip" onClick={() => setOpen((o) => !o)}>
-          {label} <span className={`dt ${open ? 'up' : ''}`} />
+        <button type="button" className={`chip ${open ? 'open' : ''}`} onClick={() => setOpen((o) => !o)}>
+          {label} <Caret up={open} />
         </button>
       ) : (
-        <button type="button" className="dropdown-btn" onClick={() => setOpen((o) => !o)}>
+        <button type="button" className={`dropdown-btn ${open ? 'open' : ''}`} onClick={() => setOpen((o) => !o)}>
           <span className="dropdown-label">{label}</span>
           <span className="dropdown-arrow">
             <Caret up={open} />

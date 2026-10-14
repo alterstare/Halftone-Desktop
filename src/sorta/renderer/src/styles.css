@@ -13,6 +13,8 @@
   --accent: #7132f5;
   --accent-2: #5741d8;
   --accent-soft: rgba(133, 91, 251, 0.16);
+  --accent-hover: #ebe4ff; /* hover fill: opaque light purple */
+  --hover-filter: brightness(1.08); /* hover on a solid (purple / selected) button */
   --danger: #e5484d;
   --press-filter: brightness(0.9);
   --shadow-subtle: rgba(0, 0, 0, 0.03) 0px 4px 24px;
@@ -34,6 +36,8 @@
   --accent: #8b5cf6;
   --accent-2: #7132f5;
   --accent-soft: rgba(133, 91, 251, 0.22);
+  --accent-hover: #2f2750;
+  --hover-filter: brightness(1.12);
   --danger: #ff5d6c;
   --press-filter: brightness(1.18);
   --shadow-subtle: rgba(0, 0, 0, 0.45) 0px 4px 24px;
@@ -100,8 +104,7 @@ h2 {
   transition: background-color 0.12s ease-out, border-color 0.12s ease-out, color 0.12s ease-out;
 }
 .btn:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .btn.primary {
@@ -121,7 +124,7 @@ h2 {
   color: var(--danger);
 }
 .btn.primary:hover {
-  background: var(--accent-2);
+  filter: var(--hover-filter);
 }
 .mini {
   display: inline-flex;
@@ -175,8 +178,7 @@ button:active {
   border-color: transparent;
 }
 .flat-group .mini:not(.on):hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .icon-btn {
@@ -194,7 +196,7 @@ button:active {
 }
 .icon-btn:hover,
 .icon-btn.on {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 
@@ -445,8 +447,7 @@ button:active {
   cursor: pointer;
 }
 .tree-item:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .tree-item.on {
@@ -489,7 +490,7 @@ button:active {
   cursor: pointer;
 }
 .tree-caret:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .tree-sep {
   height: 1px;
@@ -545,7 +546,7 @@ button:active {
 .search-clear:hover,
 .status-cancel:hover,
 .toast-x:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .toolbar {
   flex-wrap: wrap;
@@ -825,7 +826,7 @@ button:active {
   height: 16px;
 }
 .stepper-btn:hover:not(:disabled) {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .stepper-btn:disabled {
@@ -850,7 +851,7 @@ button:active {
   cursor: pointer;
 }
 .reset-btn:hover:not(:disabled) {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .reset-btn:disabled {
@@ -895,7 +896,7 @@ button:active {
   cursor: pointer;
 }
 .tag-chip button:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .tag-input {
   height: 30px;
@@ -984,7 +985,7 @@ button:active {
   color: var(--text-dim);
 }
 .review-stage .viewer-arrow:hover:not(:disabled) {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .review-stage .viewer-arrow:disabled {
@@ -1038,8 +1039,7 @@ button:active {
   transition: border-color 0.12s, background-color 0.12s;
 }
 .cand:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .cand.on {
   border-color: var(--accent);
@@ -2050,7 +2050,6 @@ select.tag-input {
   transition: border-color 0.12s, background-color 0.12s;
 }
 .choice-card:hover:not(:disabled) {
-  border-color: var(--accent);
 }
 .choice-card.on {
   border-color: var(--accent);
@@ -2130,8 +2129,7 @@ select.tag-input {
   position: relative;
 }
 .mini.open {
-  background: var(--accent-soft) !important;
-  border-color: var(--accent) !important;
+  background: var(--accent-hover) !important;
   color: var(--text-hover);
 }
 .dropmenu-panel {
@@ -2168,7 +2166,7 @@ select.tag-input {
   white-space: nowrap;
 }
 .menu-opt:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .menu-box {
   width: 16px;
@@ -2271,7 +2269,7 @@ select.tag-input {
   border-left: 1px solid var(--line);
 }
 .seg-btn:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .seg-btn.heart.on {
   color: var(--danger);
@@ -2308,7 +2306,7 @@ select.tag-input {
   cursor: pointer;
 }
 .group-pop-opt:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .group-pop-opt.new {
   color: var(--accent);
@@ -2408,7 +2406,7 @@ select.tag-input {
   white-space: nowrap;
 }
 .ctx-item:hover:not(:disabled) {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .ctx-item:disabled {
   color: var(--muted);
@@ -2902,7 +2900,8 @@ select.tag-input {
 }
 .mini.primary:hover:not(:disabled),
 .flat-group .mini.primary:not(.on):hover:not(:disabled) {
-  background: var(--accent-2);
+  background: var(--accent);
+  filter: var(--hover-filter);
   border-color: transparent;
   color: #fff;
 }
@@ -3260,4 +3259,21 @@ select.tag-input {
   flex-wrap: wrap;
   justify-content: center;
   row-gap: 4px;
+}
+
+/* ===== Hover: opaque light-purple fill (same rule as Halftone / Env) =====
+   Controls and cards fill with --accent-hover on hover; no purple outline is
+   added. Solid purple buttons only brighten (--hover-filter). The rules above
+   were converted to this. Grid cells (작품 칸: image cells, character cards)
+   keep a purple outline on hover, the same as Halftone and Env. */
+.choice-card:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent);
+  filter: var(--hover-filter);
+}
+.btn.danger:hover:not(:disabled) {
+  background: var(--danger);
+  filter: var(--hover-filter);
 }

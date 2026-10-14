@@ -9,7 +9,7 @@ import type { Settings, SessionState, Work } from '../../shared/types'
 import type { CloseDecision, TransBlock, TransContext } from '../../shared/ipc'
 import { IPC } from '../../shared/ipc'
 import { store, appState, getMainWindow, sendToRenderer, themeBg } from '../context'
-import { scanLibrary, scanRoot, listImages, normalRoots } from '../lib/scanner'
+import { scanLibrary, scanRoot, scanDirs, needsFullScan, listImages, normalRoots } from '../lib/scanner'
 import { parseName } from '../lib/parser'
 import { setGroupFolder, mergeSeries, moveWorkToFolder, renameGroupFolders, safeName } from '../lib/favorites'
 import { setWorkFavorite } from '../lib/favoriteSync'
@@ -87,7 +87,7 @@ export function registerLibraryIpc(): void {
 
   // ---------- scanning / organizing ----------
 
-  ipcMain.handle(IPC.scanLibrary, async () => {
+  const fullScan = async (): Promise<Work[]> => {
     const scanned = await scanLibrary(store.settings, {
       onProgress: (n, current) =>
         sendToRenderer(IPC.scanProgress, { scanned: n, total: 0, current, done: false })
@@ -97,6 +97,26 @@ export function registerLibraryIpc(): void {
     sendToRenderer(IPC.scanProgress, { scanned: merged.length, total: merged.length, current: '', done: true })
     if (store.settings.autoOrganizeOnScan) await runOrganize()
     return allWorks()
+  }
+  ipcMain.handle(IPC.scanLibrary, () => fullScan())
+
+  // 작품 통합 / 해제: save settings.manualCollections, then rebuild only the
+  // works of the folders involved (a full scan only when artist-folder auto
+  // collections could regroup them).
+  ipcMain.handle(IPC.setCollections, async (_e, collections: Settings['manualCollections'], dirs: string[]) => {
+    const s = await store.saveSettings({ ...store.settings, manualCollections: collections })
+    if (needsFullScan(dirs, s)) return { settings: s, works: await fullScan() }
+    const key = (p: string): string => resolve(p).toLowerCase()
+    const set = new Set(dirs.map(key))
+    // Works built from these folders before: the single ones and any old
+    // collection that held one of them.
+    const old = allWorks().filter((w) => (w.sources?.length ? w.sources : [w.path]).some((d) => set.has(key(d))))
+    const scanned = await scanDirs(dirs, s)
+    const keep = new Set(scanned.map((w) => w.id))
+    for (const w of old) if (!keep.has(w.id)) store.remove(w.id)
+    store.mergeScanPartial(scanned)
+    await store.flushWorks()
+    return { settings: s, works: allWorks() }
   })
 
   // Rescan just one folder (favorites / a library root / download dir). Works
@@ -275,11 +295,35 @@ export function registerLibraryIpc(): void {
     if (path) shell.openPath(path)
   })
 
+  // 삭제: the work's folder goes to the recycle bin (throws if it can't — the
+  // work then stays listed). A folder already gone is just dropped from the
+  // library. Removing a series' last chapter also trashes the emptied series
+  // folder (never a library root).
   ipcMain.handle(IPC.deleteWork, async (_e, workId: string) => {
     const w = store.get(workId)
     if (!w) return
-    await fs.rm(w.path, { recursive: true, force: true })
+    // A merged work (작품 통합): its path is the PARENT of its folders — trash
+    // the folders themselves and drop its manual-collection entry.
+    if (w.sources?.length) {
+      for (const p of w.sources) {
+        if (await fs.stat(p).then(() => true, () => false)) await shell.trashItem(p)
+      }
+      store.remove(workId)
+      const key = (p: string): string => resolve(p).toLowerCase()
+      const src = new Set(w.sources.map(key))
+      const all = store.settings.manualCollections ?? []
+      const rest = all.filter((c) => !c.dirs.some((d) => src.has(key(d))))
+      if (rest.length !== all.length) await store.saveSettings({ ...store.settings, manualCollections: rest })
+      return
+    }
+    const exists = await fs.stat(w.path).then(() => true, () => false)
+    if (exists) await shell.trashItem(w.path)
     store.remove(workId)
+    if ((w.library ?? 'doujin') !== 'normal') return
+    const parent = resolve(dirname(w.path))
+    if (normalRoots(store.settings).some((r) => resolve(r) === parent)) return
+    const left = await fs.readdir(parent).catch(() => null)
+    if (left && left.length === 0) await shell.trashItem(parent).catch(() => {})
   })
 
   // Merge general-manga works into one series folder, created under the deepest
@@ -489,8 +533,9 @@ export function registerLibraryIpc(): void {
   ipcMain.handle(IPC.resetApp, async (_e, deleteWorkFolders: boolean) => {
     if (deleteWorkFolders) {
       for (const w of store.works.values()) {
-        // A locked/missing folder shouldn't abort the reset.
-        await fs.rm(w.path, { recursive: true, force: true }).catch(() => {})
+        // A locked/missing folder shouldn't abort the reset. A merged work's
+        // path is the parent of its folders → remove the folders themselves.
+        for (const p of w.sources?.length ? w.sources : [w.path]) await fs.rm(p, { recursive: true, force: true }).catch(() => {})
       }
     }
     const ud = app.getPath('userData')

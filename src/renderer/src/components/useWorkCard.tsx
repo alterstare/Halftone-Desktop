@@ -4,6 +4,8 @@ import type { Work } from '../../../shared/types'
 import { useStore } from '../store'
 import { invalidate } from '../images'
 import ContextMenu from './ContextMenu'
+import TrashConfirm from './TrashConfirm'
+import { mergedIndex, unmergeWork } from '../merge'
 import { useTagMenu } from './useTagMenu'
 
 // Everything a local work card (list WorkCard / grid WorkGridCard) does besides
@@ -13,17 +15,19 @@ import { useTagMenu } from './useTagMenu'
 //     work menu, and a text selection (drag-to-copy) never opens anything
 //   • isFav / toggleFav — the unified favorite (local + online)
 //   • setRank, removeTag, and the inline "+ 태그" editor (startAddTag / tagInput)
-//   • workMenu / tagMenu — the two context menus; render both once in the card
+//   • workMenu / tagMenu — the two context menus (workMenu also holds the
+//     삭제 confirm); render both once in the card
 //   • openTagMenu — right-click handler for tag/artist chips
 export function useWorkCard(work: Work): {
   cardEvents: {
     onClickCapture: (e: MouseEvent) => void
-    onClick: () => void
+    onClick: (e: MouseEvent) => void
     onMouseDown: (e: MouseEvent) => void
     onAuxClick: (e: MouseEvent) => void
     onContextMenu: (e: MouseEvent) => void
   }
   isFav: boolean
+  selected: boolean // picked in the library selection
   toggleFav: (e: MouseEvent) => Promise<void>
   setRank: (rank: number) => Promise<void>
   removeTag: (tag: string) => Promise<void>
@@ -44,6 +48,8 @@ export function useWorkCard(work: Work): {
   const setWorkFavorite = useStore((s) => s.setWorkFavorite)
   const onlineFav = useStore((s) => !!(work.code && s.onlineFavs[work.code]?.favorite))
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+  const [trash, setTrash] = useState(false)
+  const selected = useStore((s) => !!s.homeSel?.includes(work.id))
   const [adding, setAdding] = useState(false)
   const [newTag, setNewTag] = useState('')
   const { openTagMenu, tagMenu } = useTagMenu('online')
@@ -59,7 +65,12 @@ export function useWorkCard(work: Work): {
         openGlance({ workId: work.id })
       }
     },
-    onClick: (): void => openTab(work.id),
+    // While selecting (or Ctrl+click to start): pick instead of open.
+    onClick: (e: MouseEvent): void => {
+      const st = useStore.getState()
+      if (st.homeSel || e.ctrlKey || e.metaKey) return st.toggleHomeSel(work.id)
+      openTab(work.id)
+    },
     onMouseDown: (e: MouseEvent): void => {
       if (e.button === 1) e.preventDefault() // block middle-click autoscroll
     },
@@ -110,7 +121,9 @@ export function useWorkCard(work: Work): {
     />
   ) : null
 
-  const workMenu = menu && (
+  const workMenu = (
+    <>
+    {menu && (
     <ContextMenu
       x={menu.x}
       y={menu.y}
@@ -121,15 +134,22 @@ export function useWorkCard(work: Work): {
         ...(work.code && (work.library ?? 'doujin') === 'doujin'
           ? [{ label: '다시 다운로드', onClick: () => startDownload({ kind: 'doujin' as const, input: work.code! }) }]
           : []),
-        { label: '제목 복사', onClick: () => void window.api.clipboardWriteText(work.title) }
+        { label: '제목 복사', onClick: () => void window.api.clipboardWriteText(work.title) },
+        { label: selected ? '선택 해제' : '선택', onClick: () => useStore.getState().toggleHomeSel(work.id) },
+        ...(mergedIndex(work) >= 0 ? [{ label: '통합 해제', onClick: () => unmergeWork(work) }] : []),
+        { label: '삭제', danger: true, onClick: () => setTrash(true) }
       ]}
       onClose={() => setMenu(null)}
     />
+    )}
+    {trash && <TrashConfirm works={[work]} title={work.title} onClose={() => setTrash(false)} />}
+    </>
   )
 
   return {
     cardEvents,
     isFav,
+    selected,
     toggleFav,
     setRank,
     removeTag,

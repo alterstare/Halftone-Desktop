@@ -226,6 +226,9 @@ interface AppState {
   normalListWidth: number
   readerMode: 'scroll' | 'paged' | 'spread'
   homeLayout: 'list' | 'grid'
+  // Library selection (작품 통합 / 삭제): card keys — a work id, or a series key
+  // in the general-manga list. null = not selecting.
+  homeSel: string[] | null
 
   // online
   browseSource: DoujinListSource
@@ -430,6 +433,8 @@ interface AppState {
   // row). Per-mode keys also land in the current mode's overlay so they stick.
   patchSettings: (patch: Partial<Settings>) => void
   setHomeLayout: (l: 'list' | 'grid') => void
+  setHomeSel: (keys: string[] | null) => void
+  toggleHomeSel: (key: string) => void
   setBrowseSource: (s: DoujinListSource) => void
   // Cross-search: jump to the online browse and run a query (from a local card),
   // or jump to the local home and search there (from an online card).
@@ -637,6 +642,7 @@ export const useStore = create<AppState>((set, get) => ({
   normalListWidth: DEFAULT_SETTINGS.normalListPaneWidth,
   readerMode: DEFAULT_SETTINGS.readerMode,
   homeLayout: DEFAULT_SETTINGS.homeLayout,
+  homeSel: null,
   browseSource: { kind: 'index', language: 'korean' },
   browsePage: 0,
   browseTopNonce: 0,
@@ -1751,6 +1757,14 @@ export const useStore = create<AppState>((set, get) => ({
     set({ settings: s })
     window.api.saveSettings(s)
   },
+  setHomeSel: (keys) => set({ homeSel: keys && keys.length ? keys : null }),
+  // Unpicking the last card ends selecting.
+  toggleHomeSel: (key) =>
+    set((st) => {
+      const cur = st.homeSel ?? []
+      const next = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]
+      return { homeSel: next.length ? next : null }
+    }),
   setHomeLayout: (l) => {
     set({ homeLayout: l })
     const s = { ...get().settings, homeLayout: l }

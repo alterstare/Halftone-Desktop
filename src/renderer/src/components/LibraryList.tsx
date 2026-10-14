@@ -9,6 +9,7 @@ import { SearchIcon, AutoStoriesIcon } from './icons'
 import FavGroup from './FavGroup'
 import { ChapterRow } from './SeriesCard'
 import ContextMenu from './ContextMenu'
+import TrashConfirm from './TrashConfirm'
 import type { MenuItem } from './ContextMenu'
 import ConfirmModal from './ConfirmModal'
 import Pager from './Pager'
@@ -50,6 +51,7 @@ export default function LibraryList(): JSX.Element {
   const [applied, setAppliedRaw] = useTabState('applied', '')
   const [sort] = useState<SortMode>(globalSort)
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null)
+  const [trash, setTrash] = useState<Work | null>(null) // 삭제 confirm
   const [moveTo, setMoveTo] = useState<{ workId: string; gid: string; name: string } | null>(null)
 
   const activeWorkId = tabs.find((t) => t.id === activeTabId)?.workId
@@ -189,6 +191,7 @@ export default function LibraryList(): JSX.Element {
       if ((w.groups ?? []).length) items.push({ label: '그룹에서 제거', onClick: () => applyGroup(w.id, []) })
     }
     items.push({ label: '현재 탭에서 열기', onClick: () => (activeTabId ? replaceTabWork(activeTabId, 'left', id) : openTab(id)) })
+    if (w) items.push({ label: '삭제', danger: true, onClick: () => setTrash(w) })
     return items
   }
 
@@ -332,6 +335,7 @@ export default function LibraryList(): JSX.Element {
       {menu && (
         <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.id)} onClose={() => setMenu(null)} />
       )}
+      {trash && <TrashConfirm works={[trash]} title={trash.title} onClose={() => setTrash(null)} />}
       {moveTo && (
         <ConfirmModal
           icon="⇄"

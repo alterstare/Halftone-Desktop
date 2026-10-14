@@ -268,6 +268,26 @@ in-progress, `✓`/`✗`/`■`/`▶`/`⏸`/`⬇` glyph prefixes for status/actio
 - Favorite lists = `settings.onlineFavLists` ({name, codes}); one favorites
   file format (Pupil-compatible `{favorites, favorite_tags, ranks}`).
 
+## 10b. 작품 통합 (manual collections) & library selection
+
+- Merging keeps folders in place: `settings.manualCollections` ({title, artist,
+  library, dirs}); the scanner folds those folders into ONE Work with
+  `sources` = the folders (pages concatenated by getWorkImages). Same model as
+  the mobile app (`../MangaManagerMobile` merge.ts).
+- Renderer `src/renderer/src/merge.ts`: `mergeWorks` / `unmergeWork` /
+  `mergeBlocker` → IPC `setCollections(collections, dirs)` saves the setting and
+  rescans ONLY those folders (`scanner.scanDirs`; full scan only when
+  artist-folder auto collections could regroup them — `needsFullScan`).
+- **A merged work's `path` is the PARENT of its folders** (often a library root /
+  favorites dir). Anything that moves or deletes folders must use `sources`:
+  deleteWork trashes the sources (and drops the collection entry), the heart
+  never moves a merged work's folder, reset deletes the sources.
+- Selection: `store.homeSel` (card keys: work id, or series key in the normal
+  list). Ctrl+click or the card menu 「선택」 starts it; while on, a click picks
+  (`useWorkCard` / `useSeriesCard` onClick). `components/SelectBar.tsx` = sticky
+  bar (전체 선택 · 통합 · 삭제 · ×, Esc); cleared on mode switch / leaving home.
+  Merged works get 「통합 해제」 in their card menu.
+
 ## 11. Verifying changes
 
 No test suite. Typecheck + build, then drive the built app over the Chrome

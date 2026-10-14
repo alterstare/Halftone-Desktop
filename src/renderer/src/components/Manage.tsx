@@ -225,12 +225,18 @@ function Duplicates(): JSX.Element {
     const ids = [...selected]
     setConfirmBulk(false)
     if (!ids.length) return
+    let failed = 0
     for (const id of ids) {
-      await window.api.deleteWork(id)
-      invalidate(id)
-      removeWork(id)
+      try {
+        await window.api.deleteWork(id)
+        invalidate(id)
+        removeWork(id)
+      } catch {
+        failed++
+      }
     }
     setSelected(new Set())
+    if (failed) alert(`${failed}개 작품을 휴지통으로 옮기지 못했습니다.`)
   }
 
   return (
@@ -285,7 +291,7 @@ function Duplicates(): JSX.Element {
           danger
           icon="🗑"
           title="선택한 작품을 삭제할까요?"
-          desc={<>선택한 {selected.size}개 작품 폴더를 영구 삭제합니다. 되돌릴 수 없습니다.</>}
+          desc={<>선택한 {selected.size}개 작품 폴더를 휴지통으로 옮깁니다.</>}
           confirmLabel="삭제"
           cancelLabel="취소"
           onConfirm={deleteSelected}
@@ -316,7 +322,11 @@ function Translations(): JSX.Element {
     if (!pendingDel) return
     const { id } = pendingDel
     setPendingDel(null)
-    await window.api.deleteWork(id)
+    try {
+      await window.api.deleteWork(id)
+    } catch {
+      return alert('휴지통으로 옮기지 못했습니다.')
+    }
     invalidate(id)
     removeWork(id)
   }
@@ -364,7 +374,7 @@ function Translations(): JSX.Element {
           danger
           icon="🗑"
           title="작품을 삭제할까요?"
-          desc={<><b>{pendingDel.title}</b> 폴더를 영구 삭제합니다. 되돌릴 수 없습니다.</>}
+          desc={<><b>{pendingDel.title}</b> 폴더를 휴지통으로 옮깁니다.</>}
           confirmLabel="삭제"
           cancelLabel="취소"
           onConfirm={confirmDel}

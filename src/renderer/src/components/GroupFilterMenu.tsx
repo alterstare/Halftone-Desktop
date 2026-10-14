@@ -3,6 +3,7 @@ import type { JSX } from 'react'
 import { useStore } from '../store'
 import type { WorkGroup } from '../../../shared/types'
 import GroupName from './GroupName'
+import Caret from './Caret'
 
 // Compact 그룹 분류 for the reader's left list: a small "그룹 ▾" button whose
 // panel toggles each group (+ 그룹 없음) with 전체 선택 / 해제. Shares the home
@@ -32,8 +33,8 @@ export default function GroupFilterMenu({ groups }: { groups: WorkGroup[] }): JS
 
   return (
     <div className="cat-wrap grp-filter" ref={ref}>
-      <button className={`mini ${!all ? 'on' : ''}`} onClick={() => setOpen((o) => !o)} title="그룹 분류">
-        그룹 <span className={`dt ${open ? 'up' : ''}`} />
+      <button className={`mini ${!all ? 'on' : ''} ${open ? 'open' : ''}`} onClick={() => setOpen((o) => !o)} title="그룹 분류">
+        그룹 <Caret up={open} />
       </button>
       {open && (
         <div className="cat-panel grp-panel">

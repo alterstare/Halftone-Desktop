@@ -16,6 +16,7 @@ export function createApi(ipcRenderer: IpcRenderer): Api {
     appInfo: () => ipcRenderer.invoke(IPC.appInfo),
     getSettings: () => ipcRenderer.invoke(IPC.getSettings),
     saveSettings: (patch) => ipcRenderer.invoke(IPC.saveSettings, patch),
+    setMinWidth: (width) => ipcRenderer.send(IPC.setMinWidth, width),
     onProgress: (cb) => on<ProgressEvent>(IPC.progress, cb),
     cancelJob: (id) => ipcRenderer.invoke(IPC.cancelJob, id),
     pickFolder: () => ipcRenderer.invoke(IPC.pickFolder),

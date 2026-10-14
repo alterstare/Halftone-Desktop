@@ -18,7 +18,7 @@ export default function SeriesGridCard({ series }: { series: SeriesGroup }): JSX
   const c = useSeriesCard(series)
 
   return (
-    <div className="gtile series" {...c.cardEvents}>
+    <div className={`gtile series ${c.selected ? 'selected' : ''}`} {...c.cardEvents}>
       <div className="gtile-thumb">
         <Thumb workId={c.rep?.id ?? ''} />
       </div>

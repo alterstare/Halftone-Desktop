@@ -9,8 +9,9 @@ import Stars from './Stars'
 import FavGroup from './FavGroup'
 import TagList from './TagList'
 import { useSeriesCard } from './useSeriesCard'
-import ConfirmModal from './ConfirmModal'
+import TrashConfirm from './TrashConfirm'
 import { CloseIcon } from './icons'
+import Caret from './Caret'
 
 // Open a folder's parent in Explorer (so we don't descend into chapter 1).
 function parentOf(p: string): string {
@@ -24,7 +25,6 @@ function parentOf(p: string): string {
 export default function SeriesCard({ series }: { series: SeriesGroup }): JSX.Element {
   const addSearchToken = useStore((s) => s.addSearchToken)
   const openTab = useStore((s) => s.openTab)
-  const removeWork = useStore((s) => s.removeWork)
   const favoriteTags = useStore((s) => s.settings.favoriteTags)
   const scheme = useStore((s) => s.settings.normalChapterScheme)
   const c = useSeriesCard(series)
@@ -35,17 +35,9 @@ export default function SeriesCard({ series }: { series: SeriesGroup }): JSX.Ele
   const readProgress = useStore((s) => s.readProgress)
   const lastId = useMemo(() => lastReadKey(readProgress, chapters.map((w) => w.id)), [readProgress, chapters])
 
-  const deleteSeries = async (): Promise<void> => {
-    setConfirmDel(false)
-    for (const ch of chapters) {
-      await window.api.deleteWork(ch.id)
-      removeWork(ch.id)
-    }
-  }
-
   return (
     <div className="work-card-wrap">
-      <div className="work-card" {...c.cardEvents}>
+      <div className={`work-card ${c.selected ? 'selected' : ''}`} {...c.cardEvents}>
         <Thumb workId={rep?.id ?? ''} />
         <div className="work-info">
           <div className="work-title-row">
@@ -117,7 +109,7 @@ export default function SeriesCard({ series }: { series: SeriesGroup }): JSX.Ele
                 setOpen((o) => !o)
               }}
             >
-              화 목록 <span className={`dt ${open ? 'up' : ''}`} />
+              화 목록 <Caret up={open} />
             </button>
           </div>
         </div>
@@ -134,20 +126,7 @@ export default function SeriesCard({ series }: { series: SeriesGroup }): JSX.Ele
       {c.seriesMenu}
       {c.tagMenu}
       {confirmDel && (
-        <ConfirmModal
-          danger
-          icon="🗑"
-          title="시리즈를 삭제할까요?"
-          desc={
-            <>
-              <b>{series.title}</b> 시리즈 {chapters.length}화를 모두 영구 삭제합니다. 되돌릴 수 없습니다.
-            </>
-          }
-          confirmLabel="삭제"
-          cancelLabel="취소"
-          onConfirm={deleteSeries}
-          onCancel={() => setConfirmDel(false)}
-        />
+        <TrashConfirm works={chapters} title={`${series.title} (${chapters.length}화)`} onClose={() => setConfirmDel(false)} />
       )}
     </div>
   )

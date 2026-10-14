@@ -63,6 +63,7 @@ export const IPC = {
   saveSettings: 'settings:save',
   scanLibrary: 'library:scan',
   scanFolder: 'library:scanFolder', // rescan one folder, infer favorite/group from location
+  setCollections: 'library:setCollections',
   scanProgress: 'library:scanProgress', // main -> renderer event
   organizeLanguages: 'library:organizeLanguages',
   organizeByGenre: 'library:organizeByGenre',
@@ -256,6 +257,9 @@ export interface Api {
   scanLibrary: () => Promise<Work[]>
   // Rescan a single folder; works get favorite/group inferred from their path.
   scanFolder: (root: string) => Promise<Work[]>
+  // 작품 통합 / 해제: save settings.manualCollections and rebuild only the
+  // works of `dirs` (the folders whose grouping changes).
+  setCollections: (collections: Settings['manualCollections'], dirs: string[]) => Promise<{ settings: Settings; works: Work[] }>
   onScanProgress: (cb: (p: ScanProgress) => void) => () => void
   organizeLanguages: () => Promise<Work[]>
   organizeByGenre: () => Promise<{ works: Work[]; moved: number }>

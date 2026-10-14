@@ -37,7 +37,9 @@ async function applyToWork(w: Work, fav: boolean): Promise<Work> {
   const s = store.settings
   const stamp = { favorite: fav, favoritedAt: fav ? (w.favoritedAt ?? Date.now()) : undefined }
   let patch: Partial<Work> = {}
-  if ((w.library ?? 'doujin') === 'doujin' && s.favoriteMoveToFolder !== false && s.favoritesDir) {
+  // A merged work (sources) has no folder of its own — its path is the
+  // parent of its folders — so the heart never moves anything.
+  if ((w.library ?? 'doujin') === 'doujin' && !w.sources?.length && s.favoriteMoveToFolder !== false && s.favoritesDir) {
     try {
       if (fav && !isUnder(w.path, s.favoritesDir)) patch = await moveToFavorites(w, s.favoritesDir, s.groups)
       else if (!fav && w.homePath) patch = await moveFromFavorites(w)

@@ -19,7 +19,7 @@ export default function WorkGridCard({ work }: { work: Work }): JSX.Element {
   const c = useWorkCard(work)
 
   return (
-    <div className="gtile" {...c.cardEvents}>
+    <div className={`gtile ${c.selected ? 'selected' : ''}`} {...c.cardEvents}>
       <div className="gtile-thumb">
         <Thumb workId={work.id} />
       </div>

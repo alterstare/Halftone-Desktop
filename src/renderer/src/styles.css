@@ -19,6 +19,8 @@
   --accent-2: #5741d8; /* darker purple — borders, secondary accents */
   --accent-deep: #5b1ecf; /* deepest purple */
   --accent-soft: rgba(133, 91, 251, 0.16); /* subtle purple fill */
+  --accent-hover: #ebe4ff; /* hover fill: opaque light purple */
+  --hover-filter: brightness(1.08); /* hover on a solid (purple / selected) button */
   --success: #149e61; /* positive */
   --success-dark: #026b3f;
   --ok: var(--accent); /* download/finish state — brand purple, not green */
@@ -60,6 +62,8 @@
   --accent-2: #7132f5;
   --accent-deep: #5b1ecf;
   --accent-soft: rgba(133, 91, 251, 0.22);
+  --accent-hover: #2f2750;
+  --hover-filter: brightness(1.12);
   --success: #2fbd80;
   --success-dark: #7ee0b3;
   --danger: #ff5d6c;
@@ -457,14 +461,14 @@ img {
   margin-bottom: 4px;
 }
 .search-ac-list li.search-ac-toggle:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .search-ac-list li.search-ac-fav {
   color: var(--accent);
   font-weight: 600;
 }
 .search-ac-list li.search-ac-fav:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .search-ac-list li.search-ac-hist:hover {
   background: var(--bg-3);
@@ -529,7 +533,7 @@ select {
   box-shadow: var(--shadow-subtle);
 }
 .btn.primary:hover {
-  background: var(--accent-2);
+  filter: var(--hover-filter);
 }
 .btn.danger {
   background: var(--danger);
@@ -606,10 +610,13 @@ select {
   background: rgba(0, 0, 0, 0.08);
 }
 
-/* Layout (배치) toggle: chip-shaped, same height as neighbours. */
-.layout-toggle {
-  min-width: 44px;
-  padding: 0 12px;
+/* Layout (목록/격자) + sort-direction toggles: round, same height as the chips. */
+.chip.layout-toggle {
+  width: 32px;
+  min-width: 0;
+  padding: 0;
+  justify-content: center;
+  border-radius: 50%;
   color: var(--text);
   font-size: 15px;
 }
@@ -617,37 +624,40 @@ select {
   opacity: 0.4;
   cursor: default;
 }
-/* Unified rotating chevron (SVG). Square box, center pivot → no sideways shift. */
+/* Drop-down / drawer indicator: Material keyboard arrow (Caret.tsx). Square
+   box, centre pivot; turns to point up while open, animated. One size
+   everywhere (beats .micon's font-relative size). */
+.micon.caret,
 .caret {
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  flex: none;
+  width: 18px;
+  height: 18px;
   vertical-align: middle;
   transform-origin: center;
+  transition: transform 0.18s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
-/* Drawer triangle drawn with borders (not a glyph) so up/down are identical size
-   and never change the row height. `.up` flips it. */
-.dt {
-  display: inline-block;
-  width: 0;
-  height: 0;
-  vertical-align: middle;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 5px solid currentColor;
-  border-bottom: 0;
-}
-.dt.up {
-  border-top: 0;
-  border-bottom: 5px solid currentColor;
+.caret.up {
+  transform: rotate(180deg);
 }
 /* Classification chips: gap between the label and the triangle, matching the
    chip's right padding so the triangle sits evenly. */
-.chip > .dt {
-  margin-left: 10px;
+/* Arrow after a label: same spacing / height as the sort drop-down's arrow
+   (8px gap, centred on the text — the glyph sits a touch high in its box). */
+.chip > .caret,
+.mini > .caret {
+  position: relative;
+  top: 1px;
+  margin-left: 8px;
+  margin-right: -2px;
 }
-.chip:has(> .dt) {
-  padding-right: 10px;
+.chip.layout-toggle > .caret {
+  top: 0;
+  margin: 0;
+}
+.fav-caret > .caret {
+  position: relative;
+  top: 1px;
 }
 
 .chip-stat {
@@ -932,8 +942,7 @@ select {
   box-sizing: border-box;
 }
 .tag:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .tag.fav-tag {
   background: rgba(255, 204, 77, 0.16);
@@ -2077,8 +2086,7 @@ body.resizing {
   text-align: left;
 }
 .menu-item:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
 }
 .menu-item.active {
   background: var(--bg-3);
@@ -2415,8 +2423,7 @@ body.resizing {
   text-overflow: ellipsis;
 }
 .chip-mini:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .chip-mini.artist {
   color: var(--accent);
@@ -2959,7 +2966,7 @@ body.resizing {
 }
 .seg .seg-heart:hover,
 .seg .seg-dl:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .seg .seg-heart.on {
   color: var(--danger);
@@ -3106,7 +3113,7 @@ button:active,
 }
 .seg .grp-btn:hover,
 .seg .grp-btn.on {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .grp-btn {
   cursor: pointer;
@@ -3123,8 +3130,7 @@ button:active,
 }
 .grp-btn:hover,
 .grp-btn.on {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
 }
 /* Group filter rows (Home group panel): name + count + delete. */
 .grp-row {
@@ -3462,7 +3468,8 @@ button:active,
   opacity: 1;
 }
 .timg-edit:hover {
-  background: var(--accent-2);
+  background: var(--accent-hover);
+  color: var(--text-hover);
 }
 
 .ted-overlay {
@@ -3795,8 +3802,7 @@ button:active,
   color: #ffffff;
 }
 .exit-btn.primary:hover {
-  background: var(--accent-2);
-  border-color: var(--accent-2);
+  filter: var(--hover-filter);
 }
 .exit-btn.ghost {
   flex: 0 0 auto;
@@ -4057,9 +4063,6 @@ button:active,
   font-size: 13px;
   cursor: pointer;
 }
-.dropdown-btn:hover {
-  border-color: var(--muted);
-}
 /* Toolbar-field variant: matches the height/fill of the selects it replaces. */
 .dropdown.field {
   display: inline-flex;
@@ -4134,7 +4137,8 @@ button:active,
   gap: 6px;
   margin-top: 10px;
 }
-.genre-chips .tag {
+.genre-chips .tag,
+.comic-filter-panel .tag {
   cursor: pointer;
 }
 .gcard-loading {
@@ -4242,7 +4246,6 @@ button:active,
   cursor: pointer;
 }
 .gcard-dl:hover {
-  border-color: var(--accent-2);
 }
 
 /* --- download modal (manga-site) --- */
@@ -4361,8 +4364,7 @@ button:active,
 /* ===== Unified purple interaction highlights ===== */
 /* Small buttons: fill with subtle purple + purple text/border (like the group button). */
 .mini:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .mini:active {
   background: var(--accent);
@@ -4376,18 +4378,14 @@ button:active,
 }
 /* Large buttons / fields / dropdowns: purple border highlight. */
 .btn:hover {
-  border-color: var(--accent);
 }
 .btn.primary:hover,
 .btn.danger:hover {
   border-color: transparent;
 }
-select:hover,
-.sort:hover,
 input:focus,
 textarea:focus,
-select:focus,
-.dropdown-btn:hover {
+select:focus {
   border-color: var(--accent);
   outline: none;
 }
@@ -4399,7 +4397,6 @@ select:focus,
 }
 /* Chips (inactive): purple outline + text. */
 .chip:hover:not(.active):not(:disabled) {
-  border-color: var(--accent);
 }
 /* Segmented halves: hover tints purple (heart keeps its red on-state). */
 .seg .seg-heart:hover {
@@ -4407,14 +4404,14 @@ select:focus,
 
 /* ===== Purple highlights: menu drawer, dropdown/drawer lists ===== */
 .menu-close:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .tab.menu-btn:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 /* Custom dropdown option rows. */
 .dropdown-opt:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 /* Drawer checkbox lists (favorites lists, 작품/언어/그룹 분류 panels). */
 .cat-panel label:hover {
@@ -5083,12 +5080,13 @@ select:focus,
   color: var(--text-dim); /* hover steps up to --text-hover */
 }
 .chips .chip:hover:not(.active):not(:disabled) {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 
 /* Genre chips: the selected genre is outlined in purple over the page
    background instead of a filled chip. */
-.genre-chips .tag.fav-tag {
+.genre-chips .tag.fav-tag,
+.comic-filter-panel .tag.fav-tag {
   background: transparent;
   color: var(--accent);
   border-color: var(--accent);
@@ -5129,8 +5127,7 @@ select:focus,
   color: var(--text-dim); /* hover steps up to --text-hover */
 }
 .work-actions .mini:not(.on):hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .work-actions .mini.danger:not(.on):hover {
   color: #fff;
@@ -5142,9 +5139,6 @@ select:focus,
   border-color: transparent;
   color: #fff;
 }
-.mini > .dt {
-  margin-left: 6px;
-}
 /* Active search-token chips (tag search): purple outline over the page
    background, like the selected genre chip — not a solid purple fill. Hover
    tints them (click removes the token). */
@@ -5154,7 +5148,7 @@ select:focus,
   color: var(--accent);
 }
 .search-chips .chip.search-tok:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 
 /* 전체 선택 / 전체 선택 해제 row at the top of a classification panel. */
@@ -5192,7 +5186,7 @@ select:focus,
   opacity: 1;
 }
 .grp-row-edit:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .grp-rename {
   flex: 1;
@@ -5258,8 +5252,7 @@ select:focus,
   pointer-events: none;
 }
 .cat-panel-actions .mini:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 
 /* New-group field: the + button sits inside the input box at its right end,
@@ -5301,7 +5294,7 @@ select:focus,
   background: var(--line);
 }
 .grp-panel .grp-create .mini.icon:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 
 /* Mode switch button in the tab bar (between ☰ and 홈): icon only, same
@@ -5314,7 +5307,7 @@ select:focus,
   transition: box-shadow 0.1s ease, background-color 0.12s ease-out, color 0.12s ease-out;
 }
 .tab.mode-tab:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 
 /* Hover never recolors text/icons purple (user preference) — the purple
@@ -5326,10 +5319,10 @@ select:focus,
 .lib-dl:hover,
 .seg .seg-heart:hover,
 .path-item .mini:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .cat-panel label:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
   border-radius: var(--r3);
 }
 
@@ -5516,13 +5509,14 @@ select:focus,
   background: var(--line);
   pointer-events: none;
 }
-.genre-chips .tag:not(.fav-tag):not(.excluded) {
+.genre-chips .tag:not(.fav-tag):not(.excluded),
+.comic-filter-panel .tag:not(.fav-tag):not(.excluded) {
   background: transparent;
   border-color: transparent;
 }
-.genre-chips .tag:not(.fav-tag):not(.excluded):hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+.genre-chips .tag:not(.fav-tag):not(.excluded):hover,
+.comic-filter-panel .tag:not(.fav-tag):not(.excluded):hover {
+  background: var(--accent-hover);
 }
 
 /* Heart buttons: the heart's visual mass sits high in its box, so it looked
@@ -5612,6 +5606,15 @@ textarea {
   overflow: hidden;
   flex: none;
 }
+/* "+N" expanded: the card grows to show every tag (like the local tiles);
+   only that card — its row neighbours keep their own height. */
+.browse-grid:not(.list) .gcard-tags:has(.taglist-grid.expanded) {
+  height: auto;
+  overflow: visible;
+}
+.browse-grid:not(.list) {
+  align-items: start;
+}
 
 /* 설정 › 단축키 rows: combo chips (<kbd>) with ×, then + (record) and 기본값. */
 .key-combos {
@@ -5700,8 +5703,7 @@ textarea {
   color: var(--text-dim);
 }
 .flat-group .mini:not(.on):hover:not(:disabled) {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .flat-group .mini:disabled {
@@ -5791,8 +5793,7 @@ textarea {
 }
 .reader-head .reader-back:hover,
 .reader-head-btns .mini:hover:not(:disabled) {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .reader-head .mini.icon {
@@ -5853,8 +5854,7 @@ textarea {
 .lib-search-row > .mini:hover,
 .lib-search-row > .grp-filter .mini:hover,
 .lib-search-row > .dropdown .mini:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .lib-search-row > .grp-filter .mini.on {
@@ -5926,8 +5926,7 @@ textarea {
   height: 44px;
 }
 .search-row > .dropdown .dropdown-btn:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .search-row > .dropdown {
@@ -6078,8 +6077,7 @@ textarea {
   color: var(--text-dim);
 }
 .gcard-foot .ko-toggle:not(.on):hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 
@@ -6111,8 +6109,7 @@ textarea {
   font-size: 15px;
 }
 .edition-dl:hover:not(:disabled) {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 /* Under a local list card the panel attaches the same way as online. */
@@ -6465,8 +6462,7 @@ textarea {
   transition: background 0.12s, border-color 0.12s;
 }
 .tw-pick-row:hover:not(:disabled) {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
 }
 .tw-pick-row:active:not(:disabled) {
   filter: var(--press-filter, brightness(0.9));
@@ -6530,8 +6526,7 @@ textarea {
   border-color: transparent;
 }
 .tw-search-row .mini.tw-dir:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
 }
 
 .tw-search-row > .dropdown .dropdown-btn {
@@ -6540,8 +6535,7 @@ textarea {
   color: var(--text-dim);
 }
 .tw-search-row > .dropdown .dropdown-btn:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 
@@ -6675,7 +6669,7 @@ textarea {
   height: 16px;
 }
 .stepper .stepper-btn:hover:not(:disabled) {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .stepper .stepper-btn:active:not(:disabled) {
@@ -6784,8 +6778,7 @@ textarea {
 }
 .edition-dl:hover:not(:disabled),
 .edition-dl:active:not(:disabled) {
-  background: transparent;
-  border-color: var(--accent);
+  background: var(--accent-hover);
   box-shadow: none;
 }
 .edition-row:active,
@@ -6818,7 +6811,6 @@ textarea {
 }
 .edition-dl:hover:not(:disabled),
 .edition-dl:active:not(:disabled) {
-  border-color: var(--accent);
 }
 
 /* ===== 동인지 잠금 ===== */
@@ -6999,8 +6991,7 @@ textarea {
   color: var(--accent);
 }
 .dup-group-head .mini.dup-merge:hover:not(:disabled) {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
 }
 .dl-list-actions.flat-group {
   display: flex;
@@ -7055,7 +7046,6 @@ textarea {
   transition: background-color 0.12s ease-out, border-color 0.12s ease-out, color 0.12s ease-out;
 }
 .comic-filter-panel .tag:hover {
-  border-color: var(--accent);
 }
 .comic-filter-panel .tag.fav-tag {
   background: var(--accent);
@@ -7096,8 +7086,7 @@ textarea {
   transition: background-color 0.12s ease-out, border-color 0.12s ease-out, color 0.12s ease-out, filter 0.08s ease-out;
 }
 .chapter-nav .chapter-arrow:hover:not(:disabled) {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .chapter-nav .chapter-arrow:active:not(:disabled) {
@@ -7131,7 +7120,7 @@ textarea {
   font-size: 22px;
 }
 .pager .pager-arrow:hover:not(:disabled) {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .pager .pager-arrow:active:not(:disabled) {
@@ -7161,7 +7150,7 @@ textarea {
   transition: background-color 0.12s ease-out, color 0.12s ease-out, filter 0.08s ease-out;
 }
 .gcard .gcard-dl:hover {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .gcard .gcard-dl:active {
@@ -7218,7 +7207,7 @@ textarea {
   font-weight: 600;
 }
 .dl-menu-item:hover:not(:disabled) {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 .dl-menu-item:active:not(:disabled) {
   filter: var(--press-filter);
@@ -7262,8 +7251,7 @@ textarea {
   background: var(--line);
 }
 .exit-actions .exit-btn:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .exit-actions .exit-btn.primary {
@@ -7274,10 +7262,16 @@ textarea {
   background: var(--danger);
   color: #fff;
 }
+.exit-actions .exit-btn.primary:hover {
+  background: var(--accent);
+}
+.exit-actions .exit-btn.danger:hover {
+  background: var(--danger);
+}
 .exit-actions .exit-btn.primary:hover,
 .exit-actions .exit-btn.danger:hover {
   border-color: transparent;
-  filter: brightness(1.08);
+  filter: var(--hover-filter);
 }
 /* Download strip: the divider above it stops short of the card edges. */
 .gcard .gcard-dl {
@@ -7329,8 +7323,7 @@ textarea {
 }
 .comic-filter > .chip:hover:not(:disabled),
 .comic-filter > .chip.open {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--accent-hover);
   color: var(--text-hover);
 }
 .comic-filter > .chip.active {
@@ -7348,7 +7341,7 @@ textarea {
   font-size: 22px;
 }
 .flat-group .mini.manage-back:hover:not(:disabled) {
-  background: var(--accent-soft);
+  background: var(--accent-hover);
 }
 
 /* Keyboard Arrow / Close icons that replaced the old text glyphs (▶◀ ‹› ▸▾ → ✕ ×). */
@@ -7425,3 +7418,113 @@ textarea {
   opacity: 0.45;
   cursor: default;
 }
+
+/* ===== Hover: opaque light-purple fill (same rule as Env / Sorta) =====
+   Controls and cards fill with --accent-hover on hover; no purple outline is
+   added (the border stays as it was). Solid purple buttons only brighten
+   (--hover-filter). Work cards / tiles / list items (작품 칸) keep their
+   purple-outline hover, as do focused text fields, checkboxes, the split
+   divider and image outlines. The rules above were converted to this; these
+   cover the controls that used to be outline-only. */
+.btn:not(.primary):not(.danger):hover:not(:disabled),
+.chip:not(.active):hover:not(:disabled),
+.tag:hover,
+select:hover,
+.sort:hover,
+.dropdown-btn:hover,
+.edition-dl:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+/* Solid buttons keep their own fill on hover (only brighter), even where a
+   generic hover rule above would paint them light purple. */
+.btn.primary:hover:not(:disabled),
+.exit-btn.primary:hover {
+  background: var(--accent);
+  filter: var(--hover-filter);
+}
+.btn.danger:hover:not(:disabled) {
+  background: var(--danger);
+  filter: var(--hover-filter);
+}
+/* Selected small buttons stay solid purple on hover (only brighter). */
+.mini.on:hover:not(:disabled) {
+  background: var(--accent-2);
+  border-color: transparent;
+  color: #fff;
+  filter: var(--hover-filter);
+}
+.lib-search-row > .grp-filter .mini.on:hover:not(:disabled),
+.reader-head-btns .mini.on:hover:not(:disabled) {
+  background: var(--accent);
+}
+
+/* ===== Press + open: solid purple, like a pressed .mini =====
+   Chips, drop-down buttons and plain buttons turn solid purple while pressed
+   and stay so while their menu / panel is open. The open rule carries an
+   id-level :not() so no hover rule above can repaint an open button. */
+:is(.chip, .dropdown-btn, .btn:not(.primary):not(.danger)):active:not(:disabled),
+:is(.chip, .dropdown-btn, .mini).open:not(#_) {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
+
+/* ===== Search rows: same round ends as the chips below them ===== */
+.search-row :is(.search, .btn, .dropdown-btn, .mini) {
+  border-radius: 999px;
+}
+
+/* ===== Library selection (작품 통합 / 삭제) ===== */
+.sel-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 12px;
+  padding: 8px 10px 8px 16px;
+  background: var(--bg-1);
+  border: 1px solid var(--accent);
+  border-radius: var(--r4);
+  box-shadow: var(--shadow-subtle);
+}
+.sel-count {
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.sel-hint {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* A picked card: purple outline + a check badge in its top-left corner. */
+.work-card.selected,
+.gtile.selected {
+  position: relative;
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.work-card.selected::after,
+.gtile.selected::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='m9.55 18l-5.7-5.7l1.425-1.425L9.55 15.15l9.175-9.175L20.15 7.4z'/%3E%3C/svg%3E")
+    center / 16px no-repeat;
+  box-shadow: 0 0 0 2px var(--bg-1);
+  pointer-events: none;
+}
+.merge-name {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+}
+

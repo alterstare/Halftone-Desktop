@@ -4,6 +4,7 @@ import type { Work } from '../../../shared/types'
 import { useStore, lastReadKey } from '../store'
 import { CHAP_FAV_PREFIX, isOnlineTitleFav, type SeriesGroup } from '../util'
 import ContextMenu from './ContextMenu'
+import TrashConfirm from './TrashConfirm'
 import { useTagMenu } from './useTagMenu'
 
 // Stable empty fallback — never return a fresh array from a zustand selector
@@ -30,12 +31,13 @@ export function useSeriesCard(series: SeriesGroup): {
   maxRank: number
   cardEvents: {
     onClickCapture: (e: MouseEvent) => void
-    onClick: () => void
+    onClick: (e: MouseEvent) => void
     onMouseDown: (e: MouseEvent) => void
     onAuxClick: (e: MouseEvent) => void
     onContextMenu: (e: MouseEvent) => void
   }
   isFav: boolean
+  selected: boolean // picked in the library selection
   toggleFav: (e: MouseEvent) => Promise<void>
   rankAll: (r: number) => Promise<void>
   clearField: (field: 'artist' | 'language') => Promise<void>
@@ -44,7 +46,7 @@ export function useSeriesCard(series: SeriesGroup): {
   adding: boolean
   startAddTag: () => void
   tagInput: JSX.Element | null
-  // Context menu + the "new group" prompt it can open; render both once.
+  // Context menu + the "new group" / 삭제 prompts it can open; render once.
   seriesMenu: JSX.Element | null
   openTagMenu: (e: MouseEvent, query: string, raw: string) => void
   tagMenu: JSX.Element | null
@@ -68,6 +70,8 @@ export function useSeriesCard(series: SeriesGroup): {
   const [adding, setAdding] = useState(false)
   const [newTag, setNewTag] = useState('')
   const [newGrp, setNewGrp] = useState(false)
+  const [trash, setTrash] = useState(false)
+  const selected = useStore((s) => !!s.homeSel?.includes(series.key))
   const [grpName, setGrpName] = useState('')
   const { openTagMenu, tagMenu } = useTagMenu('online')
 
@@ -93,7 +97,10 @@ export function useSeriesCard(series: SeriesGroup): {
         openGlance({ workId: openId })
       }
     },
-    onClick: (): void => {
+    // While selecting (or Ctrl+click to start): pick instead of open.
+    onClick: (e: MouseEvent): void => {
+      const st = useStore.getState()
+      if (st.homeSel || e.ctrlKey || e.metaKey) return st.toggleHomeSel(series.key)
       if (openId) openTab(openId)
     },
     onMouseDown: (e: MouseEvent): void => {
@@ -191,10 +198,15 @@ export function useSeriesCard(series: SeriesGroup): {
             { label: splitOpen ? '오른쪽 뷰에서 열기' : '분할 뷰에서 열기', onClick: () => openSplit(rep.id) },
             { label: '제목 복사', onClick: () => void window.api.clipboardWriteText(series.title) },
             ...normalGroups.map((g) => ({ label: `그룹 · ${g.name}`, onClick: () => addToGroup(g.id) })),
-            { label: '＋ 새 그룹에 추가', onClick: () => setNewGrp(true) }
+            { label: '＋ 새 그룹에 추가', onClick: () => setNewGrp(true) },
+            { label: selected ? '선택 해제' : '선택', onClick: () => useStore.getState().toggleHomeSel(series.key) },
+            { label: '삭제', danger: true, onClick: () => setTrash(true) }
           ]}
           onClose={() => setMenu(null)}
         />
+      )}
+      {trash && (
+        <TrashConfirm works={chapters} title={`${series.title} (${chapters.length}화)`} onClose={() => setTrash(false)} />
       )}
       {newGrp && (
         <div className="modal-overlay" onClick={() => setNewGrp(false)}>
@@ -225,6 +237,7 @@ export function useSeriesCard(series: SeriesGroup): {
     maxRank,
     cardEvents,
     isFav,
+    selected,
     toggleFav,
     rankAll,
     clearField,

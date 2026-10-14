@@ -170,6 +170,7 @@ export const RestartIcon = mkIcon('M11 20.95q-3.025-.375-5.012-2.637T4 13q0-1.65
 export const SelectIcon = mkIcon('M5 19v2q-.825 0-1.412-.587T3 19zm-2-2v-2h2v2zm0-4v-2h2v2zm0-4V7h2v2zm2-4H3q0-.825.588-1.412T5 3zm2 16v-2h2v2zM7 5V3h2v2zm4 16v-2h2v2zm0-16V3h2v2zm4 16v-2h2v2zm0-16V3h2v2zm4 14h2q0 .825-.587 1.413T19 21zm0-2v-2h2v2zm0-4v-2h2v2zm0-4V7h2v2zm0-4V3q.825 0 1.413.588T21 5z') // Select
 export const ArrowUpIcon = mkIcon('m12 10.8l-4.6 4.6L6 14l6-6l6 6l-1.4 1.4z') // Keyboard Arrow Up
 export const ArrowDownIcon = mkIcon('m12 15.4l-6-6L7.4 8l4.6 4.6L16.6 8L18 9.4z') // Keyboard Arrow Down
+export const KeyboardArrowDownIcon = mkIcon('m12 15.4l-6-6L7.4 8l4.6 4.6L16.6 8L18 9.4z')
 export const KeyboardArrowLeftIcon = mkIcon('m14 18l-6-6l6-6l1.4 1.4l-4.6 4.6l4.6 4.6z')
 export const KeyboardArrowRightIcon = mkIcon('M12.6 12L8 7.4L9.4 6l6 6l-6 6L8 16.6z')
 export const ArrowUpwardIcon = mkIcon('M11 20V7.825l-5.6 5.6L4 12l8-8l8 8l-1.4 1.425l-5.6-5.6V20z')

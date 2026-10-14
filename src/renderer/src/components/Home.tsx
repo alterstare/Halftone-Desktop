@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { useStore, useSeriesRoots } from '../store'
 import { selectWorks, SORT_LABELS, groupSeries, matchesSearch, tagTokens, tokenLabel, analyzeSeries, CHAP_FAV_PREFIX, FAV_BASE, titleKey, type SeriesGroup, isComicCode, sortSeries } from '../util'
-import type { SortMode } from '../../../shared/types'
+import type { SortMode, Work } from '../../../shared/types'
 import type { Filter } from '../store'
 import { langCategory, LANG_CAT_LABELS, type LangCat } from '../../../shared/lang'
 import Caret from './Caret'
@@ -17,6 +17,7 @@ import FavDlToggle, { FavSortSelect } from './FavDlToggle'
 import TagSearchInput from './TagSearchInput'
 import Pager from './Pager'
 import ConfirmModal from './ConfirmModal'
+import SelectBar from './SelectBar'
 import { mergeFavorites, type FavEntry } from '../favorites'
 import { useFavSummaries, getFavLanguage, loadFavLanguages } from '../favSummaries'
 import GroupName from './GroupName'
@@ -402,6 +403,25 @@ export default function Home(): JSX.Element {
     return list.slice(at, at + pageSize).map((work) => ({ kind: 'local', work, t: 0, r: 0 }))
   }, [favMerged, normal, seriesList, list, page, pageSize])
 
+  // Library selection (작품 통합 / 삭제, see SelectBar): the current page's
+  // card keys, and keys → local works (a series = all its chapters).
+  const selKeys = useMemo(
+    () => pageEntries.flatMap((e) => (e.kind === 'local' ? [e.work.id] : e.kind === 'series' ? [e.series.key] : [])),
+    [pageEntries]
+  )
+  const allSeries = useMemo(() => (normal ? groupSeries(works.filter((w) => (w.library ?? 'doujin') === 'normal'), normalRoots) : []), [normal, works, normalRoots])
+  const selWorks = (keys: string[]): Work[] => {
+    const byId = new Map(works.map((w) => [w.id, w]))
+    const series = new Map(allSeries.map((g) => [g.key, g]))
+    return keys.flatMap((k) => byId.get(k) ?? series.get(k)?.chapters ?? [])
+  }
+  // Selecting belongs to one library view: a mode switch or leaving ends it.
+  const setHomeSel = useStore((s) => s.setHomeSel)
+  useEffect(() => {
+    setHomeSel(null)
+    return () => setHomeSel(null)
+  }, [libraryMode, setHomeSel])
+
   // Full summaries for the online cards of this page and the ones next to it,
   // so paging is instant without loading thousands up front.
   const nearbyFavCodes = useMemo(() => {
@@ -518,7 +538,7 @@ export default function Home(): JSX.Element {
           </Chip>
           <div className="cat-wrap">
             <span
-              className={`chip fav-chip ${filter.kind === 'favorites' || filter.kind === 'favlists' ? 'active' : ''}`}
+              className={`chip fav-chip ${filter.kind === 'favorites' || filter.kind === 'favlists' ? 'active' : ''} ${openPanel === 'fav' ? 'open' : ''}`}
             >
               <span
                 className="fav-label"
@@ -531,7 +551,7 @@ export default function Home(): JSX.Element {
                 <FavoriteIcon filled className="fav-ico" /> 즐겨찾기 {favCount}
               </span>
               <span className="fav-caret" onClick={() => togglePanel('fav')} title="즐겨찾기 목록">
-                <span className={`dt ${openPanel === 'fav' ? 'up' : ''}`} />
+                <Caret up={openPanel === 'fav'} />
               </span>
             </span>
             {openPanel === 'fav' && (
@@ -570,10 +590,10 @@ export default function Home(): JSX.Element {
           <>
           <div className="cat-wrap">
             <button
-              className={`chip ${!(showCoded && showUncoded) ? 'active' : ''}`}
+              className={`chip ${!(showCoded && showUncoded) ? 'active' : ''} ${openPanel === 'cat' ? 'open' : ''}`}
               onClick={() => togglePanel('cat')}
             >
-              작품 분류 <span className={`dt ${openPanel === 'cat' ? 'up' : ''}`} />
+              작품 분류 <Caret up={openPanel === 'cat'} />
             </button>
             {openPanel === 'cat' && (
               <div className="cat-panel">
@@ -595,10 +615,10 @@ export default function Home(): JSX.Element {
 
           <div className="cat-wrap">
             <button
-              className={`chip ${!allLang ? 'active' : ''}`}
+              className={`chip ${!allLang ? 'active' : ''} ${openPanel === 'lang' ? 'open' : ''}`}
               onClick={() => togglePanel('lang')}
             >
-              언어 분류 <span className={`dt ${openPanel === 'lang' ? 'up' : ''}`} />
+              언어 분류 <Caret up={openPanel === 'lang'} />
             </button>
             {openPanel === 'lang' && (
               <div className="cat-panel">
@@ -619,8 +639,8 @@ export default function Home(): JSX.Element {
           )}
 
           <div className="cat-wrap">
-            <button className={`chip ${!allGroups ? 'active' : ''}`} onClick={() => togglePanel('group')}>
-              그룹 분류 <span className={`dt ${openPanel === 'group' ? 'up' : ''}`} />
+            <button className={`chip ${!allGroups ? 'active' : ''} ${openPanel === 'group' ? 'open' : ''}`} onClick={() => togglePanel('group')}>
+              그룹 분류 <Caret up={openPanel === 'group'} />
             </button>
             {openPanel === 'group' && (
               <div className="cat-panel grp-panel">
@@ -733,6 +753,8 @@ export default function Home(): JSX.Element {
           </div>
         )}
       </div>
+
+      <SelectBar pageKeys={selKeys} resolve={selWorks} />
 
       {modeWorks.length === 0 && !loading && (
         <div className="empty">

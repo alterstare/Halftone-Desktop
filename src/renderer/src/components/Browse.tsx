@@ -364,7 +364,7 @@ export default function Browse(): JSX.Element {
             전체
           </button>
           <div className="cat-wrap">
-            <span className={`chip fav-chip ${favMode ? 'active' : ''}`}>
+            <span className={`chip fav-chip ${favMode ? 'active' : ''} ${favPanel ? 'open' : ''}`}>
               <span
                 className="fav-label"
                 onClick={() => {
@@ -376,7 +376,7 @@ export default function Browse(): JSX.Element {
                 <FavoriteIcon filled className="fav-ico" /> 즐겨찾기 {favGalleries.length}
               </span>
               <span className="fav-caret" onClick={() => setFavPanel((v) => !v)} title="즐겨찾기 목록">
-                <span className={`dt ${favPanel ? 'up' : ''}`} />
+                <Caret up={favPanel} />
               </span>
             </span>
             {favPanel && (
@@ -492,7 +492,7 @@ export default function Browse(): JSX.Element {
                     setEdOpen((c) => (c === g.code ? null : g.code))
                   }}
                 >
-                  다른 언어 <span className={`dt ${edOpen === g.code ? 'up' : ''}`} />
+                  다른 언어 <Caret up={edOpen === g.code} />
                 </button>
               )}
               <span className="seg" style={{ marginLeft: 'auto' }} onClick={(e) => e.stopPropagation()}>

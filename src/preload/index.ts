@@ -10,6 +10,7 @@ const api: Api = {
   saveSettings: (s) => ipcRenderer.invoke(IPC.saveSettings, s),
   scanLibrary: () => ipcRenderer.invoke(IPC.scanLibrary),
   scanFolder: (root) => ipcRenderer.invoke(IPC.scanFolder, root),
+  setCollections: (collections, dirs) => ipcRenderer.invoke(IPC.setCollections, collections, dirs),
   onScanProgress: (cb) => {
     const listener = (_e: unknown, p: any) => cb(p)
     ipcRenderer.on(IPC.scanProgress, listener)
@@ -191,8 +192,10 @@ const api: Api = {
 // The preload runs in every frame of the main window (nodeIntegrationInSubFrames):
 // the 캐릭터 분류 frame (sorta.html) gets Sorta's API; the top page gets
 // Halftone's; any other frame gets nothing.
-if (/\/sorta\.html$/.test(location.pathname)) contextBridge.exposeInMainWorld('api', createSortaApi(ipcRenderer))
-else if (window.top === window) {
+if (/\/sorta\.html$/.test(location.pathname)) {
+  contextBridge.exposeInMainWorld('api', createSortaApi(ipcRenderer))
+  applyInitialTheme() // the Sorta frame follows Halftone's theme from its first paint
+} else if (window.top === window) {
   contextBridge.exposeInMainWorld('api', api)
   applyInitialTheme()
 }
