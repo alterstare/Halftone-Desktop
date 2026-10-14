@@ -25,9 +25,10 @@ import { registerDoujinIpc } from './ipc/doujin'
 import { registerComicIpc } from './ipc/comic'
 import { applyQuitShortcut } from './lib/quitShortcut'
 import { SORTA_SCHEME, closeSorta, setupSorta } from './sorta'
+import { ENV_SCHEME, closeEnvelope, closeEnvelopeWindows, setupEnvelope } from './envelope'
 
 // Privileged schemes must be registered before the app is ready.
-registerImageScheme([SORTA_SCHEME])
+registerImageScheme([SORTA_SCHEME, ENV_SCHEME])
 
 // One-time migration to the in-app general-manga favorites: un-favorite every
 // general-manga work and move any that were physically relocated into the fav
@@ -200,8 +201,11 @@ app.whenReady().then(async () => {
   registerDoujinIpc()
   registerComicIpc()
   setupSorta() // 캐릭터 분류 mode (opens its data on first use)
+  setupEnvelope() // 음성 플레이어 (opens its data on first use)
 
   createWindow()
+  // the player lives in the main window: its big window goes with it
+  getMainWindow()?.on('closed', closeEnvelopeWindows)
 
   // Emergency force-quit that works even when the renderer is a black screen
   // (no DOM key events reach the app then): hard-exits, bypassing close vetoes.
@@ -235,6 +239,7 @@ app.on('will-quit', () => globalShortcut.unregisterAll())
 
 app.on('window-all-closed', async () => {
   closeSorta()
+  closeEnvelope()
   await store.flushWorks()
   await store.flushProgress()
   if (process.platform !== 'darwin') app.quit()

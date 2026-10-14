@@ -10,21 +10,29 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "dist": "electron-vite build && electron-builder",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.sorta.json",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.sorta.json && tsc --noEmit -p tsconfig.envelope.json",
     "postinstall": "node scripts/native.mjs",
-    "sync-sorta": "node scripts/sync-sorta.mjs"
+    "sync-sorta": "node scripts/sync-sorta.mjs",
+    "sync-envelope": "node scripts/sync-envelope.mjs"
   },
   "dependencies": {
+    "adm-zip": "^0.6.1",
     "better-sqlite3": "^12.11.1",
     "electron-updater": "^6.8.9",
     "green-tunnel": "^3.0.5",
+    "iconv-lite": "^0.6.3",
+    "mammoth": "^1.13.0",
+    "node-id3": "^0.2.9",
     "onnxruntime-node": "^1.30.0",
+    "pdfjs-dist": "^4.10.38",
     "sharp": "^0.34.5",
     "tesseract.js": "^5.1.1",
     "undici": "^6.29.0",
+    "wasm-media-encoders": "^0.7.0",
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",

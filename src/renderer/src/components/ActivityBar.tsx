@@ -14,7 +14,7 @@ import {
   ScanIcon,
   EditIcon,
   AddPhotoIcon,
-  FolderIcon, ArrowUpwardIcon, ArrowUpIcon, ArrowDownIcon, CategoryIcon } from './icons'
+  FolderIcon, ArrowUpwardIcon, ArrowUpIcon, ArrowDownIcon, CategoryIcon, HeadphonesIcon } from './icons'
 
 // Unified row for the activity list: background jobs (export/scan) merged with the
 // online downloads (which also carry the avif→webp conversion on the same row).
@@ -47,7 +47,8 @@ const KIND_ICON: Record<Job['kind'], ReactNode> = {
   thumb: <AddPhotoIcon />,
   organize: <FolderIcon />,
   convert: <ConvertIcon />,
-  sorta: <CategoryIcon />
+  sorta: <CategoryIcon />,
+  envelope: <HeadphonesIcon />
 }
 
 const ACTIVE = new Set<DoujinProgress['phase']>(['queued', 'fetching', 'downloading', 'enriching'])
@@ -91,7 +92,7 @@ export default function ActivityBar(): JSX.Element | null {
   const rows: Row[] = hideAll ? [] : [
     ...jobs
       // 캐릭터 분류 jobs aren't tied to a library mode: show them in both.
-      .filter((j) => j.mode === libraryMode || j.kind === 'sorta')
+      .filter((j) => j.mode === libraryMode || j.kind === 'sorta' || j.kind === 'envelope')
       .map((j) => ({
         sortaJob: j.kind === 'sorta' && j.status === 'running' ? Number(j.id.slice(6)) : undefined,
         id: j.id,

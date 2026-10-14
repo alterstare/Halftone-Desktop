@@ -27,6 +27,7 @@ import { comboFromEvent, shortcutCombos, type ShortcutId } from '../../shared/sh
 import { setExcluded } from './exclude'
 import { startLockGuard, markLockReady, useLock, decoyHiddenTabs } from './lock'
 import LockPrompt from './components/LockPrompt'
+import EnvelopeDock from './components/EnvelopeDock'
 import { softReload, restoreSoftReload } from './softReload'
 import { startTranslationWatch } from './translate'
 import { KeyboardArrowLeftIcon, KeyboardArrowRightIcon } from './components/icons'
@@ -361,6 +362,7 @@ export default function App(): JSX.Element {
         )}
       </div>
       <ActivityBar />
+      <EnvelopeDock />
       <Tooltip />
       <EditContextMenu />
       <GlanceOverlay />

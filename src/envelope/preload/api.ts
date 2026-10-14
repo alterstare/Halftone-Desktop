@@ -1,0 +1,96 @@
+import type { IpcRenderer } from 'electron'
+import { IPC, MEDIA_SCHEME } from '../shared/ipc'
+import type { Api, JobSummary, RemoteCommand, UpdateStatus, WindowState } from '../shared/ipc'
+import type { ProgressEvent } from '../shared/types'
+
+// The renderer API over IPC — shared by Env's own preload and Halftone's
+// (which exposes it in the Env frame).
+export function createApi(ipcRenderer: IpcRenderer): Api {
+  const on = <T>(ch: string, cb: (v: T) => void): (() => void) => {
+    const h = (_e: unknown, v: T): void => cb(v)
+    ipcRenderer.on(ch, h)
+    return () => ipcRenderer.removeListener(ch, h)
+  }
+
+  return {
+    appInfo: () => ipcRenderer.invoke(IPC.appInfo),
+    getSettings: () => ipcRenderer.invoke(IPC.getSettings),
+    saveSettings: (patch) => ipcRenderer.invoke(IPC.saveSettings, patch),
+    onProgress: (cb) => on<ProgressEvent>(IPC.progress, cb),
+    cancelJob: (id) => ipcRenderer.invoke(IPC.cancelJob, id),
+    pickFolder: () => ipcRenderer.invoke(IPC.pickFolder),
+    addLibraryDir: (p) => ipcRenderer.invoke(IPC.addLibraryDir, p),
+    removeLibraryDir: (p) => ipcRenderer.invoke(IPC.removeLibraryDir, p),
+    scan: () => ipcRenderer.invoke(IPC.scan),
+    works: () => ipcRenderer.invoke(IPC.works),
+    work: (id) => ipcRenderer.invoke(IPC.work, id),
+    setWorkPrefs: (id, p) => ipcRenderer.invoke(IPC.setWorkPrefs, id, p),
+    saveProgress: (p) => ipcRenderer.invoke(IPC.saveProgress, p),
+    resetProgress: (id) => ipcRenderer.invoke(IPC.resetProgress, id),
+    addBookmark: (w, k, p, n) => ipcRenderer.invoke(IPC.addBookmark, w, k, p, n),
+    renameBookmark: (id, n) => ipcRenderer.invoke(IPC.renameBookmark, id, n),
+    deleteBookmark: (id) => ipcRenderer.invoke(IPC.deleteBookmark, id),
+    setFavorite: (ids, on) => ipcRenderer.invoke(IPC.setFavorite, ids, on),
+    setRank: (ids, r) => ipcRenderer.invoke(IPC.setRank, ids, r),
+    groups: () => ipcRenderer.invoke(IPC.groups),
+    createGroup: (n, ids) => ipcRenderer.invoke(IPC.createGroup, n, ids),
+    renameGroup: (id, n) => ipcRenderer.invoke(IPC.renameGroup, id, n),
+    deleteGroup: (id) => ipcRenderer.invoke(IPC.deleteGroup, id),
+    setGroupMembership: (ids, g, on) => ipcRenderer.invoke(IPC.setGroupMembership, ids, g, on),
+    readSubtitle: (p) => ipcRenderer.invoke(IPC.readSubtitle, p),
+    saveSubtitle: (id, lang, cues, ow) => ipcRenderer.invoke(IPC.saveSubtitle, id, lang, cues, ow),
+    setSubOffset: (w, k, o) => ipcRenderer.invoke(IPC.setSubOffset, w, k, o),
+    planWav: (ids) => ipcRenderer.invoke(IPC.planWav, ids),
+    runWav: (items) => ipcRenderer.invoke(IPC.runWav, items),
+    planCover: (ids) => ipcRenderer.invoke(IPC.planCover, ids),
+    runCover: (items) => ipcRenderer.invoke(IPC.runCover, items),
+    planRename: (ids, mode) => ipcRenderer.invoke(IPC.planRename, ids, mode),
+    runRename: (items) => ipcRenderer.invoke(IPC.runRename, items),
+    history: () => ipcRenderer.invoke(IPC.history),
+    fetchDlsite: (ids) => ipcRenderer.invoke(IPC.fetchDlsite, ids),
+    onLibraryChanged: (cb) => on<void>(IPC.libraryChanged, cb),
+    showInFolder: (p) => ipcRenderer.invoke(IPC.showInFolder, p),
+    mediaUrl: (p) => `${MEDIA_SCHEME}://f/${Buffer.from(p, 'utf-8').toString('base64url')}`,
+    thumbUrl: (p) => `${MEDIA_SCHEME}://t/${Buffer.from(p, 'utf-8').toString('base64url')}`,
+    undo: () => ipcRenderer.invoke(IPC.undo),
+    redo: () => ipcRenderer.invoke(IPC.redo),
+    onToast: (cb) => on<JobSummary>(IPC.toast, cb),
+    onNavBack: (cb) => on<void>(IPC.navBack, cb),
+    onNavForward: (cb) => on<void>(IPC.navForward, cb),
+    setCompact: (on) => ipcRenderer.invoke(IPC.setCompact, on),
+    winControl: (a) => ipcRenderer.send(IPC.winControl, a),
+    setMini: (on) => ipcRenderer.invoke(IPC.setMini, on),
+    setOnTop: (on) => ipcRenderer.invoke(IPC.setOnTop, on),
+    onWindowState: (cb) => on<WindowState>(IPC.windowState, cb),
+    volPop: (c) => ipcRenderer.send(IPC.volPop, c),
+    hostRequest: (r) => ipcRenderer.send(IPC.hostRequest, r),
+    mirror: (s) => ipcRenderer.send(IPC.mirror, s),
+    onMirror: (cb) => on<unknown>(IPC.mirrorIn, cb),
+    remoteCmd: (c) => ipcRenderer.send(IPC.remoteCmd, c),
+    onRemoteCmd: (cb) => on<RemoteCommand>(IPC.remoteCmdIn, cb),
+    onVolPopInput: (cb) => on<number>(IPC.volPopInput, cb),
+    autoSub: (id, o) => ipcRenderer.invoke(IPC.autoSub, id, o),
+    engineStatus: () => ipcRenderer.invoke(IPC.engineStatus),
+    installEngine: () => ipcRenderer.invoke(IPC.installEngine),
+    installModel: (m) => ipcRenderer.invoke(IPC.installModel, m),
+    removeModel: (m) => ipcRenderer.invoke(IPC.removeModel, m),
+    importVulkanEngine: () => ipcRenderer.invoke(IPC.importVulkanEngine),
+    testTranslator: () => ipcRenderer.invoke(IPC.testTranslator),
+    translateNames: (id) => ipcRenderer.invoke(IPC.translateNames, id),
+    translateNamesOf: (ids, only) => ipcRenderer.invoke(IPC.translateNamesOf, ids, only),
+    nameStatus: (ids) => ipcRenderer.invoke(IPC.nameStatus, ids),
+    findScripts: (id) => ipcRenderer.invoke(IPC.findScripts, id),
+    previewScript: (id, src) => ipcRenderer.invoke(IPC.previewScript, id, src),
+    scriptSub: (id, o) => ipcRenderer.invoke(IPC.scriptSub, id, o),
+    getGlossary: (id) => ipcRenderer.invoke(IPC.getGlossary, id),
+    setGlossary: (id, e) => ipcRenderer.invoke(IPC.setGlossary, id, e),
+    onDecodeRequest: (cb) => on<{ id: number; url: string }>(IPC.decodeRequest, cb),
+    decodeReply: (id, pcm, error) => ipcRenderer.send(IPC.decodeReply, { id, pcm, error }),
+    onUpdateStatus: (cb) => on<UpdateStatus>(IPC.updateStatus, cb),
+    checkUpdate: () => ipcRenderer.invoke(IPC.checkUpdate),
+    installUpdate: () => ipcRenderer.send(IPC.installUpdate),
+    status: () => ipcRenderer.invoke(IPC.status),
+    retryLock: () => ipcRenderer.invoke(IPC.retryLock),
+    start: () => ipcRenderer.invoke(IPC.start)
+  }
+}

@@ -1,0 +1,312 @@
+/* Design tokens shared with Halftone (same names/values) so the screens fit
+   when embedded there. Light by default; :root[data-theme='dark'] flips. */
+:root {
+  --bg: #f4f5f8;
+  --bg-1: #ffffff;
+  --bg-2: #f0f1f5;
+  --bg-3: #e7e9f0;
+  --line: #dedee5;
+  --text: #101114;
+  --text-dim: #686b82;
+  --text-hover: #000000;
+  --muted: #9497a9;
+  --accent: #7132f5;
+  --accent-2: #5741d8;
+  --accent-soft: rgba(133, 91, 251, 0.16);
+  --danger: #e5484d;
+  --press-filter: brightness(0.9);
+  --accent-hover: #ebe4ff; /* hover fill: opaque light purple */
+  --gold: #f5a623; /* warning / unsure */
+  --hover-filter: brightness(1.08); /* hover on a solid (purple / selected) button */
+  --shadow-subtle: rgba(0, 0, 0, 0.03) 0px 4px 24px;
+  --shadow-micro: rgba(16, 24, 40, 0.04) 0px 1px 4px;
+  --r3: 8px;
+  --r4: 12px;
+  --r6: 16px;
+}
+:root[data-theme='dark'] {
+  --bg: #0b0d13;
+  --bg-1: #14161d;
+  --bg-2: #1b1e27;
+  --bg-3: #262a35;
+  --line: #2b3040;
+  --text: #eceef4;
+  --text-dim: #9aa0b2;
+  --text-hover: #ffffff;
+  --muted: #6f7484;
+  --accent: #8b5cf6;
+  --accent-2: #7132f5;
+  --accent-soft: rgba(133, 91, 251, 0.22);
+  --danger: #ff5d6c;
+  --press-filter: brightness(1.18);
+  --accent-hover: #2f2750;
+  --gold: #ffcc4d;
+  --hover-filter: brightness(1.12);
+  --shadow-subtle: rgba(0, 0, 0, 0.45) 0px 4px 24px;
+  --shadow-micro: rgba(0, 0, 0, 0.35) 0px 1px 4px;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, 'Yu Gothic UI', 'Meiryo UI', 'Malgun Gothic', sans-serif;
+  font-size: 14px;
+  user-select: none;
+}
+h1,
+h2 {
+  letter-spacing: -0.5px;
+}
+h1 {
+  letter-spacing: -1px;
+  margin: 0 0 16px;
+}
+h2 {
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+.selectable {
+  user-select: text;
+}
+.hint {
+  color: var(--text-dim);
+}
+
+.micon {
+  width: 1.15em;
+  height: 1.15em;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r4);
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.12s ease-out, border-color 0.12s ease-out, color 0.12s ease-out;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
+.btn.danger {
+  background: var(--danger);
+  border-color: transparent;
+  color: #fff;
+}
+.mini.danger {
+  color: var(--danger);
+}
+.mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r4);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.12s ease-out, border-color 0.12s ease-out, color 0.12s ease-out;
+}
+.mini.on {
+  background: var(--accent-2);
+  border-color: transparent;
+  color: #fff;
+}
+
+/* Flat button group (default look, as in Halftone): no fill/outline, short
+   dividers between, the button shape appears on hover. */
+.flat-group {
+  display: inline-flex;
+  align-items: center;
+}
+.flat-group > * + * {
+  position: relative;
+  margin-left: 11px;
+}
+.flat-group > * + *::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  width: 1px;
+  height: 14px;
+  margin-top: -7px;
+  background: var(--line);
+  pointer-events: none;
+}
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 20px;
+  cursor: pointer;
+}
+.icon-btn.on {
+  background: var(--accent-hover);
+  color: var(--text-hover);
+}
+
+/* ---------- hover / press: the one rule for every clickable control ----------
+   1. Plain controls (flat buttons, chips, menu items, drop-down buttons and
+      options, list rows, subtitle lines …): an opaque light-purple
+      fill (--accent-hover), no outline added or changed, text one step stronger
+      (--text-hover). An open drop-down / popup button looks hovered.
+   2. Solid controls that are already filled (purple play / search buttons,
+      selected items, Halftone nav tabs): a brightness change only
+      (--hover-filter), no colour or outline change.
+   3. Work tiles / library rows (작품 칸): purple outline only, no fill — the
+      same as Halftone and Sorta.
+   4. Press: brightness only (--press-filter), never a size change.
+   Nothing else in env.css sets a hover fill or outline. */
+:is(
+    .btn:not(.primary):not(.danger),
+    .mini:not(.on):not(.play-solid),
+    .icon-btn,
+    .chip:not(.active),
+    .menu-item:not(.on),
+    .dd-btn,
+    .dd-opt:not(.on),
+    .search-filter:not(.on),
+    .lline,
+    .select-wrap,
+    .bm-time,
+    .bm-main,
+    .mn-about-row,
+    .trow,
+    .trow-tool:not(.off),
+    .se-row:not(.on)
+  ):hover:not(:disabled),
+.dd-btn.open,
+.chip.open:not(.active),
+.search-filter.open:not(.on) {
+  background: var(--accent-hover);
+  color: var(--text-hover);
+}
+:is(
+    .btn.primary,
+    .btn.danger,
+    .mini.on,
+    .mini.play-solid,
+    .chip.active,
+    .menu-item.on,
+    .dd-opt.on,
+    .search-go,
+    .mn-play,
+    .search-filter.on,
+    .nav-tab
+  ):hover:not(:active):not(:disabled) {
+  filter: var(--hover-filter);
+}
+:is(.tile, .lrow):hover {
+  border-color: var(--accent);
+}
+:is(button, .chip, .dd-opt, .menu-item, .trow, .trow-tool, .lrow, .tile):active:not(:disabled) {
+  transform: none;
+  filter: var(--press-filter);
+}
+
+/* ---------- layout ---------- */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 52px;
+  padding: 0 12px 0 18px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: -0.5px;
+  color: var(--accent);
+}
+.spacer {
+  flex: 1;
+}
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.page {
+  height: 100%;
+  overflow: auto;
+  padding: 28px 32px;
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+
+.mini:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.mini.icon {
+  width: 30px;
+  padding: 0;
+  font-size: 16px;
+}
+.locked {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-dim);
+}
+.locked h2 {
+  color: var(--text);
+  margin: 6px 0 0;
+}
+.locked-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+}
+.hero-icon {
+  font-size: 56px;
+  color: var(--accent);
+}

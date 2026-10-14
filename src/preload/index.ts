@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { Api } from '../shared/ipc'
 import { createApi as createSortaApi } from '../sorta/preload/api'
+import { createApi as createEnvelopeApi } from '../envelope/preload/api'
 
 const api: Api = {
   pickFolder: () => ipcRenderer.invoke(IPC.pickFolder),
@@ -186,13 +187,22 @@ const api: Api = {
     ipcRenderer.on(IPC.navForward, listener)
     return () => ipcRenderer.removeListener(IPC.navForward, listener)
   },
-  closeWindow: (decision, session) => ipcRenderer.invoke(IPC.closeWindow, decision, session)
+  closeWindow: (decision, session) => ipcRenderer.invoke(IPC.closeWindow, decision, session),
+  envelopeBig: (open) => ipcRenderer.invoke(IPC.envelopeBig, open),
+  onEnvelopeShape: (cb) => {
+    const listener = (_e: unknown, s: 'panel' | 'bar' | 'close'): void => cb(s)
+    ipcRenderer.on(IPC.envelopeShape, listener)
+    return () => ipcRenderer.removeListener(IPC.envelopeShape, listener)
+  }
 }
 
 // The preload runs in every frame of the main window (nodeIntegrationInSubFrames):
-// the 캐릭터 분류 frame (sorta.html) gets Sorta's API; the top page gets
-// Halftone's; any other frame gets nothing.
-if (/\/sorta\.html$/.test(location.pathname)) {
+// the 캐릭터 분류 frame (sorta.html) gets Sorta's API, the 음성 플레이어 page
+// (envelope.html — the frame, and its separate big window) Envelope's; the top
+// page gets Halftone's; any other frame gets nothing.
+if (/\/envelope\.html$/.test(location.pathname)) {
+  contextBridge.exposeInMainWorld('api', createEnvelopeApi(ipcRenderer))
+} else if (/\/sorta\.html$/.test(location.pathname)) {
   contextBridge.exposeInMainWorld('api', createSortaApi(ipcRenderer))
   applyInitialTheme() // the Sorta frame follows Halftone's theme from its first paint
 } else if (window.top === window) {

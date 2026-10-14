@@ -24,8 +24,8 @@ in a fresh context without re-deriving everything.
   cd /c/Users/noth2/Desktop/code/manga-viewer-2 && npm run build
   ```
   - `typecheck` = `tsc --noEmit` for `tsconfig.node.json` (main/preload),
-    `tsconfig.web.json` (renderer) and `tsconfig.sorta.json` (embedded Sorta
-    renderer, §12). **Run it after every change.**
+    `tsconfig.web.json` (renderer), `tsconfig.sorta.json` (embedded Sorta
+    renderer, §12) and `tsconfig.envelope.json` (embedded Envelope renderer, §13). **Run it after every change.**
   - `build` = electron-vite production build (fast, ~900ms). Use to sanity-check.
   - Packaging: `npm run dist` (electron-builder). winCodeSign symlink step needs
     Developer Mode or admin — not needed for normal dev.
@@ -322,3 +322,45 @@ single-instance lock), connect to the page target and click / call
 - Native modules for it: `better-sqlite3` (Electron prebuilt fetched by
   `scripts/native.mjs` on postinstall; `npmRebuild: false`), `sharp`; both
   `asarUnpack`ed and external in the main build.
+
+## 13. 음성 플레이어 (Envelope, embedded)
+
+- Envelope (voice-work player, repo `alterstare/Envelope`, local `../doujin_player`)
+  is embedded like Sorta: sidebar → "음성 플레이어 열기 / 닫기" (under 캐릭터 분류).
+- **`src/envelope/` is a generated copy — never edit it.** Change Envelope, then
+  `npm run sync-envelope` (copies `core`, `shared`, `main/host.ts`,
+  `main/encodeWorker.ts`, `preload/api.ts`, `preload/index.d.ts`,
+  `renderer/src`, writes `version.ts`). Typecheck covers it via
+  `tsconfig.envelope.json` (renderer) and `tsconfig.node.json` (core/main).
+- Screen: `src/renderer/envelope.html` (+ `envelope-main.ts`). ONE frame
+  (`components/EnvelopeDock.tsx`) that is never moved in the page — moving a
+  frame reloads it and stops the sound; only its box changes:
+  - **panel** — right side between the tab bar and the activity bar, 360px by
+    default, its left edge drags it wider (≤845, kept in localStorage
+    `envelopeWidth`); `.app.env-panel > .body` gets `margin-right`.
+  - **bar** — Envelope's mini-mode bar along Halftone's bottom at Halftone's
+    full width (`.app.env-bar` pads the bottom; the activity bar sits above it).
+    While the pointer is on its 음량 button the frame is lifted (`lift`, 150px,
+    see-through) so the vertical volume bar fits above.
+  - **hidden** — while the separate big window is open; the frame keeps
+    playing.
+- The frame holds THE player. The big window (`envelope.html?remote&theme=…`,
+  `main/envelope.ts`) shows it: Envelope's host relays state down
+  (`env:mirror`) and actions up (`env:remote:cmd`); closing it (or its
+  패널로 보기 / 최소화 모드 buttons) returns to the panel / bar.
+- Frame ⇄ page: the frame posts `env-request` ({what: window | panel | bar |
+  close | lift}) and `env-job` (→ activity bar, `store.envelopeJob`); the page
+  posts `env-mode` (its shape) and `env-key`. **Never post to the frame before
+  its `load`** — touching the frame's first (empty) window keeps Electron's
+  preload from giving the real page its `window.api`.
+- Keys: everything works when the frame has focus; with focus in Halftone, a
+  key goes down to the frame only if no Halftone shortcut (incl. user
+  overrides) uses it and it isn't reserved for the reader / scrolling
+  (arrows, Space, Enter, Esc, Tab, Page/Home/End, Backspace, Delete), and not
+  while typing.
+- Data: shared with the standalone app, `%APPDATA%/Envelope` (lazy, `env.lock`;
+  test with a copy: `ENVELOPE_DATA_DIR=<folder>`). `env-media://` is registered
+  with Halftone's schemes. Main build input `envelopeEncodeWorker` = its wav →
+  mp3 worker thread.
+- **Any Envelope release → also sync + release Halftone** (always when its DB
+  schema changes).

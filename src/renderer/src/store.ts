@@ -71,7 +71,7 @@ export interface DownloadItem {
 // covers everything else. total=0 → indeterminate (spinner, no percentage).
 export interface Job {
   id: string
-  kind: 'export' | 'scan' | 'meta' | 'thumb' | 'organize' | 'convert' | 'sorta' // sorta = 캐릭터 분류 (shown in both modes)
+  kind: 'export' | 'scan' | 'meta' | 'thumb' | 'organize' | 'convert' | 'sorta' | 'envelope' // sorta = 캐릭터 분류, envelope = 음성 플레이어 (both shown in both modes)
   mode: 'doujin' | 'normal' // which library the task belongs to (bar is per-mode)
   title: string
   status: 'running' | 'done' | 'error'
@@ -272,6 +272,7 @@ interface AppState {
   updateJob: (id: string, patch: Partial<Job>) => void
   // 캐릭터 분류 (Sorta frame) job progress → a row of the activity bar
   sortaJob: (e: { jobId: number; label: string; done: number; total: number; unit?: 'bytes'; state: string; error?: string }) => void
+  envelopeJob: (e: { jobId: number; label: string; done: number; total: number; unit?: 'bytes'; state: string; error?: string }) => void
   endJob: (id: string, patch: Partial<Job>) => void
   exportWorkJob: (workId: string, withTr: boolean) => Promise<void>
   exportImagesJob: (workId: string) => Promise<void>
@@ -312,6 +313,13 @@ interface AppState {
   goTransWork: () => void
   goSorta: () => void // 캐릭터 분류 mode (Sorta)
   sortaView: string // screen shown in the Sorta frame (its settings button in the tab bar lights up)
+  // 음성 플레이어 (Envelope): open or not, its shape (right panel / bar at the
+  // bottom / hidden while its separate big window is open), and how far the
+  // bar is lifted for a moment (its volume pop-up)
+  envelope: { open: boolean; shape: 'panel' | 'bar' | 'hidden'; lift: number }
+  openEnvelope: () => void
+  closeEnvelope: () => void
+  setEnvelopeShape: (shape: 'panel' | 'bar' | 'hidden') => void
   // 번역 편집기 list (persisted in settings.transProjects).
   addTransProjects: (workIds: string[]) => void
   updateTransProject: (workId: string, patch: Partial<TransProject>) => void
@@ -591,6 +599,35 @@ function applyNav(
   }
 }
 
+// A job of an embedded app (Envelope …) into the activity bar.
+function jobFrom(
+  set: (fn: (st: AppState) => Partial<AppState>) => void,
+  kind: 'envelope',
+  e: { jobId: number; label: string; done: number; total: number; unit?: 'bytes'; state: string; error?: string }
+): void {
+  set((st) => {
+    const id = `${kind}:${e.jobId}`
+    if (e.state === 'cancelled') return { jobs: st.jobs.filter((j) => j.id !== id) }
+    const mb = (n: number): number => Math.round(n / 1048576)
+    const bytes = e.unit === 'bytes'
+    const prev = st.jobs.find((j) => j.id === id)
+    const job: Job = {
+      id,
+      kind,
+      mode: st.libraryMode,
+      title: e.state === 'failed' ? (prev?.title ?? e.label) : e.label,
+      status: e.state === 'done' ? 'done' : e.state === 'failed' ? 'error' : 'running',
+      done: bytes ? mb(e.done) : e.done,
+      total: bytes ? mb(e.total) : e.total,
+      detail: bytes && e.total ? `${mb(e.done)} / ${mb(e.total)} MB` : e.state === 'done' ? '완료' : undefined,
+      error: e.error,
+      startedAt: prev?.startedAt ?? Date.now(),
+      endedAt: e.state === 'done' || e.state === 'failed' ? Date.now() : undefined
+    }
+    return { jobs: prev ? st.jobs.map((j) => (j.id === id ? job : j)) : [job, ...st.jobs] }
+  })
+}
+
 export const useStore = create<AppState>((set, get) => ({
   works: [],
   // Theme from the preload (already on <html>), so the first render doesn't
@@ -823,6 +860,13 @@ export const useStore = create<AppState>((set, get) => ({
   goTransWork: () => guardLeave(get, set, () => set({ view: 'transwork' })),
   goSorta: () => guardLeave(get, set, () => set({ view: 'sorta' })),
   sortaView: 'library',
+  envelope: { open: false, shape: 'panel', lift: 0 },
+  openEnvelope: () => set((st) => ({ envelope: { ...st.envelope, open: true, shape: st.envelope.shape === 'hidden' ? 'panel' : st.envelope.shape } })),
+  closeEnvelope: () => {
+    if (get().envelope.shape === 'hidden') void window.api.envelopeBig(false)
+    set({ envelope: { open: false, shape: 'panel', lift: 0 } })
+  },
+  setEnvelopeShape: (shape) => set((st) => ({ envelope: { ...st.envelope, shape, lift: 0 } })),
   addTransProjects: (workIds) => {
     const cur = get().settings.transProjects ?? []
     const now = Date.now()
@@ -1591,6 +1635,7 @@ export const useStore = create<AppState>((set, get) => ({
     }))
     return id
   },
+  envelopeJob: (e) => jobFrom(set, 'envelope', e),
   sortaJob: (e) =>
     set((st) => {
       const id = `sorta:${e.jobId}`

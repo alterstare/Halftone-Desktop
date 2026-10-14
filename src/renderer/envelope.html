@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 음성 플레이어: Envelope's screen (src/envelope, synced from ../doujin_player)
+         in a frame of the main window (right panel / bottom bar), and in its
+         separate big window (?remote). Its own styles stay inside. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src 'self' env-media:; img-src 'self' env-media: data: blob:; media-src 'self' env-media: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    />
+    <title>Envelope</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/envelope-main.ts"></script>
+  </body>
+</html>

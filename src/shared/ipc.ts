@@ -172,7 +172,11 @@ export const IPC = {
   navForward: 'app:navForward', // main -> renderer: mouse/forward-command → go forward
   updateStatus: 'update:status', // main -> renderer: auto-update progress/state
   installUpdate: 'update:install', // renderer -> main: quit and install the downloaded update
-  resetApp: 'app:reset' // renderer -> main: wipe settings/library data (+ optionally work folders), relaunch
+  resetApp: 'app:reset', // renderer -> main: wipe settings/library data (+ optionally work folders), relaunch
+  // 음성 플레이어 (Envelope): open / close its separate big window; the shape
+  // the big window asks for (panel / bar / close) when it closes itself
+  envelopeBig: 'envelope:big', // renderer -> main
+  envelopeShape: 'envelope:shape' // main -> renderer
 } as const
 
 // Auto-update lifecycle surfaced in the activity bar.
@@ -467,6 +471,9 @@ export interface Api {
   onNavForward: (cb: () => void) => () => void
   // Renderer reports the exit decision. For 'keep', pass the live tab session.
   closeWindow: (decision: CloseDecision, session?: SessionState) => Promise<void>
+  // 음성 플레이어 (Envelope)
+  envelopeBig: (open: boolean) => Promise<void>
+  onEnvelopeShape: (cb: (shape: 'panel' | 'bar' | 'close') => void) => () => void
 }
 
 declare global {

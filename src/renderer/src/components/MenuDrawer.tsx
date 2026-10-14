@@ -1,7 +1,7 @@
 import type { JSX, ReactNode } from 'react'
 import { useStore } from '../store'
 import { useLock } from '../lock'
-import { HomeIcon, LanguageIcon, MenuIcon, SettingsIcon, DownloadIcon, FavoriteIcon, AssignmentIcon, HistoryIcon, CompareArrowsIcon, TranslateIcon, CategoryIcon } from './icons'
+import { HomeIcon, LanguageIcon, MenuIcon, SettingsIcon, DownloadIcon, FavoriteIcon, AssignmentIcon, HistoryIcon, CompareArrowsIcon, TranslateIcon, CategoryIcon, HeadphonesIcon } from './icons'
 
 // Left slide-in navigation drawer (☰). Surfaces every screen plus the
 // doujin ⇄ general-manga mode toggle. Existing tab-bar buttons still work; this
@@ -44,6 +44,9 @@ export default function MenuDrawer(): JSX.Element {
   const goSettings = useStore((s) => s.goSettings)
   const goTransWork = useStore((s) => s.goTransWork)
   const goSorta = useStore((s) => s.goSorta)
+  const envelopeOpen = useStore((s) => s.envelope.open)
+  const openEnvelope = useStore((s) => s.openEnvelope)
+  const closeEnvelope = useStore((s) => s.closeEnvelope)
   const setFilter = useStore((s) => s.setFilter)
   const setSort = useStore((s) => s.setSort)
   const setSearch = useStore((s) => s.setSearch)
@@ -105,6 +108,12 @@ export default function MenuDrawer(): JSX.Element {
           icon={<CategoryIcon />}
           label={sortaMode ? '라이브러리로 돌아가기' : '캐릭터 분류 모드로 전환'}
           onClick={() => go(sortaMode ? goHome : goSorta)}
+        />
+        {/* 음성 플레이어: Envelope (voice-work player) at the right side */}
+        <Item
+          icon={<HeadphonesIcon />}
+          label={envelopeOpen ? '음성 플레이어 닫기' : '음성 플레이어 열기'}
+          onClick={() => go(envelopeOpen ? closeEnvelope : openEnvelope)}
         />
         <div className="menu-mode-cur">현재: {transMode ? '번역 편집기' : sortaMode ? '캐릭터 분류' : normal ? '일반 만화' : '동인지'}</div>
 
