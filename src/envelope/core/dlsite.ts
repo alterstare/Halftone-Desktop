@@ -11,6 +11,7 @@ export interface DlsiteInfo {
   // the release: a Korean translation (자막판) of a Japanese work, a Korean
   // original (voice in Korean), a Japanese original; null = other / unknown
   lang: 'ja' | 'ko-sub' | 'ko-voice' | null
+  age: 'r18' | 'general' | null // age_category: 3 = R18; 1 (all ages) / 2 (R15) = general
 }
 export interface DlTag {
   ko: string
@@ -43,6 +44,7 @@ interface ProductJson {
   genres?: { name?: string; name_base?: string }[]
   translation_info?: { lang?: string | null }
   options?: string // "JPN#SND#…" — languages among them
+  age_category?: number
 }
 
 function releaseLang(p: ProductJson): DlsiteInfo['lang'] {
@@ -69,6 +71,7 @@ export async function fetchDlsite(code: string, get: JsonFetch = fetchJson, sign
     voices: [...new Set((p.creaters?.voice_by ?? []).map((v) => v.name.trim()).filter(Boolean))],
     image: p.image_main?.url ? (p.image_main.url.startsWith('//') ? `https:${p.image_main.url}` : p.image_main.url) : null,
     lang: releaseLang(p),
+    age: p.age_category === 3 ? 'r18' : p.age_category === 1 || p.age_category === 2 ? 'general' : null,
     tags: (p.genres ?? [])
       .map((g) => ({ ko: (g.name ?? g.name_base ?? '').trim(), ja: (g.name_base ?? g.name ?? '').trim() }))
       .filter((g) => g.ko || g.ja)

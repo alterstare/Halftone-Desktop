@@ -6,9 +6,9 @@
 import { useState } from 'react'
 import type { JSX } from 'react'
 import { useStore } from '../store'
-import { next, prev, setRate, setSleep, skip, toggle } from '../player'
+import { next, prev, skip, toggle } from '../player'
 import { Lyrics, Stage, SubBar, SubsToggle } from './NowView'
-import { RATES, SeekBar, SLEEP, Volume } from './NowBar'
+import { RateControl, SeekBar, SleepControl, Volume } from './NowBar'
 import SubEditor from './SubEditor'
 import { BookmarkButton } from './Bookmarks'
 import { FavButton, GroupButton, Popover, SHEET_MS, useAnchor, useExit } from './ui'
@@ -99,8 +99,6 @@ function Utility({ lyr, setLyr }: { lyr: boolean; setLyr: (b: boolean) => void }
 
 function MoreMenu(): JSX.Element {
   const now = useStore((s) => s.now)!
-  const rate = useStore((s) => s.settings?.rate ?? 1)
-  const sleep = useStore((s) => s.sleep)
   const resume = useStore((s) => s.settings?.resume ?? true)
   const pop = useAnchor()
   const close = pop.close
@@ -123,17 +121,6 @@ function MoreMenu(): JSX.Element {
             </button>
             <div className="menu-sep" />
             <div className="menu-title">
-              <SpeedIcon /> 재생 속도
-            </div>
-            <div className="menu-opts">
-              {RATES.map((r) => (
-                <button key={r} className={`mini ${r === rate ? 'on' : ''}`} onClick={() => setRate(r)}>
-                  {r}x
-                </button>
-              ))}
-            </div>
-            <div className="menu-sep" />
-            <div className="menu-title">
               {resume ? <UpdateIcon /> : <UpdateDisabledIcon />} 이어 듣기
             </div>
             <div className="menu-opts">
@@ -146,24 +133,14 @@ function MoreMenu(): JSX.Element {
             </div>
             <div className="menu-sep" />
             <div className="menu-title">
+              <SpeedIcon /> 재생 속도
+            </div>
+            <RateControl />
+            <div className="menu-sep" />
+            <div className="menu-title">
               <BedtimeIcon /> 수면 타이머
             </div>
-            <div className="menu-opts">
-              {SLEEP.map(([label, mode, min]) => (
-                <button
-                  key={label}
-                  className={`mini ${sleep.mode === mode && (mode !== 'time' || sleep.minutes === min) ? 'on' : ''}`}
-                  onClick={() => (setSleep(mode, min), close())}
-                >
-                  {label}
-                </button>
-              ))}
-              {sleep.mode !== 'off' && (
-                <button className="mini" onClick={() => (setSleep('off'), close())}>
-                  끄기
-                </button>
-              )}
-            </div>
+            <SleepControl />
           </div>
         </Popover>
       )}
@@ -173,15 +150,33 @@ function MoreMenu(): JSX.Element {
 
 // The whole panel for one thing (full subtitles / the editor), with a small
 // player at the bottom like Spotify's expanded lyrics.
-function Sheet({ title, onClose, leaving, children }: { title: string; onClose: () => void; leaving?: boolean; children: React.ReactNode }): JSX.Element {
+// closeless: the content puts its own close button in the header's right end
+// (the editor — it asks before dropping unsaved changes)
+function Sheet({
+  title,
+  onClose,
+  leaving,
+  closeless,
+  children
+}: {
+  title: string
+  onClose: () => void
+  leaving?: boolean
+  closeless?: boolean
+  children: React.ReactNode
+}): JSX.Element {
   const now = useStore((s) => s.now)!
   const g = now.work.groups.find((x) => x.key === now.groupKey)
   return (
     <div className={`mn-sheet ${leaving ? 'leaving' : ''}`}>
       <header className="mn-head">
-        <button className="mini icon" title="닫기" onClick={onClose}>
-          <KeyboardArrowDownIcon />
-        </button>
+        {closeless ? (
+          <span className="mn-head-gap" />
+        ) : (
+          <button className="mini icon" title="닫기" onClick={onClose}>
+            <KeyboardArrowDownIcon />
+          </button>
+        )}
         <div className="mn-from">
           <span>{title}</span>
           <b>{g?.title}</b>
@@ -266,8 +261,8 @@ export default function MobileNow(): JSX.Element {
       </div>
 
       {editEx.mounted && (
-        <Sheet title="자막 편집" leaving={editEx.leaving} onClose={() => useStore.setState({ editing: false })}>
-          <SubEditor />
+        <Sheet title="자막 편집" leaving={editEx.leaving} closeless onClose={() => useStore.setState({ editing: false })}>
+          <SubEditor sheet />
         </Sheet>
       )}
     </div>

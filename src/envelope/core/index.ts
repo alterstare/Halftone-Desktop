@@ -28,7 +28,7 @@ import type { AutoSubOptions, AutoSubResult, DecodeFn } from './autosub'
 import { autoSubWork } from './autosub'
 import { namesMap, needsTranslation, translateNames } from './names/translate'
 import { findScripts, previewScript, scriptSubWork } from './script'
-import type { NameStatus, ScriptPreview, ScriptSource, ScriptSubOptions } from '../shared/types'
+import type { NameStatus, ScriptPreview, ScriptSource, ScriptSubOptions, WorkContent } from '../shared/types'
 import { existsSync } from 'fs'
 import * as originals from './originals'
 
@@ -191,6 +191,7 @@ export class EnvCore {
             found.add(dir)
             // 원래 이름 기록: names / Japanese subtitles not seen before
             await originals.recordWork(this.db, id).catch(() => false)
+            await this.scanContent(id).catch(() => undefined)
           } catch (e) {
             failed.push(`${dir}: ${String((e as Error)?.message ?? e)}`)
           }
@@ -202,6 +203,33 @@ export class EnvCore {
       },
       { background }
     )
+  }
+
+  // 언어 분류: the scripts (by language) and the subtitle files next to the
+  // audio (by language; Envelope's own are marked) — the program's own
+  // subtitles are added when listing.
+  private async scanContent(id: number): Promise<void> {
+    const d = this.work(id)
+    if (!d) return
+    const scripts = [...new Set((await findScripts(d)).map((s) => s.lang))].filter((l): l is 'ja' | 'ko' => l === 'ja' || l === 'ko')
+    const subs: WorkContent['subs'] = {}
+    const seen = new Set<string>()
+    for (const g of d.groups)
+      for (const v of g.versions)
+        for (const f of v.subs) {
+          if (f.path.startsWith(library.APP_SUB) || seen.has(f.path)) continue
+          seen.add(f.path)
+          let text = ''
+          try {
+            text = decodeText(await fsp.readFile(f.path))
+          } catch {
+            continue
+          }
+          const lang = f.lang === 'ja' || f.lang === 'ko' ? f.lang : langOfText(parseSubtitle(text, extname(f.path)).map((c) => c.text).join(' '))
+          if (lang !== 'ja' && lang !== 'ko') continue
+          subs[lang] = subs[lang] === 'user' || !isEnvMade(text) ? 'user' : 'app'
+        }
+    this.db.prepare('UPDATE works SET content_json = ? WHERE id = ?').run(JSON.stringify({ scripts, subs }), id)
   }
 
   works(): WorkSummary[] {
@@ -841,12 +869,12 @@ export class EnvCore {
           ids
             ? this.db.prepare(`SELECT id, code FROM works WHERE code IS NOT NULL AND id IN (${ids.map(() => '?').join(',')})`).all(...ids)
             : // not asked yet — or asked before tags were kept (found, no tags)
-              this.db.prepare('SELECT id, code FROM works WHERE code IS NOT NULL AND (dl_at IS NULL OR (dl_title IS NOT NULL AND (dl_tags IS NULL OR dl_lang IS NULL)))').all()
+              this.db.prepare('SELECT id, code FROM works WHERE code IS NOT NULL AND (dl_at IS NULL OR (dl_title IS NOT NULL AND (dl_tags IS NULL OR dl_lang IS NULL OR dl_age IS NULL)))').all()
         ) as { id: number; code: string }[]
         let found = 0
         let missing = 0
         let failed = 0
-        const put = this.db.prepare('UPDATE works SET dl_title = ?, dl_circle = ?, dl_voices = ?, dl_tags = ?, dl_lang = ?, dl_at = ? WHERE id = ?')
+        const put = this.db.prepare('UPDATE works SET dl_title = ?, dl_circle = ?, dl_voices = ?, dl_tags = ?, dl_lang = ?, dl_age = ?, dl_at = ? WHERE id = ?')
         const putCover = this.db.prepare('UPDATE works SET dl_cover = ? WHERE id = ?')
         for (let i = 0; i < rows.length; i++) {
           if (ctx.signal.aborted) break
@@ -855,7 +883,7 @@ export class EnvCore {
             const info = await fetchDlsite(rows[i].code, this.dlGet, ctx.signal)
             if (info) found++
             else missing++
-            put.run(info?.title ?? null, info?.circle ?? null, info ? JSON.stringify(info.voices) : null, info ? JSON.stringify(info.tags) : null, info ? (info.lang ?? '') : null, Date.now(), rows[i].id)
+            put.run(info?.title ?? null, info?.circle ?? null, info ? JSON.stringify(info.voices) : null, info ? JSON.stringify(info.tags) : null, info ? (info.lang ?? '') : null, info ? (info.age ?? '') : null, Date.now(), rows[i].id)
             if (info?.image && this.paths.coversDir) {
               // cover kept in the data folder — the work's own folder is not touched
               const file = join(this.paths.coversDir, `${info.code}${extname(new URL(info.image).pathname) || '.jpg'}`)

@@ -19,6 +19,7 @@ import {
   TranslateIcon
 } from './icons'
 import { Dropdown, FavButton, GroupButton, Stars, TagLine, useNarrow } from './ui'
+import { contentLabels, trackLabel } from '../workInfo'
 
 export function versionLabel(v: TrackVersion): string {
   const se = v.se === 'on' ? 'SE 포함' : v.se === 'off' ? 'SE 제외' : ''
@@ -26,7 +27,6 @@ export function versionLabel(v: TrackVersion): string {
   return [se, fmt].filter(Boolean).join(' · ')
 }
 
-const LANG_LABEL = { ja: '일본어 원본', 'ko-sub': '한국어 자막판', 'ko-voice': '한국어 음성' }
 
 // After SE / edition changes: reload, and keep the track playing on the
 // newly chosen file from the same point.
@@ -76,6 +76,7 @@ function TrackRow({
           ) : (
             versionLabel(v)
           )}
+          {hasSubs && <SubtitlesIcon className="trow-submark" />}
         </span>
         {pct > 0 && (
           <span className="trow-bar">
@@ -117,7 +118,6 @@ export default function WorkPage(): JSX.Element | null {
   const groupIds = sum?.groupIds ?? w.groupIds
   const main = w.groups.filter((g) => g.role === 'main')
   const total = main.reduce((n, g) => n + (g.duration ?? 0), 0)
-  const done = main.filter((g) => g.finished).length
   const here = now?.work.id === w.id
   const target = resumeTarget(w)
   const resumeOk = useStore((s) => s.settings?.resume ?? true)
@@ -217,15 +217,18 @@ export default function WorkPage(): JSX.Element | null {
       </div>
     </>
   )
+  // the track: its name in the big window, its place ("트랙 2") in the small one
+  const nameOf = (key: string, title: string): string => (narrow ? trackLabel(w, key) : title)
   const resume = (
     <>
       <span className="wp-resume hint">
         {here
-          ? `${playing ? '재생 중' : '일시정지'} · ${w.groups.find((g) => g.key === now!.groupKey)?.title ?? ''}`
-          : target && (resumable ? `이어 듣기 · ${target.title} ${clock(target.position)}부터` : `재생 · ${target.title}부터`)}
+          ? `${playing ? '재생 중' : '일시정지'} · ${nameOf(now!.groupKey, w.groups.find((g) => g.key === now!.groupKey)?.title ?? '')}`
+          : target && (resumable ? `이어 듣기 · ${nameOf(target.key, target.title)} ${clock(target.position)}부터` : `재생 · ${nameOf(target.key, target.title)}부터`)}
       </span>
     </>
   )
+  const kind = [w.code, ...contentLabels(w.content, w.lang)].filter(Boolean).join(' · ')
   const prefs = (
     <>
       {w.hasSeChoice && (
@@ -277,7 +280,6 @@ export default function WorkPage(): JSX.Element | null {
       </div>
     </>
   )
-  const people = [w.circle, w.voices.join(', ')].filter(Boolean).join(' · ')
 
   // narrow window (Halftone side panel): Spotify's album page on mobile —
   // centred cover, title, people, meta; ♥ · 그룹 · 별점 left and shuffle +
@@ -288,25 +290,33 @@ export default function WorkPage(): JSX.Element | null {
         {coverUrl && <div className="mw-bg" style={{ backgroundImage: `url("${coverUrl}")` }} />}
         {top}
         <div className="mw-cover">{coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : null}</div>
-        <h1 className="mw-title selectable">{w.title}</h1>
-        {people && <div className="mw-people">{people}</div>}
-        <TagLine tags={w.tags} className="mw-tags" />
-        <div className="mw-meta">
-          작품{w.code ? ` · ${w.code}` : ''} · {LANG_LABEL[w.lang]} · {main.length}트랙 · {length(total) || '길이 미확인'}
-          {done > 0 && ` · ${done}트랙 완료`}
-        </div>
-        <div className="mw-actions">
+        <div className="mw-collect">
           <div className="flat-group">
             <GroupButton id={w.id} groupIds={groupIds} />
             <FavButton id={w.id} on={fav} />
           </div>
           <Stars id={w.id} rank={rank} />
-          <span className="grow" />
-          {shuffle}
-          {playBtn}
         </div>
-        <div className="mw-status">{resume}</div>
+        <h1 className="mw-title selectable">{w.title}</h1>
+        {(w.circle || w.voices.length > 0) && (
+          <div className="mw-people">
+            {w.circle && <b>{w.circle}</b>}
+            {w.circle && w.voices.length > 0 && ' · '}
+            {w.voices.length > 0 && <b>{w.voices.join(', ')}</b>}
+          </div>
+        )}
+        <TagLine tags={w.tags} className="mw-tags" all />
+        <div className="mw-meta">{[kind, length(total)].filter(Boolean).join(' · ')}</div>
+        <div className="mw-actions">
+          {playBtn}
+          {shuffle}
+          {resume}
+        </div>
         {(w.hasSeChoice || w.editions.length > 0) && <div className="mw-prefs">{prefs}</div>}
+        <div className="mw-count">
+          <hr />
+          <span>{main.length}트랙</span>
+        </div>
         {table}
       </div>
     )
@@ -319,13 +329,10 @@ export default function WorkPage(): JSX.Element | null {
         <div className="wp-main">
           <div className="wp-cover">{coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : null}</div>
           <div className="wp-info">
-            <div className="wp-kind">
-              작품{w.code ? ` · ${w.code}` : ''} · {LANG_LABEL[w.lang]}
-            </div>
+            {kind && <div className="wp-kind">{kind}</div>}
             <h1 className="wp-title selectable">{w.title}</h1>
             <div className="wp-meta">
               {main.length}트랙 · {length(total) || '길이 미확인'}
-              {done > 0 && ` · ${done}트랙 완료`}
             </div>
             {(w.circle || w.voices.length > 0) && (
               <div className="wp-people">
@@ -342,7 +349,7 @@ export default function WorkPage(): JSX.Element | null {
                 )}
               </div>
             )}
-            <TagLine tags={w.tags} className="wp-tags" />
+            <TagLine tags={w.tags} className="wp-tags" all />
             <div className="wp-collect">
               <Stars id={w.id} rank={rank} />
               <div className="flat-group">

@@ -109,6 +109,7 @@ export function Lyrics(): JSX.Element {
   const now = useStore((s) => s.now)!
   const subs = useStore((s) => s.subs)
   const mode = useStore((s) => s.settings?.subMode ?? 'both')
+  const size = useStore((s) => s.settings?.subSize ?? 22) // 글자 크기 (22 = 보통)
   const time = useStore((s) => s.time)
   const g = now.work.groups.find((x) => x.key === now.groupKey)
   const offset = g?.subOffset ?? 0
@@ -134,7 +135,13 @@ export function Lyrics(): JSX.Element {
       </div>
     )
   return (
-    <div className="lyrics" ref={box} onWheel={() => (userScroll.current = Date.now())} onTouchMove={() => (userScroll.current = Date.now())}>
+    <div
+      className="lyrics"
+      ref={box}
+      style={{ '--lz': size / 22 } as React.CSSProperties}
+      onWheel={() => (userScroll.current = Date.now())}
+      onTouchMove={() => (userScroll.current = Date.now())}
+    >
       {subs.borrowed && <div className="hint lyrics-note">같은 트랙의 다른 버전에 있는 자막입니다.</div>}
       {main.cues.map((c, i) => (
         <button key={i} data-i={i} className={`lline ${i === active ? 'on' : i < active ? 'past' : ''}`} onClick={() => seek(c.start + offset)}>
@@ -155,42 +162,50 @@ export function SubBar(): JSX.Element {
   const offset = g?.subOffset ?? 0
   const both = !!(subs?.ja || subs?.other) && !!subs?.ko
   const setOffset = setSubOffset
+  // two rows, so nothing wraps on its own: 싱크 · 자막 편집 on top (the
+  // value has a fixed width — the buttons don't move as it changes), then
+  // the line choice and the text size
   return (
     <div className="subbar">
-      {both && (
-        <div className="flat-group" title="원문(일본어)과 번역(한국어) 중 보여줄 줄">
-          {MODES.map(([m, label]) => (
-            <button key={m} className={`mini ${settings?.subMode === m ? 'on' : ''}`} onClick={() => void save({ subMode: m })}>
-              {label}
-            </button>
-          ))}
+      <div className="subbar-row">
+        <div className="flat-group offset" title="자막 싱크 (이 트랙만, 파일은 바꾸지 않습니다)">
+          <button className="mini" onClick={() => setOffset(offset - 0.1)}>
+            -0.1
+          </button>
+          <button className="mini offset-value" onClick={() => setOffset(0)} title="싱크 초기화">
+            {offset > 0 ? '+' : ''}
+            {offset.toFixed(1)}초
+          </button>
+          <button className="mini" onClick={() => setOffset(offset + 0.1)}>
+            +0.1
+          </button>
         </div>
-      )}
-      <div className="flat-group">
-        <button className="mini icon" title="글자 작게" onClick={() => void save({ subSize: Math.max(14, (settings?.subSize ?? 22) - 2) })}>
-          <TextDecreaseIcon />
-        </button>
-        <button className="mini icon" title="글자 크게" onClick={() => void save({ subSize: Math.min(48, (settings?.subSize ?? 22) + 2) })}>
-          <TextIncreaseIcon />
-        </button>
+        <span className="grow" />
+        <div className="flat-group">
+          <button className="mini icon" title="자막 편집" onClick={() => useStore.setState({ editing: true })}>
+            <EditIcon />
+          </button>
+        </div>
       </div>
-      <div className="flat-group offset" title="자막 싱크 (이 트랙만, 파일은 바꾸지 않습니다)">
-        <button className="mini" onClick={() => setOffset(offset - 0.1)}>
-          -0.1
-        </button>
-        <button className="mini" onClick={() => setOffset(0)} title="싱크 초기화">
-          {offset > 0 ? '+' : ''}
-          {offset.toFixed(1)}초
-        </button>
-        <button className="mini" onClick={() => setOffset(offset + 0.1)}>
-          +0.1
-        </button>
-      </div>
-      <span className="grow" />
-      <div className="flat-group">
-        <button className="mini icon" title="자막 편집" onClick={() => useStore.setState({ editing: true })}>
-          <EditIcon />
-        </button>
+      <div className="subbar-row">
+        {both && (
+          <div className="flat-group" title="원문(일본어)과 번역(한국어) 중 보여줄 줄">
+            {MODES.map(([m, label]) => (
+              <button key={m} className={`mini ${settings?.subMode === m ? 'on' : ''}`} onClick={() => void save({ subMode: m })}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        <span className="grow" />
+        <div className="flat-group">
+          <button className="mini icon" title="글자 작게" onClick={() => void save({ subSize: Math.max(14, (settings?.subSize ?? 22) - 2) })}>
+            <TextDecreaseIcon />
+          </button>
+          <button className="mini icon" title="글자 크게" onClick={() => void save({ subSize: Math.min(48, (settings?.subSize ?? 22) + 2) })}>
+            <TextIncreaseIcon />
+          </button>
+        </div>
       </div>
     </div>
   )

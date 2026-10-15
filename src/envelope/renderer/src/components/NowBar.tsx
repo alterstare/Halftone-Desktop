@@ -5,8 +5,10 @@ import type { SleepMode } from '../store'
 import { next, prev, seek, setRate, setSleep, setVolume, skip, toggle } from '../player'
 import { clock } from '../format'
 import {
+  AddIcon,
   BedtimeIcon,
   Forward5Icon,
+  RemoveIcon,
   PauseIcon,
   PlayArrowIcon,
   RepeatIcon,
@@ -94,6 +96,112 @@ export function Transport({ big }: { big?: boolean }): JSX.Element {
   )
 }
 
+// A small dial (재생 속도 · 수면 타이머, big window popover and the small
+// window's ⋯ menu alike): the value on top, [−] slider [+], four presets.
+function Dial({
+  value,
+  label,
+  min,
+  max,
+  step,
+  presets,
+  onSet,
+  stepTitles
+}: {
+  value: number
+  label: string
+  min: number
+  max: number
+  step: number
+  presets: { label: string; on: boolean; set: () => void }[]
+  onSet: (v: number) => void
+  stepTitles: [string, string]
+}): JSX.Element {
+  // while dragging the slider shows where the pointer is (saving catches up)
+  const [drag, setDrag] = useState<number | null>(null)
+  const v = drag ?? value
+  const clamp = (x: number): number => Math.min(max, Math.max(min, Math.round(x / step) * step))
+  return (
+    <div className="dial">
+      <div className="dial-value">{label}</div>
+      <div className="dial-row">
+        <button className="mini icon dial-step" title={stepTitles[0]} onClick={() => onSet(clamp(v - step))}>
+          <RemoveIcon />
+        </button>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={v}
+          style={{ '--p': `${((v - min) / (max - min)) * 100}%` } as React.CSSProperties}
+          onChange={(e) => {
+            const x = clamp(Number(e.target.value))
+            setDrag(x)
+            onSet(x)
+          }}
+          onPointerUp={() => setDrag(null)}
+          onBlur={() => setDrag(null)}
+        />
+        <button className="mini icon dial-step" title={stepTitles[1]} onClick={() => onSet(clamp(v + step))}>
+          <AddIcon />
+        </button>
+      </div>
+      <div className="dial-presets">
+        {presets.map((p) => (
+          <button key={p.label} className={`mini ${p.on ? 'on' : ''}`} onClick={p.set}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function RateControl(): JSX.Element {
+  const rate = useStore((s) => s.settings?.rate ?? 1)
+  const set = (r: number): void => setRate(Math.round(r * 100) / 100)
+  return (
+    <Dial
+      value={rate}
+      label={`${rate.toFixed(2)}x`}
+      min={0.5}
+      max={2}
+      step={0.05}
+      stepTitles={['0.05 느리게', '0.05 빠르게']}
+      onSet={set}
+      presets={[0.5, 1, 1.5, 2].map((r) => ({ label: r.toFixed(1), on: Math.abs(rate - r) < 0.001, set: () => set(r) }))}
+    />
+  )
+}
+
+// 수면 타이머: minutes on the slider (0 = off), or to the end of the track / work
+export function SleepControl(): JSX.Element {
+  const sleep = useStore((s) => s.sleep)
+  useStore((s) => s.time) // count down with playback
+  const minutes = sleep.mode === 'time' ? sleep.minutes : 0
+  const left = sleep.mode === 'time' && sleep.endsAt ? clock(Math.max(0, (sleep.endsAt - Date.now()) / 1000)) : null
+  const label = sleep.mode === 'off' ? '꺼짐' : sleep.mode === 'track' ? '이 트랙이 끝나면' : sleep.mode === 'work' ? '작품이 끝나면' : `${left} 남음`
+  const setMin = (m: number): void => (m <= 0 ? setSleep('off') : setSleep('time', m))
+  return (
+    <Dial
+      value={minutes}
+      label={label}
+      min={0}
+      max={120}
+      step={5}
+      stepTitles={['5분 줄이기', '5분 늘리기']}
+      onSet={setMin}
+      presets={[
+        { label: '30분', on: sleep.mode === 'time' && sleep.minutes === 30, set: () => setSleep('time', 30) },
+        { label: '60분', on: sleep.mode === 'time' && sleep.minutes === 60, set: () => setSleep('time', 60) },
+        { label: '트랙 끝', on: sleep.mode === 'track', set: () => setSleep(sleep.mode === 'track' ? 'off' : 'track') },
+        { label: '작품 끝', on: sleep.mode === 'work', set: () => setSleep(sleep.mode === 'work' ? 'off' : 'work') }
+      ]}
+    />
+  )
+}
+
 export function SpeedMenu(): JSX.Element {
   const p = usePopover()
   const rate = useStore((s) => s.settings?.rate ?? 1)
@@ -103,12 +211,8 @@ export function SpeedMenu(): JSX.Element {
         {rate !== 1 ? <span className="rate">{rate}x</span> : <SpeedIcon />}
       </button>
       {p.mounted && (
-        <div className={`cat-panel up right menu ${p.closing ? 'closing' : ''}`}>
-          {RATES.map((r) => (
-            <button key={r} className={`menu-item ${r === rate ? 'on' : ''}`} onClick={() => (setRate(r), p.setOpen(false))}>
-              {r}x
-            </button>
-          ))}
+        <div className={`cat-panel up right dial-panel ${p.closing ? 'closing' : ''}`}>
+          <RateControl />
         </div>
       )}
     </div>
@@ -127,22 +231,8 @@ export function SleepMenu(): JSX.Element {
         {left && <span className="rate">{left}</span>}
       </button>
       {p.mounted && (
-        <div className={`cat-panel up right menu ${p.closing ? 'closing' : ''}`}>
-          <div className="menu-title">수면 타이머</div>
-          {SLEEP.map(([label, mode, min]) => (
-            <button
-              key={label}
-              className={`menu-item ${sleep.mode === mode && (mode !== 'time' || sleep.minutes === min) ? 'on' : ''}`}
-              onClick={() => (setSleep(mode, min), p.setOpen(false))}
-            >
-              {label}
-            </button>
-          ))}
-          {sleep.mode !== 'off' && (
-            <button className="menu-item" onClick={() => (setSleep('off'), p.setOpen(false))}>
-              타이머 끄기
-            </button>
-          )}
+        <div className={`cat-panel up right dial-panel ${p.closing ? 'closing' : ''}`}>
+          <SleepControl />
         </div>
       )}
     </div>

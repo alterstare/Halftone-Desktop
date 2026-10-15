@@ -1,7 +1,8 @@
 import type { HostMode } from './embed'
 import { create } from 'zustand'
 import type { JobSummary, WindowState } from '../../shared/ipc'
-import type { Group, ProgressEvent, Settings, SubtitleText, WorkDetail, WorkLang, WorkSummary } from '../../shared/types'
+import type { Group, ProgressEvent, Settings, SubtitleText, WorkDetail, WorkSummary } from '../../shared/types'
+import type { ContentKey } from './workInfo'
 
 // library → work page → now playing (full player with subtitles)
 export type View = 'library' | 'work' | 'now' | 'tools' | 'settings'
@@ -31,8 +32,8 @@ export interface Subs {
 export interface LibFilter {
   favorites: boolean
   listen: Record<ListenState, boolean>
-  lang: Record<WorkLang, boolean>
-  subs: { with: boolean; without: boolean }
+  content: Record<ContentKey, boolean> // 언어 분류
+  age: Record<'r18' | 'general' | 'unknown', boolean> // 연령 분류
   groups: number[] | null // null = all; [] + ungrouped
   ungrouped: boolean
 }
@@ -40,8 +41,8 @@ export interface LibFilter {
 export const ALL_FILTER: LibFilter = {
   favorites: false,
   listen: { new: true, listening: true, done: true },
-  lang: { ja: true, 'ko-sub': true, 'ko-voice': true },
-  subs: { with: true, without: true },
+  content: { none: true, 'ja-script': true, 'ko-script': true, 'ja-sub': true, 'ko-sub': true },
+  age: { r18: true, general: true, unknown: true },
   groups: null,
   ungrouped: true
 }

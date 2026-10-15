@@ -2,7 +2,8 @@
 // add lines, stamp the playing position. Saves "<audio>.<lang>.vtt" next to
 // the audio; Ctrl+Z / Ctrl+Y inside the editor, and the save itself is one
 // undo step in the app log.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { JSX } from 'react'
 import { useStore } from '../store'
 import type { Cue, SubLang } from '../../../shared/types'
@@ -46,7 +47,9 @@ function TimeInput({ value, onChange }: { value: number; onChange: (v: number) =
 
 const LANG_NAME: Record<SubLang, string> = { ja: '일본어', ko: '한국어', other: '자막' }
 
-export default function SubEditor(): JSX.Element {
+// sheet: inside the small window's sheet, whose header (자막 편집 · track)
+// gets the close button on its right; the big window shows its own header.
+export default function SubEditor({ sheet = false }: { sheet?: boolean }): JSX.Element {
   const now = useStore((s) => s.now)!
   const subs = useStore((s) => s.subs)
   const time = useStore((s) => s.time)
@@ -156,28 +159,45 @@ export default function SubEditor(): JSX.Element {
     if (active >= 0 && !ref.current?.contains(document.activeElement)) ref.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' })
   }, [active, ref])
 
+  const closeBtn = (
+    <button className="mini icon" title="닫기" onClick={close}>
+      <CloseIcon />
+    </button>
+  )
+  // the sheet header's right end, once it is on the page
+  const [slot, setSlot] = useState<Element | null>(null)
+  useLayoutEffect(() => setSlot(sheet ? document.querySelector('.mn-sheet .mn-head > .mn-head-gap:last-child') : null), [sheet])
+
   return (
     <div className="subedit">
+      {sheet ? (
+        slot && createPortal(closeBtn, slot)
+      ) : (
+        <div className="se-head">
+          <div className="se-head-title">
+            <span>자막 편집</span>
+            <b>{g?.title}</b>
+          </div>
+          <div className="flat-group">{closeBtn}</div>
+        </div>
+      )}
+      {/* undo · redo | 편집할 자막 | 줄 추가 · 저장 */}
       <div className="se-bar">
-        <Dropdown<number> kind="mini" value={src} options={sources.map((s, i) => [i, s.label] as const)} onChange={pick} title="편집할 자막" />
-        <div className="flat-group">
+        <div className="flat-group se-bar-left">
           <button className="mini icon" title="되돌리기 (Ctrl+Z)" disabled={!past.length} onClick={undo}>
             <UndoIcon />
           </button>
           <button className="mini icon" title="다시 실행 (Ctrl+Y)" disabled={!future.length} onClick={redo}>
             <RedoIcon />
           </button>
+        </div>
+        <Dropdown<number> kind="mini" value={src} options={sources.map((s, i) => [i, s.label] as const)} onChange={pick} title="편집할 자막" />
+        <div className="flat-group se-bar-right">
           <button className="mini icon" title="지금 위치에 줄 추가" onClick={add}>
             <AddIcon />
           </button>
-        </div>
-        <span className="grow" />
-        <div className="flat-group">
-          <button className="mini icon" title="닫기" onClick={close}>
-            <CloseIcon />
-          </button>
-          <button className="mini on" disabled={!dirty} onClick={() => void doSave()} title="프로그램 안에 저장 (Ctrl+S) — 폴더에는 파일 정리 › 자막 › 폴더 변경으로">
-            <SaveIcon /> 저장
+          <button className="mini icon on" disabled={!dirty} onClick={() => void doSave()} title="프로그램 안에 저장 (Ctrl+S) — 폴더에는 파일 정리 › 자막 › 폴더 변경으로">
+            <SaveIcon />
           </button>
         </div>
       </div>
@@ -205,10 +225,6 @@ export default function SubEditor(): JSX.Element {
                   <LastPageIcon />
                 </button>
               </div>
-              <div className="se-text">
-                <textarea value={c.text} rows={Math.max(1, c.text.split('\n').length)} onChange={(e) => edit(i, { text: e.target.value })} />
-                {refLine && <div className="se-ref hint">{refLine}</div>}
-              </div>
               <div className="se-actions flat-group">
                 <button className="mini icon" title="둘로 나누기" onClick={() => split(i)}>
                   <ContentCutIcon />
@@ -219,6 +235,10 @@ export default function SubEditor(): JSX.Element {
                 <button className="mini icon danger" title="줄 삭제" onClick={() => change(cues.filter((_, j) => j !== i))}>
                   <DeleteIcon />
                 </button>
+              </div>
+              <div className="se-text">
+                <textarea value={c.text} rows={Math.max(1, c.text.split('\n').length)} onChange={(e) => edit(i, { text: e.target.value })} />
+                {refLine && <div className="se-ref hint">{refLine}</div>}
               </div>
             </div>
           )

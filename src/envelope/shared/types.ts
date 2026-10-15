@@ -88,6 +88,14 @@ export type Se = 'on' | 'off' | 'unknown'
 // ja = Japanese original, ko-sub = Korean subtitled release, ko-voice = Korean voice
 export type WorkLang = 'ja' | 'ko-sub' | 'ko-voice'
 
+// What a work has to read along (언어 분류): scripts and subtitles by language.
+// A subtitle language is 'app' when only Envelope made it ([자체 생성]).
+export interface WorkContent {
+  scripts: ('ja' | 'ko')[]
+  subs: { ja?: 'user' | 'app'; ko?: 'user' | 'app' }
+}
+export type WorkAge = 'r18' | 'general' | null // DLsite (null: not known)
+
 export interface Cue {
   start: number // seconds
   end: number
@@ -123,6 +131,8 @@ export interface WorkSummary {
   circle: string | null // DLsite
   voices: string[] // DLsite
   tags: { ko: string; ja: string }[] // DLsite 장르 (shown in Korean, searched in both)
+  content: WorkContent
+  age: WorkAge
 }
 
 export interface Group {
@@ -186,6 +196,8 @@ export interface WorkDetail {
   dlTitle: string | null
   circle: string | null
   tags: { ko: string; ja: string }[] // DLsite 장르
+  content: WorkContent
+  age: WorkAge
   voices: string[]
   bookmarks: Bookmark[] // in track order, then time
 }

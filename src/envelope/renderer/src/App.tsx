@@ -340,7 +340,7 @@ function Main(): JSX.Element {
         </div>
         <JobPill />
         <div className="flat-group">
-          <button className={`mini icon topbar-settings ${navView === 'settings' ? 'on' : ''}`} title="설정 (Ctrl+,)" onClick={() => setView('settings')}>
+          <button className={`mini icon topbar-settings ${navView === 'settings' ? 'on' : ''}`} title="설정 (Ctrl+,)" onClick={() => setView(navView === 'settings' ? 'library' : 'settings')}>
             <SettingsIcon />
           </button>
         </div>

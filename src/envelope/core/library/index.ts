@@ -15,7 +15,7 @@ import type {
   TrackVersion,
   WorkDetail,
   WorkLang,
-  WorkSummary, SubLang } from '../../shared/types'
+  WorkSummary, SubLang, WorkContent, WorkAge } from '../../shared/types'
 import type { KnownProbes, ScannedWork } from './scan'
 import { naturalCompare } from '../names/normalize'
 
@@ -164,6 +164,8 @@ interface WorkRow {
   dl_voices: string | null
   dl_tags: string | null
   dl_lang: string | null
+  content_json: string | null
+  dl_age: string | null
   dl_cover: string | null
 }
 
@@ -177,6 +179,24 @@ export function parseAppSubPath(p: string): { lang: SubLang; trackPath: string }
   const at = rest.indexOf(':')
   return at < 0 ? null : { lang: rest.slice(0, at) as SubLang, trackPath: rest.slice(at + 1) }
 }
+// 언어 분류: what the scan found in the folder, plus the program's own
+// subtitles ([자체 생성] unless the folder has that language too).
+function contentOf(w: WorkRow, appLangs: Set<string> | undefined): WorkContent {
+  const c = (w.content_json ? JSON.parse(w.content_json) : { scripts: [], subs: {} }) as WorkContent
+  const subs = { ...c.subs }
+  for (const l of ['ja', 'ko'] as const) if (appLangs?.has(l) && !subs[l]) subs[l] = 'app'
+  return { scripts: c.scripts ?? [], subs }
+}
+function appLangsOf(db: Db, id?: number): Map<number, Set<string>> {
+  const rows = db
+    .prepare(`SELECT DISTINCT t.work_id AS id, a.lang FROM app_subs a JOIN tracks t ON t.path = a.track_path${id === undefined ? '' : ' WHERE t.work_id = ?'}`)
+    .all(...(id === undefined ? [] : [id])) as { id: number; lang: string }[]
+  const out = new Map<number, Set<string>>()
+  for (const r of rows) out.set(r.id, (out.get(r.id) ?? new Set()).add(r.lang))
+  return out
+}
+const ageOf = (w: WorkRow): WorkAge => (w.dl_age === 'r18' || w.dl_age === 'general' ? w.dl_age : null)
+
 function withAppSubs(db: Db, rows: TrackRow[]): TrackRow[] {
   const all = db.prepare('SELECT track_path, lang FROM app_subs').all() as { track_path: string; lang: string }[]
   if (!all.length) return rows
@@ -330,6 +350,7 @@ export function listWorks(db: Db, s: Settings): WorkSummary[] {
   const progress = progressOf(db)
   const offsets = offsetsOf(db)
   const groupIds = groupIdsOf(db)
+  const appLangs = appLangsOf(db)
   const out = works.map((w): WorkSummary => {
     const { groups } = buildGroups(w, tracks.get(w.id) ?? [], progress.get(w.id) ?? new Map(), offsets.get(w.id) ?? new Map(), s)
     const main = groups.filter((g) => g.role === 'main')
@@ -355,7 +376,9 @@ export function listWorks(db: Db, s: Settings): WorkSummary[] {
       folderTitle: w.title,
       circle: w.dl_circle,
       voices: w.dl_voices ? (JSON.parse(w.dl_voices) as string[]) : [],
-      tags: w.dl_tags ? (JSON.parse(w.dl_tags) as { ko: string; ja: string }[]) : []
+      tags: w.dl_tags ? (JSON.parse(w.dl_tags) as { ko: string; ja: string }[]) : [],
+      content: contentOf(w, appLangs.get(w.id)),
+      age: ageOf(w)
     }
   })
   // ascending; 내림차순 reverses
@@ -408,6 +431,8 @@ export function workDetail(db: Db, id: number, s: Settings): WorkDetail | null {
     circle: w.dl_circle,
     voices: w.dl_voices ? (JSON.parse(w.dl_voices) as string[]) : [],
     tags: w.dl_tags ? (JSON.parse(w.dl_tags) as { ko: string; ja: string }[]) : [],
+    content: contentOf(w, appLangsOf(db, w.id).get(w.id)),
+    age: ageOf(w),
     bookmarks: listBookmarks(db, id, groups.map((g) => g.key))
   }
 }

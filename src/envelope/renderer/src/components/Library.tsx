@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { ALL_FILTER, listenState, useStore } from '../store'
 import type { LibFilter } from '../store'
-import type { LibSort, WorkLang, WorkSummary } from '../../../shared/types'
+import type { LibSort, WorkSummary } from '../../../shared/types'
+import { CONTENT_KEYS, contentKeys } from '../workInfo'
 import { playWork } from '../player'
 import { length } from '../format'
 import {
@@ -28,10 +29,10 @@ const SORTS: [LibSort, string][] = [
   ['length', '재생 시간'],
   ['rank', '별점']
 ]
-const LANGS: [WorkLang, string][] = [
-  ['ja', '일본어 원본'],
-  ['ko-sub', '한국어 자막판'],
-  ['ko-voice', '한국어 음성']
+const AGES: ['r18' | 'general' | 'unknown', string][] = [
+  ['r18', 'R18'],
+  ['general', '일반'],
+  ['unknown', 'DLsite 정보 없음']
 ]
 
 export async function addLibraryFolder(): Promise<void> {
@@ -44,11 +45,14 @@ export async function addLibraryFolder(): Promise<void> {
   st.showToast(r)
 }
 
+// where the library list was scrolled to (kept while the app runs)
+let libScroll = 0
+
 function passes(w: WorkSummary, f: LibFilter): boolean {
   if (f.favorites && !w.favorite) return false
   if (!f.listen[listenState(w)]) return false
-  if (!f.lang[w.lang]) return false
-  if (!(w.subtitled ? f.subs.with : f.subs.without)) return false
+  if (!contentKeys(w.content).some((k) => f.content[k])) return false
+  if (!f.age[w.age ?? 'unknown']) return false
   if (f.groups) {
     const inGroup = w.groupIds.some((g) => f.groups!.includes(g))
     if (!inGroup && !(f.ungrouped && !w.groupIds.length)) return false
@@ -230,6 +234,14 @@ export default function Library(): JSX.Element {
   // narrow grid: 2 columns while every card's meta line fits beside its play
   // button; once one doesn't, 1 column (until the page is wider than that)
   const homeRef = useRef<HTMLDivElement>(null)
+  // back to where the list was when the library is opened again
+  useLayoutEffect(() => {
+    const el = homeRef.current
+    if (!el) return
+    el.scrollTop = libScroll
+    const id = requestAnimationFrame(() => (el.scrollTop = libScroll)) // after the cards are measured
+    return () => cancelAnimationFrame(id)
+  }, [])
   const [homeW, setHomeW] = useState(0)
   const [oneColBelow, setOneColBelow] = useState(0)
   useLayoutEffect(() => {
@@ -345,23 +357,23 @@ export default function Library(): JSX.Element {
       ))}
     </>
   )
+  // 언어 분류: by what the folder holds (and the program made — [자체 생성] counts)
   const langChecks = (
     <>
-      {LANGS.map(([k, label]) => (
-        <Check key={k} checked={filter.lang[k]} onChange={(b) => setFilter({ lang: { ...filter.lang, [k]: b } })}>
+      {CONTENT_KEYS.map(([k, label]) => (
+        <Check key={k} checked={filter.content[k]} onChange={(b) => setFilter({ content: { ...filter.content, [k]: b } })}>
           {label}
         </Check>
       ))}
     </>
   )
-  const subsChecks = (
+  const ageChecks = (
     <>
-      <Check checked={filter.subs.with} onChange={(b) => setFilter({ subs: { ...filter.subs, with: b } })}>
-        자막 있는 작품
-      </Check>
-      <Check checked={filter.subs.without} onChange={(b) => setFilter({ subs: { ...filter.subs, without: b } })}>
-        자막 없는 작품
-      </Check>
+      {AGES.map(([k, label]) => (
+        <Check key={k} checked={filter.age[k]} onChange={(b) => setFilter({ age: { ...filter.age, [k]: b } })}>
+          {label}
+        </Check>
+      ))}
     </>
   )
   const groupChecks = (
@@ -388,8 +400,8 @@ export default function Library(): JSX.Element {
     </>
   )
   const listenActive = !Object.values(filter.listen).every(Boolean)
-  const langActive = !Object.values(filter.lang).every(Boolean)
-  const subsActive = !(filter.subs.with && filter.subs.without)
+  const langActive = !Object.values(filter.content).every(Boolean)
+  const ageActive = !Object.values(filter.age).every(Boolean)
   const filterChips = (
     <>
       <ChipMenu label="듣기 상태" active={listenActive}>
@@ -398,17 +410,17 @@ export default function Library(): JSX.Element {
       <ChipMenu label="언어 분류" active={langActive}>
         {langChecks}
       </ChipMenu>
-      <ChipMenu label="자막" active={subsActive}>
-        {subsChecks}
+      <ChipMenu label="연령 분류" active={ageActive}>
+        {ageChecks}
       </ChipMenu>
       <ChipMenu label="그룹 분류" active={groupActive}>
         {groupChecks}
       </ChipMenu>
     </>
   )
-  const anyFilter = listenActive || langActive || subsActive || groupActive
+  const anyFilter = listenActive || langActive || ageActive || groupActive
   return (
-    <div className={`home ${oneCol ? 'one-col' : ''} ${compactCards ? 'compact-cards' : ''}`} ref={homeRef}>
+    <div className={`home ${oneCol ? 'one-col' : ''} ${compactCards ? 'compact-cards' : ''}`} ref={homeRef} onScroll={(e) => (libScroll = e.currentTarget.scrollTop)}>
       <div className="home-head">
         <div className="badge">Voice</div>
         <h1>라이브러리</h1>
@@ -499,8 +511,8 @@ export default function Library(): JSX.Element {
                 {langChecks}
               </section>
               <section>
-                <h4>자막</h4>
-                {subsChecks}
+                <h4>연령 분류</h4>
+                {ageChecks}
               </section>
               <section>
                 <h4>그룹 분류</h4>

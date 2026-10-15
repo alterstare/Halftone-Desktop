@@ -182,6 +182,12 @@ export const MIGRATIONS: string[] = [
   // v12: the release language DLsite gives ('ja' | 'ko-sub' | 'ko-voice')
   `
   ALTER TABLE works ADD COLUMN dl_lang TEXT;
+  `,
+  // v13: what the work folder holds (scripts / subtitles by language, found at
+  // scan) and DLsite's age rating ('r18' | 'general')
+  `
+  ALTER TABLE works ADD COLUMN content_json TEXT;
+  ALTER TABLE works ADD COLUMN dl_age TEXT;
   `
 ]
 

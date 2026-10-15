@@ -14,6 +14,7 @@ import { useEffect, useRef } from 'react'
 import { VolumeOffIcon, VolumeUpIcon } from './icons'
 import { Cover } from './ui'
 import { leaveMini } from '../miniMode'
+import { trackLabel } from '../workInfo'
 import { hosted, requestHost } from '../embed'
 import { Volume } from './NowBar'
 import {
@@ -126,14 +127,6 @@ function LiftedVolume(): JSX.Element {
   )
 }
 
-// "트랙 3" / "부록 1" / "샘플 1": the place among the work's tracks of that kind
-const ROLE_LABEL = { main: '트랙', extra: '부록', sample: '샘플' } as const
-function trackNo(now: NonNullable<ReturnType<typeof useStore.getState>['now']>): string {
-  const g = now.work.groups.find((x) => x.key === now.groupKey)
-  if (!g) return ''
-  const same = now.work.groups.filter((x) => x.role === g.role)
-  return `${ROLE_LABEL[g.role] ?? '트랙'} ${same.indexOf(g) + 1}`
-}
 
 export default function MiniMode(): JSX.Element {
   const now = useStore((s) => s.now)
@@ -163,7 +156,7 @@ export default function MiniMode(): JSX.Element {
         <button className="mini icon mm-arrow" title="LP의 다음 작품" disabled={!canStep} onClick={() => step(1)}>
           <KeyboardArrowRightIcon />
         </button>
-        {now && <span className="mm-no">{trackNo(now)}</span>}
+        {now && <span className="mm-no">{trackLabel(now.work, now.groupKey)}</span>}
       </div>
       <div className="mm-center">
         <MiniSubs />

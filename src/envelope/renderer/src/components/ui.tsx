@@ -430,12 +430,12 @@ export function Dropdown<T extends string | number>({
 
 // DLsite tags (장르, Korean names) on ONE line at any width: as many as fit,
 // the rest as "+n" — not expandable (search still finds every tag).
-export function TagLine({ tags, className = '' }: { tags: { ko: string; ja: string }[]; className?: string }): JSX.Element | null {
+export function TagLine({ tags, className = '', all = false }: { tags: { ko: string; ja: string }[]; className?: string; all?: boolean }): JSX.Element | null {
   const box = useRef<HTMLDivElement>(null)
   const [shown, setShown] = useState(tags.length)
   useLayoutEffect(() => {
     const el = box.current
-    if (!el) return
+    if (!el || all) return
     const fit = (): void => {
       const widths = [...el.querySelectorAll<HTMLElement>('.tag-measure > .tag')].map((x) => x.offsetWidth)
       const more = el.querySelector<HTMLElement>('.tag-measure > .tag-more')?.offsetWidth ?? 0
@@ -452,8 +452,19 @@ export function TagLine({ tags, className = '' }: { tags: { ko: string; ja: stri
     const ro = new ResizeObserver(fit)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [tags])
+  }, [tags, all])
   if (!tags.length) return null
+  // 작품 화면: every tag, wrapping onto more lines
+  if (all)
+    return (
+      <div className={`tag-line all ${className}`}>
+        {tags.map((t) => (
+          <span key={t.ja || t.ko} className="tag">
+            {t.ko || t.ja}
+          </span>
+        ))}
+      </div>
+    )
   const rest = tags.length - shown
   return (
     <div ref={box} className={`tag-line ${className}`}>
