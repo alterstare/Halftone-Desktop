@@ -150,33 +150,17 @@ function MoreMenu(): JSX.Element {
 
 // The whole panel for one thing (full subtitles / the editor), with a small
 // player at the bottom like Spotify's expanded lyrics.
-// closeless: the content puts its own close button in the header's right end
-// (the editor — it asks before dropping unsaved changes)
-function Sheet({
-  title,
-  onClose,
-  leaving,
-  closeless,
-  children
-}: {
-  title: string
-  onClose: () => void
-  leaving?: boolean
-  closeless?: boolean
-  children: React.ReactNode
-}): JSX.Element {
+// ▾ puts the sheet away; the editor adds its own ✕ (close without saving) at
+// the header's right end
+function Sheet({ title, onClose, leaving, children }: { title: string; onClose: () => void; leaving?: boolean; children: React.ReactNode }): JSX.Element {
   const now = useStore((s) => s.now)!
   const g = now.work.groups.find((x) => x.key === now.groupKey)
   return (
     <div className={`mn-sheet ${leaving ? 'leaving' : ''}`}>
       <header className="mn-head">
-        {closeless ? (
-          <span className="mn-head-gap" />
-        ) : (
-          <button className="mini icon" title="닫기" onClick={onClose}>
-            <KeyboardArrowDownIcon />
-          </button>
-        )}
+        <button className="mini icon" title="잠시 나가기" onClick={onClose}>
+          <KeyboardArrowDownIcon />
+        </button>
         <div className="mn-from">
           <span>{title}</span>
           <b>{g?.title}</b>
@@ -261,7 +245,7 @@ export default function MobileNow(): JSX.Element {
       </div>
 
       {editEx.mounted && (
-        <Sheet title="자막 편집" leaving={editEx.leaving} closeless onClose={() => useStore.setState({ editing: false })}>
+        <Sheet title="자막 편집" leaving={editEx.leaving} onClose={() => useStore.setState({ editing: false })}>
           <SubEditor sheet />
         </Sheet>
       )}

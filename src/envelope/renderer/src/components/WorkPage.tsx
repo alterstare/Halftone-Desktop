@@ -291,11 +291,11 @@ export default function WorkPage(): JSX.Element | null {
         {top}
         <div className="mw-cover">{coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : null}</div>
         <div className="mw-collect">
+          <Stars id={w.id} rank={rank} />
           <div className="flat-group">
             <GroupButton id={w.id} groupIds={groupIds} />
             <FavButton id={w.id} on={fav} />
           </div>
-          <Stars id={w.id} rank={rank} />
         </div>
         <h1 className="mw-title selectable">{w.title}</h1>
         {(w.circle || w.voices.length > 0) && (

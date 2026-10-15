@@ -343,37 +343,44 @@ export function GroupButton({ id, groupIds }: { id: number; groupIds: number[] }
   )
 }
 
+// Halftone's confirm dialog: title, text, [action][취소] — Enter / Escape.
 export function Confirm({
   title,
   body,
   ok,
+  danger = false,
   onOk,
   onCancel
 }: {
   title: string
   body?: ReactNode
   ok: string
+  danger?: boolean // the action loses something (red)
   onOk: () => void
   onCancel: () => void
 }): JSX.Element {
   useEffect(() => {
     const k = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onCancel()
+      else if (e.key === 'Enter') onOk()
+      else return
+      e.preventDefault()
+      e.stopPropagation()
     }
-    window.addEventListener('keydown', k)
-    return () => window.removeEventListener('keydown', k)
-  }, [onCancel])
+    window.addEventListener('keydown', k, true)
+    return () => window.removeEventListener('keydown', k, true)
+  }, [onCancel, onOk])
   return (
-    <div className="modal-back" onMouseDown={onCancel}>
-      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
-        <h3>{title}</h3>
-        {body && <div className="modal-body">{body}</div>}
-        <div className="modal-actions flat-group">
-          <button className="mini" onClick={onCancel}>
-            취소
-          </button>
-          <button className="mini on" onClick={onOk}>
+    <div className="cfm-back" onMouseDown={onCancel}>
+      <div className="cfm" onMouseDown={(e) => e.stopPropagation()}>
+        <h3 className="cfm-title">{title}</h3>
+        {body && <div className="cfm-desc">{body}</div>}
+        <div className="cfm-actions">
+          <button className={`cfm-btn ${danger ? 'danger' : 'primary'}`} onClick={onOk}>
             {ok}
+          </button>
+          <button className="cfm-btn ghost" onClick={onCancel}>
+            취소
           </button>
         </div>
       </div>

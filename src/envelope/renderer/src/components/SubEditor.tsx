@@ -9,7 +9,7 @@ import { useStore } from '../store'
 import type { Cue, SubLang } from '../../../shared/types'
 import { media, seek } from '../player'
 import { cueAt, loadSubs } from '../subs'
-import { AddIcon, CloseIcon, ContentCutIcon, DeleteIcon, FirstPageIcon, LastPageIcon, MergeIcon, PlayArrowIcon, RedoIcon, SaveIcon, UndoIcon } from './icons'
+import { AddIcon, CloseIcon, KeyboardArrowDownIcon, ContentCutIcon, DeleteIcon, FirstPageIcon, LastPageIcon, MergeIcon, PlayArrowIcon, RedoIcon, SaveIcon, UndoIcon } from './icons'
 import { Confirm, Dropdown } from './ui'
 
 export function fmtTime(s: number): string {
@@ -47,8 +47,15 @@ function TimeInput({ value, onChange }: { value: number; onChange: (v: number) =
 
 const LANG_NAME: Record<SubLang, string> = { ja: '일본어', ko: '한국어', other: '자막' }
 
-// sheet: inside the small window's sheet, whose header (자막 편집 · track)
+// The editor's work in progress, kept while it is put away (▾ or another
+// screen) — opened again on the same track it comes back as it was. Saving
+// or closing (✕) ends it.
+let draft: { trackId: number; src: number; cues: Cue[]; past: Cue[][]; future: Cue[][] } | null = null
+
+// sheet: inside the small window's sheet, whose header (▾ · 자막 편집 · track)
 // gets the close button on its right; the big window shows its own header.
+// ▾ puts the editor away (the draft stays); ✕ closes it without saving —
+// asking first when something was changed.
 export default function SubEditor({ sheet = false }: { sheet?: boolean }): JSX.Element {
   const now = useStore((s) => s.now)!
   const subs = useStore((s) => s.subs)
@@ -67,11 +74,17 @@ export default function SubEditor({ sheet = false }: { sheet?: boolean }): JSX.E
     }
     return out
   }, [subs])
-  const [src, setSrc] = useState(0)
-  const [cues, setCues] = useState<Cue[]>(sources[0]?.cues ?? [])
-  const [past, setPast] = useState<Cue[][]>([])
-  const [future, setFuture] = useState<Cue[][]>([])
-  const [dirty, setDirty] = useState(false)
+  const kept = draft && draft.trackId === now.trackId ? draft : null
+  const [src, setSrc] = useState(kept?.src ?? 0)
+  const [cues, setCues] = useState<Cue[]>(kept?.cues ?? sources[0]?.cues ?? [])
+  const [past, setPast] = useState<Cue[][]>(kept?.past ?? [])
+  const [future, setFuture] = useState<Cue[][]>(kept?.future ?? [])
+  const [dirty, setDirty] = useState(!!kept)
+  // keep the work while changed (dropped when saved / closed)
+  const ended = useRef(false)
+  useEffect(() => {
+    if (!ended.current) draft = dirty ? { trackId: now.trackId, src, cues, past, future } : null
+  })
   const [ask, setAsk] = useState<null | 'close'>(null)
   const ref = useRef<HTMLDivElement>(null)
   const lang = sources[src]?.lang ?? 'ko'
@@ -131,6 +144,8 @@ export default function SubEditor({ sheet = false }: { sheet?: boolean }): JSX.E
   const doSave = async (): Promise<void> => {
     const clean = sorted(cues.filter((c) => c.text.trim() && c.end > c.start))
     await window.api.saveSubtitle(now.trackId, lang, clean, false)
+    ended.current = true
+    draft = null
     setDirty(false)
     showToast({ ok: true, message: `${LANG_NAME[lang]} 자막을 프로그램 안에 저장했습니다` })
     await useStore.getState().refreshWork(now.work.id)
@@ -138,7 +153,13 @@ export default function SubEditor({ sheet = false }: { sheet?: boolean }): JSX.E
     if (n) await loadSubs(n.work, n.groupKey, n.trackId)
     useStore.setState({ editing: false })
   }
-  const close = (): void => (dirty ? setAsk('close') : useStore.setState({ editing: false }))
+  const discard = (): void => {
+    ended.current = true
+    draft = null
+    useStore.setState({ editing: false })
+  }
+  const close = (): void => (dirty ? setAsk('close') : discard())
+  const putAway = (): void => useStore.setState({ editing: false })
 
   useEffect(() => {
     const k = (e: KeyboardEvent): void => {
@@ -174,6 +195,11 @@ export default function SubEditor({ sheet = false }: { sheet?: boolean }): JSX.E
         slot && createPortal(closeBtn, slot)
       ) : (
         <div className="se-head">
+          <div className="flat-group">
+            <button className="mini icon" title="잠시 나가기 (고친 내용은 그대로, 다시 열면 이어서)" onClick={putAway}>
+              <KeyboardArrowDownIcon />
+            </button>
+          </div>
           <div className="se-head-title">
             <span>자막 편집</span>
             <b>{g?.title}</b>
@@ -246,11 +272,12 @@ export default function SubEditor({ sheet = false }: { sheet?: boolean }): JSX.E
       </div>
       {ask === 'close' && (
         <Confirm
-          title="저장하지 않은 변경이 있습니다"
-          body="닫으면 이번에 고친 내용이 사라집니다."
+          title="저장하지 않고 닫을까요?"
+          body="이번에 고친 내용이 사라집니다. 이어서 고치려면 취소하고 ▾로 잠시 나가거나, 저장하세요."
           ok="저장하지 않고 닫기"
+          danger
           onCancel={() => setAsk(null)}
-          onOk={() => useStore.setState({ editing: false })}
+          onOk={discard}
         />
       )}
     </div>
