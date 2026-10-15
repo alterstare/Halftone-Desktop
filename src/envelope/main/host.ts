@@ -13,7 +13,7 @@ import { CancelledError, EnvCore } from '../core'
 import type { ProgressUpdate } from '../core'
 import { NewerDataError } from '../core/db'
 import { isInside, mimeOf, parseRange } from '../core/media'
-import { thumbnail } from '../core/thumbs'
+import { thumbnail, dominantColour } from '../core/thumbs'
 import { IPC, MEDIA_SCHEME } from '../shared/ipc'
 import type { EnvStatus, HostRequest, JobSummary, RemoteCommand } from '../shared/ipc'
 import type { AutoSubOptions, ScriptSubOptions, CoverItem, CoverSaveItem, SubExportItem, Cue, GlossaryEntry, RenameItem, SePref, Settings, SubLang, ToolResult, WavItem, WhisperModelId } from '../shared/types'
@@ -187,6 +187,10 @@ function registerIpc(): void {
   ipcMain.handle(IPC.planCover, (_e, ids: number[] | null) => core.planCover(ids).done)
   ipcMain.handle(IPC.runCover, (_e, items: CoverItem[]) => tool(core.runCover(items).done))
   ipcMain.handle(IPC.planRename, (_e, ids: number[] | null, mode?: 'repair' | 'translate' | 'original') => core.planRename(ids, mode).done)
+  // a cover's main colour: only pictures of the library or DLsite covers
+  ipcMain.handle(IPC.coverColour, (_e, p: string) =>
+    inLibrary(p) || (core.paths.coversDir && isInside(p, core.paths.coversDir)) ? dominantColour(p) : null
+  )
   ipcMain.handle(IPC.restoreSubs, async (_e, ids: number[] | null) => {
     const r = await core.restoreSubs(ids).done
     changed()

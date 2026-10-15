@@ -36,6 +36,7 @@ export const IPC = {
   runSubExport: 'env:tools:runSubExport',
   planCoverSave: 'env:tools:planCoverSave',
   restoreSubs: 'env:tools:restoreSubs',
+  coverColour: 'env:media:coverColour',
   runCoverSave: 'env:tools:runCoverSave',
   runWav: 'env:tools:runWav',
   planCover: 'env:tools:planCover',
@@ -191,6 +192,7 @@ export interface Api {
   showInFolder: (path: string) => Promise<void>
   mediaUrl: (path: string) => string // env-media:// for <audio>/<img>
   thumbUrl: (path: string) => string // small cached JPEG of an image
+  coverColour: (path: string) => Promise<string | null> // a picture's main colour, "#rrggbb"
   undo: () => Promise<UndoResult>
   redo: () => Promise<UndoResult>
   onToast: (cb: (t: JobSummary) => void) => () => void

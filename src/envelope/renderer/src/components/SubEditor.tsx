@@ -70,7 +70,8 @@ export default function SubEditor({ sheet = false }: { sheet?: boolean }): JSX.E
     for (const s of [subs?.ja, subs?.ko, subs?.other]) if (s) out.push({ lang: s.lang, label: LANG_NAME[s.lang], cues: s.cues })
     if (!subs?.ko) {
       const base = subs?.ja ?? subs?.other
-      out.push({ lang: 'ko', label: base ? '새 한국어 (원문 시간 사용)' : '새 한국어', cues: base ? base.cues.map((c) => ({ ...c, text: '' })) : [] })
+      // a new Korean one on the original's timing — still just "한국어"
+      out.push({ lang: 'ko', label: '한국어', cues: base ? base.cues.map((c) => ({ ...c, text: '' })) : [] })
     }
     return out
   }, [subs])

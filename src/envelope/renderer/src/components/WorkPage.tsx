@@ -305,8 +305,8 @@ export default function WorkPage(): JSX.Element | null {
             {w.voices.length > 0 && <b>{w.voices.join(', ')}</b>}
           </div>
         )}
-        <TagLine tags={w.tags} className="mw-tags" all />
         <div className="mw-meta">{[kind, length(total)].filter(Boolean).join(' · ')}</div>
+        <TagLine tags={w.tags} className="mw-tags" all />
         <div className="mw-actions">
           {playBtn}
           {shuffle}
@@ -315,7 +315,7 @@ export default function WorkPage(): JSX.Element | null {
         {(w.hasSeChoice || w.editions.length > 0) && <div className="mw-prefs">{prefs}</div>}
         <div className="mw-count">
           <hr />
-          <span>{main.length}트랙</span>
+          <span>총 {main.length}트랙</span>
         </div>
         {table}
       </div>

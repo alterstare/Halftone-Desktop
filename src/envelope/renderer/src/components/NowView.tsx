@@ -6,7 +6,8 @@ import { attachVideo, seek } from '../player'
 import { cueAt, linesFor, setSubOffset } from '../subs'
 import SubEditor from './SubEditor'
 import MobileNow from './MobileNow'
-import { useNarrow } from './ui'
+import { useNarrow, useCoverColour } from './ui'
+import { lyricsTheme } from '../workInfo'
 import {
   KeyboardArrowLeftIcon,
   KeyboardArrowRightIcon,
@@ -178,7 +179,7 @@ export function SubBar(): JSX.Element {
         </div>
       )}
       <div className="subbar-row">
-        <div className="flat-group">
+        <div className="flat-group size-pill">
           <button className="mini icon" title="글자 작게" onClick={() => void save({ subSize: Math.max(14, (settings?.subSize ?? 22) - 2) })}>
             <TextDecreaseIcon />
           </button>
@@ -242,6 +243,7 @@ export default function NowView(): JSX.Element {
   const editing = useStore((s) => s.editing)
   const panel = useStore((s) => s.settings?.lyricsPanel ?? true)
   const open = panel || editing
+  const colour = useCoverColour(now?.work.cover ?? null) // 전체 자막 in the cover's colour
   if (!now)
     return (
       <div className="empty">
@@ -255,6 +257,7 @@ export default function NowView(): JSX.Element {
     )
   if (narrow) return <MobileNow />
   const g = now.work.groups.find((x) => x.key === now.groupKey)
+  const tint = lyricsTheme(colour)
   return (
     <div className={`nowview ${editing ? 'editing' : ''} ${open ? '' : 'no-panel'}`}>
       <div className="nv-left">
@@ -283,7 +286,7 @@ export default function NowView(): JSX.Element {
       </div>
       {/* kept mounted (closed = zero width) so it slides in and out */}
       <div className="nv-right" aria-hidden={!open}>
-        <div className="nv-panel">
+        <div className={`nv-panel ${editing ? '' : 'tinted'}`} style={editing ? undefined : tint}>
           {editing ? (
             <SubEditor />
           ) : (

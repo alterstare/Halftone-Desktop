@@ -493,3 +493,22 @@ export function TagLine({ tags, className = '', all = false }: { tags: { ko: str
     </div>
   )
 }
+
+// A picture's main colour (asked once per path while the app runs)
+const colourCache = new Map<string, string | null>()
+export function useCoverColour(path: string | null): string | null {
+  const [c, setC] = useState<string | null>(path ? (colourCache.get(path) ?? null) : null)
+  useEffect(() => {
+    if (!path) return setC(null)
+    if (colourCache.has(path)) return setC(colourCache.get(path)!)
+    let alive = true
+    void window.api.coverColour(path).then((x) => {
+      colourCache.set(path, x)
+      if (alive) setC(x)
+    })
+    return () => {
+      alive = false
+    }
+  }, [path])
+  return c
+}

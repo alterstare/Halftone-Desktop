@@ -1,3 +1,4 @@
+import type React from 'react'
 // Short facts about a work shown in several places: what it has to read
 // along (언어 분류), and a track named by its place ("트랙 3" / "부록 1").
 import type { WorkContent, WorkDetail, WorkLang } from '../../shared/types'
@@ -43,4 +44,22 @@ export function trackLabel(work: WorkDetail, groupKey: string): string {
   if (!g) return ''
   const same = work.groups.filter((x) => x.role === g.role)
   return `${ROLE_LABEL[g.role] ?? '트랙'} ${same.indexOf(g) + 1}`
+}
+
+// 전체 자막 panel in the cover's main colour; the text dark on a bright one
+export function lyricsTheme(hex: string | null): React.CSSProperties | undefined {
+  if (!hex) return undefined
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+  const lin = (c: number): number => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+  const light = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b) > 0.35
+  return {
+    background: hex,
+    '--text': light ? '#111318' : '#ffffff',
+    '--text-hover': light ? '#000000' : '#ffffff',
+    '--text-dim': light ? 'rgba(0, 0, 0, 0.66)' : 'rgba(255, 255, 255, 0.72)',
+    '--muted': light ? 'rgba(0, 0, 0, 0.48)' : 'rgba(255, 255, 255, 0.52)',
+    '--line': light ? 'rgba(0, 0, 0, 0.16)' : 'rgba(255, 255, 255, 0.18)',
+    '--accent-hover': light ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.14)',
+    '--accent-soft': light ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.1)'
+  } as React.CSSProperties
 }

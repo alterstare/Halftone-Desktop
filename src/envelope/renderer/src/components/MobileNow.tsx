@@ -11,7 +11,8 @@ import { Lyrics, Stage, SubBar, SubsToggle } from './NowView'
 import { RateControl, SeekBar, SleepControl, Volume } from './NowBar'
 import SubEditor from './SubEditor'
 import { BookmarkButton } from './Bookmarks'
-import { FavButton, GroupButton, Popover, SHEET_MS, useAnchor, useExit } from './ui'
+import { FavButton, GroupButton, Popover, SHEET_MS, useAnchor, useExit, useCoverColour } from './ui'
+import { lyricsTheme } from '../workInfo'
 import {
   BedtimeIcon,
   EditIcon,
@@ -178,6 +179,7 @@ function Sheet({ title, onClose, leaving, children }: { title: string; onClose: 
 
 export default function MobileNow(): JSX.Element {
   const now = useStore((s) => s.now)!
+  const colour = useCoverColour(now.work.cover) // 전체 자막 in the cover's colour
   const works = useStore((s) => s.works)
   const editing = useStore((s) => s.editing)
   const [lyr, setLyr] = useState(false) // 전체 자막 in place of the picture
@@ -212,7 +214,7 @@ export default function MobileNow(): JSX.Element {
             </div>
           )}
           {lyrEx.mounted && (
-            <div className={`mn-art-lyrics ${lyrEx.leaving ? 'leaving' : ''}`}>
+            <div className={`mn-art-lyrics tinted ${lyrEx.leaving ? 'leaving' : ''}`} style={lyricsTheme(colour)}>
               <SubBar />
               <Lyrics />
             </div>
