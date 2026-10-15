@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import type { JSX } from 'react'
 import { useStore } from '../store'
-import { next, prev, skip, toggle } from '../player'
+import { media, next, prev, seek, skip, toggle } from '../player'
 import { Lyrics, Stage, SubBar, SubsToggle } from './NowView'
 import { RateControl, SeekBar, SleepControl, Volume } from './NowBar'
 import SubEditor from './SubEditor'
@@ -19,6 +19,8 @@ import {
   Forward5Icon,
   FullscreenIcon,
   KeyboardArrowDownIcon,
+  KeyboardArrowLeftIcon,
+  KeyboardArrowRightIcon,
   LibraryMusicIcon,
   LyricsIcon,
   MoreHorizIcon,
@@ -153,7 +155,71 @@ function MoreMenu(): JSX.Element {
 // player at the bottom like Spotify's expanded lyrics.
 // ▾ puts the sheet away; the editor adds its own ✕ (close without saving) at
 // the header's right end
-function Sheet({ title, onClose, leaving, children }: { title: string; onClose: () => void; leaving?: boolean; children: React.ReactNode }): JSX.Element {
+// The editor's player: the bar (times to the millisecond) a little higher,
+// then [−N초 · −1프레임 · play · +1프레임 · +N초] centred (N = the player's
+// skip step; a frame is 1/30 s)
+const FRAME = 1 / 30
+const fine = (s: number): string => {
+  const ms = Math.max(0, Math.round(s * 1000))
+  return `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`
+}
+function EditorFoot(): JSX.Element {
+  const time = useStore((s) => s.time)
+  const duration = useStore((s) => s.duration)
+  const playing = useStore((s) => s.playing)
+  const step = useStore((s) => s.settings?.seekStep ?? 5)
+  const at = (t: number): void => seek(Math.min(Math.max(0, t), duration || t))
+  return (
+    <footer className="mn-sheet-foot se-foot">
+      <div className={`seekbar fine ${playing ? 'playing' : ''}`}>
+        <span className="t">{fine(time)}</span>
+        <div className="seek-track">
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={0.001}
+            value={Math.min(time, duration || 0)}
+            onChange={(e) => seek(Number(e.target.value))}
+            style={{ '--p': `${duration ? (time / duration) * 100 : 0}%` } as React.CSSProperties}
+          />
+        </div>
+        <span className="t">{fine(duration)}</span>
+      </div>
+      <div className="se-foot-ctl flat-group">
+        <button className="mini icon" title={`${step}초 뒤로`} onClick={() => at(media().currentTime - step)}>
+          <Replay5Icon />
+        </button>
+        <button className="mini icon" title="1프레임 뒤로 (1/30초)" onClick={() => at(media().currentTime - FRAME)}>
+          <KeyboardArrowLeftIcon />
+        </button>
+        <button className="mini icon on se-foot-play" title="재생 / 일시정지 (Space)" onClick={toggle}>
+          {playing ? <PauseIcon /> : <PlayArrowIcon />}
+        </button>
+        <button className="mini icon" title="1프레임 앞으로 (1/30초)" onClick={() => at(media().currentTime + FRAME)}>
+          <KeyboardArrowRightIcon />
+        </button>
+        <button className="mini icon" title={`${step}초 앞으로`} onClick={() => at(media().currentTime + step)}>
+          <Forward5Icon />
+        </button>
+      </div>
+    </footer>
+  )
+}
+
+function Sheet({
+  title,
+  onClose,
+  leaving,
+  foot,
+  children
+}: {
+  title: string
+  onClose: () => void
+  leaving?: boolean
+  foot?: React.ReactNode // in place of the usual bar + play
+  children: React.ReactNode
+}): JSX.Element {
   const now = useStore((s) => s.now)!
   const g = now.work.groups.find((x) => x.key === now.groupKey)
   return (
@@ -169,10 +235,12 @@ function Sheet({ title, onClose, leaving, children }: { title: string; onClose: 
         <span className="mn-head-gap" />
       </header>
       <div className="mn-sheet-body">{children}</div>
-      <footer className="mn-sheet-foot">
-        <SeekBar />
-        <PlayBig />
-      </footer>
+      {foot ?? (
+        <footer className="mn-sheet-foot">
+          <SeekBar />
+          <PlayBig />
+        </footer>
+      )}
     </div>
   )
 }
@@ -247,7 +315,7 @@ export default function MobileNow(): JSX.Element {
       </div>
 
       {editEx.mounted && (
-        <Sheet title="자막 편집" leaving={editEx.leaving} onClose={() => useStore.setState({ editing: false })}>
+        <Sheet title="자막 편집" leaving={editEx.leaving} foot={<EditorFoot />} onClose={() => useStore.setState({ editing: false })}>
           <SubEditor sheet />
         </Sheet>
       )}

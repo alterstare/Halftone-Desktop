@@ -39,8 +39,9 @@ export const SLEEP: [string, SleepMode, number?][] = [
 export function SeekBar(): JSX.Element {
   const time = useStore((s) => s.time)
   const duration = useStore((s) => s.duration)
+  const playing = useStore((s) => s.playing)
   return (
-    <div className="seekbar">
+    <div className={`seekbar ${playing ? 'playing' : ''}`}>
       <span className="t">{clock(time)}</span>
       <div className="seek-track">
       <input
