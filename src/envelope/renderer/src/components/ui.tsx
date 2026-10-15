@@ -153,19 +153,20 @@ export const useNarrow = (): boolean => useMedia(NARROW)
 export const CLOSE_MS = 120 // panels / menus (--t-fast)
 export const SHEET_MS = 320 // sheets that slide up / down (--t-slow)
 export function useExit(on: boolean, ms = CLOSE_MS): { mounted: boolean; leaving: boolean } {
+  // the switch to "leaving" happens in the same render as `on` turning off —
+  // noticed only in an effect, one frame went by unmounted (the thing
+  // vanished, then came back to play its closing animation: a blink)
   const [leaving, setLeaving] = useState(false)
-  const was = useRef(on)
+  const [was, setWas] = useState(on)
+  if (was !== on) {
+    setWas(on)
+    setLeaving(!on)
+  }
   useEffect(() => {
-    const before = was.current
-    was.current = on
-    if (before && !on) {
-      setLeaving(true)
-      const t = setTimeout(() => setLeaving(false), ms)
-      return () => clearTimeout(t)
-    }
-    setLeaving(false)
-    return undefined
-  }, [on, ms])
+    if (!leaving) return undefined
+    const t = setTimeout(() => setLeaving(false), ms)
+    return () => clearTimeout(t)
+  }, [leaving, ms])
   return { mounted: on || leaving, leaving: leaving && !on }
 }
 
