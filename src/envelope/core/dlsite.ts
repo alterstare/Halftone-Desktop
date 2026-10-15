@@ -8,6 +8,9 @@ export interface DlsiteInfo {
   voices: string[]
   image: string | null // cover (https URL)
   tags: DlTag[] // 장르: the Korean name DLsite gives, and the Japanese
+  // the release: a Korean translation (자막판) of a Japanese work, a Korean
+  // original (voice in Korean), a Japanese original; null = other / unknown
+  lang: 'ja' | 'ko-sub' | 'ko-voice' | null
 }
 export interface DlTag {
   ko: string
@@ -38,6 +41,16 @@ interface ProductJson {
   creaters?: { voice_by?: { name: string }[] }
   image_main?: { url?: string }
   genres?: { name?: string; name_base?: string }[]
+  translation_info?: { lang?: string | null }
+  options?: string // "JPN#SND#…" — languages among them
+}
+
+function releaseLang(p: ProductJson): DlsiteInfo['lang'] {
+  if (p.translation_info?.lang === 'KO_KR') return 'ko-sub'
+  const opts = (p.options ?? '').split('#')
+  if (opts.includes('JPN')) return 'ja'
+  if (opts.includes('KO_KR')) return 'ko-voice'
+  return null
 }
 
 // null = DLsite doesn't know the code (removed, or not a DLsite work).
@@ -55,6 +68,7 @@ export async function fetchDlsite(code: string, get: JsonFetch = fetchJson, sign
     circle: p.maker_name?.trim() || null,
     voices: [...new Set((p.creaters?.voice_by ?? []).map((v) => v.name.trim()).filter(Boolean))],
     image: p.image_main?.url ? (p.image_main.url.startsWith('//') ? `https:${p.image_main.url}` : p.image_main.url) : null,
+    lang: releaseLang(p),
     tags: (p.genres ?? [])
       .map((g) => ({ ko: (g.name ?? g.name_base ?? '').trim(), ja: (g.name_base ?? g.name ?? '').trim() }))
       .filter((g) => g.ko || g.ja)

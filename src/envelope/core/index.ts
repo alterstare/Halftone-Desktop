@@ -841,12 +841,12 @@ export class EnvCore {
           ids
             ? this.db.prepare(`SELECT id, code FROM works WHERE code IS NOT NULL AND id IN (${ids.map(() => '?').join(',')})`).all(...ids)
             : // not asked yet — or asked before tags were kept (found, no tags)
-              this.db.prepare('SELECT id, code FROM works WHERE code IS NOT NULL AND (dl_at IS NULL OR (dl_title IS NOT NULL AND dl_tags IS NULL))').all()
+              this.db.prepare('SELECT id, code FROM works WHERE code IS NOT NULL AND (dl_at IS NULL OR (dl_title IS NOT NULL AND (dl_tags IS NULL OR dl_lang IS NULL)))').all()
         ) as { id: number; code: string }[]
         let found = 0
         let missing = 0
         let failed = 0
-        const put = this.db.prepare('UPDATE works SET dl_title = ?, dl_circle = ?, dl_voices = ?, dl_tags = ?, dl_at = ? WHERE id = ?')
+        const put = this.db.prepare('UPDATE works SET dl_title = ?, dl_circle = ?, dl_voices = ?, dl_tags = ?, dl_lang = ?, dl_at = ? WHERE id = ?')
         const putCover = this.db.prepare('UPDATE works SET dl_cover = ? WHERE id = ?')
         for (let i = 0; i < rows.length; i++) {
           if (ctx.signal.aborted) break
@@ -855,7 +855,7 @@ export class EnvCore {
             const info = await fetchDlsite(rows[i].code, this.dlGet, ctx.signal)
             if (info) found++
             else missing++
-            put.run(info?.title ?? null, info?.circle ?? null, info ? JSON.stringify(info.voices) : null, info ? JSON.stringify(info.tags) : null, Date.now(), rows[i].id)
+            put.run(info?.title ?? null, info?.circle ?? null, info ? JSON.stringify(info.voices) : null, info ? JSON.stringify(info.tags) : null, info ? (info.lang ?? '') : null, Date.now(), rows[i].id)
             if (info?.image && this.paths.coversDir) {
               // cover kept in the data folder — the work's own folder is not touched
               const file = join(this.paths.coversDir, `${info.code}${extname(new URL(info.image).pathname) || '.jpg'}`)

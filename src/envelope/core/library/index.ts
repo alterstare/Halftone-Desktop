@@ -92,12 +92,22 @@ export function chooseVersion(vs: TrackVersion[], se: SePref, format: FormatPref
   )[0]
 }
 
-// 【한국어 자막판】 / 한국어 음성 releases vs the Japanese original.
-export function workLang(title: string): WorkLang {
-  if (/한국어\s*음성/.test(title)) return 'ko-voice'
+// Which language a title is written in (Korean: more Hangul than kana) —
+// for choosing names, NOT what the release is: a Japanese work's folder is
+// often named in Korean.
+export function titleLang(title: string): 'ja' | 'ko' {
   const hangul = (title.match(/[가-힣]/g) ?? []).length
   const kana = (title.match(/[぀-ヿ]/g) ?? []).length
-  return /한국어\s*자막/.test(title) || hangul > kana ? 'ko-sub' : 'ja'
+  return hangul > kana ? 'ko' : 'ja'
+}
+
+// What the release is: 【한국어 자막판】 / 한국어 음성 in the folder or DLsite
+// title, else what DLsite says about the code, else the Japanese original.
+export function workLang(w: { title: string; dl_title?: string | null; dl_lang?: string | null }): WorkLang {
+  const titles = `${w.title} ${w.dl_title ?? ''}`
+  if (/한국어\s*음성/.test(titles)) return 'ko-voice'
+  if (/한국어\s*자막/.test(titles)) return 'ko-sub'
+  return w.dl_lang === 'ko-sub' || w.dl_lang === 'ko-voice' ? w.dl_lang : 'ja'
 }
 
 // The title shown: DLsite's when chosen, or when the folder name is only the
@@ -153,6 +163,7 @@ interface WorkRow {
   dl_circle: string | null
   dl_voices: string | null
   dl_tags: string | null
+  dl_lang: string | null
   dl_cover: string | null
 }
 
@@ -302,13 +313,13 @@ function nameTitle(w: WorkRow, s: Settings, names: Map<string, string> | undefin
   const t = names?.get(w.path)
   if (t) return t
   const shown = shownTitle(w, s)
-  return names && shown !== w.title && workLang(w.title) !== 'ja' && workLang(shown) === 'ja' ? w.title : shown
+  return names && shown !== w.title && titleLang(w.title) === 'ko' && titleLang(shown) === 'ja' ? w.title : shown
 }
 
 // What 이름 번역 translates for a work's title: the folder title, or — when
 // that is only the code (or has no Japanese) and isn't Korean — DLsite's.
 export function titleToTranslate(w: { title: string; code: string | null; dl_title: string | null }): string {
-  if (needsTranslation(w.title) || workLang(w.title) !== 'ja') return w.title
+  if (needsTranslation(w.title) || titleLang(w.title) === 'ko') return w.title
   return w.dl_title && needsTranslation(w.dl_title) ? w.dl_title : w.title
 }
 
@@ -339,7 +350,7 @@ export function listWorks(db: Db, s: Settings): WorkSummary[] {
       favorite: !!w.favorite,
       rank: w.rank,
       groupIds: groupIds.get(w.id) ?? [],
-      lang: workLang(w.title),
+      lang: workLang(w),
       subtitled: main.filter((g) => g.versions.some((v) => v.subs.length)).length,
       folderTitle: w.title,
       circle: w.dl_circle,
@@ -391,7 +402,7 @@ export function workDetail(db: Db, id: number, s: Settings): WorkDetail | null {
     favorite: !!w.favorite,
     rank: w.rank,
     groupIds: groupIdsOf(db, id).get(id) ?? [],
-    lang: workLang(w.title),
+    lang: workLang(w),
     folderTitle: w.title,
     dlTitle: w.dl_title,
     circle: w.dl_circle,

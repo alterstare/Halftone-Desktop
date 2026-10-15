@@ -178,6 +178,10 @@ export const MIGRATIONS: string[] = [
   // v11: DLsite tags (장르) — [{ko, ja}]
   `
   ALTER TABLE works ADD COLUMN dl_tags TEXT;
+  `,
+  // v12: the release language DLsite gives ('ja' | 'ko-sub' | 'ko-voice')
+  `
+  ALTER TABLE works ADD COLUMN dl_lang TEXT;
   `
 ]
 
