@@ -152,6 +152,7 @@ interface WorkRow {
   dl_title: string | null
   dl_circle: string | null
   dl_voices: string | null
+  dl_tags: string | null
   dl_cover: string | null
 }
 
@@ -342,7 +343,8 @@ export function listWorks(db: Db, s: Settings): WorkSummary[] {
       subtitled: main.filter((g) => g.versions.some((v) => v.subs.length)).length,
       folderTitle: w.title,
       circle: w.dl_circle,
-      voices: w.dl_voices ? (JSON.parse(w.dl_voices) as string[]) : []
+      voices: w.dl_voices ? (JSON.parse(w.dl_voices) as string[]) : [],
+      tags: w.dl_tags ? (JSON.parse(w.dl_tags) as { ko: string; ja: string }[]) : []
     }
   })
   // ascending; 내림차순 reverses
@@ -394,6 +396,7 @@ export function workDetail(db: Db, id: number, s: Settings): WorkDetail | null {
     dlTitle: w.dl_title,
     circle: w.dl_circle,
     voices: w.dl_voices ? (JSON.parse(w.dl_voices) as string[]) : [],
+    tags: w.dl_tags ? (JSON.parse(w.dl_tags) as { ko: string; ja: string }[]) : [],
     bookmarks: listBookmarks(db, id, groups.map((g) => g.key))
   }
 }

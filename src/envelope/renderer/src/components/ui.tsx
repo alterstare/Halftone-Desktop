@@ -427,3 +427,51 @@ export function Dropdown<T extends string | number>({
     </div>
   )
 }
+
+// DLsite tags (장르, Korean names) on ONE line at any width: as many as fit,
+// the rest as "+n" — not expandable (search still finds every tag).
+export function TagLine({ tags, className = '' }: { tags: { ko: string; ja: string }[]; className?: string }): JSX.Element | null {
+  const box = useRef<HTMLDivElement>(null)
+  const [shown, setShown] = useState(tags.length)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    const fit = (): void => {
+      const widths = [...el.querySelectorAll<HTMLElement>('.tag-measure > .tag')].map((x) => x.offsetWidth)
+      const more = el.querySelector<HTMLElement>('.tag-measure > .tag-more')?.offsetWidth ?? 0
+      const gap = parseFloat(getComputedStyle(el).columnGap) || 0
+      const room = el.clientWidth
+      let n = widths.length
+      for (; n > 0; n--) {
+        const used = widths.slice(0, n).reduce((a, b) => a + b, 0) + gap * (n - 1)
+        if (used + (n < widths.length ? gap + more : 0) <= room) break
+      }
+      setShown(n)
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [tags])
+  if (!tags.length) return null
+  const rest = tags.length - shown
+  return (
+    <div ref={box} className={`tag-line ${className}`}>
+      {tags.slice(0, shown).map((t) => (
+        <span key={t.ja || t.ko} className="tag">
+          {t.ko || t.ja}
+        </span>
+      ))}
+      {rest > 0 && <span className="tag tag-more">+{rest}</span>}
+      {/* every tag measured once, out of sight */}
+      <div className="tag-measure" aria-hidden>
+        {tags.map((t) => (
+          <span key={t.ja || t.ko} className="tag">
+            {t.ko || t.ja}
+          </span>
+        ))}
+        <span className="tag tag-more">+{tags.length}</span>
+      </div>
+    </div>
+  )
+}

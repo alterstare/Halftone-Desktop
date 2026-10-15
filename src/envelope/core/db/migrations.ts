@@ -174,6 +174,10 @@ export const MIGRATIONS: string[] = [
     json TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  `,
+  // v11: DLsite tags (장르) — [{ko, ja}]
+  `
+  ALTER TABLE works ADD COLUMN dl_tags TEXT;
   `
 ]
 

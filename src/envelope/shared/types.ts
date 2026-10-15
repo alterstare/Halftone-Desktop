@@ -122,6 +122,7 @@ export interface WorkSummary {
   folderTitle: string // from the folder name (title may be DLsite's)
   circle: string | null // DLsite
   voices: string[] // DLsite
+  tags: { ko: string; ja: string }[] // DLsite 장르 (shown in Korean, searched in both)
 }
 
 export interface Group {
@@ -184,6 +185,7 @@ export interface WorkDetail {
   folderTitle: string
   dlTitle: string | null
   circle: string | null
+  tags: { ko: string; ja: string }[] // DLsite 장르
   voices: string[]
   bookmarks: Bookmark[] // in track order, then time
 }

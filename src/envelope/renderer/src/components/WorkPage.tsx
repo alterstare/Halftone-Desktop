@@ -18,7 +18,7 @@ import {
   SubtitlesIcon,
   TranslateIcon
 } from './icons'
-import { Dropdown, FavButton, GroupButton, Stars, useNarrow } from './ui'
+import { Dropdown, FavButton, GroupButton, Stars, TagLine, useNarrow } from './ui'
 
 export function versionLabel(v: TrackVersion): string {
   const se = v.se === 'on' ? 'SE 포함' : v.se === 'off' ? 'SE 제외' : ''
@@ -290,6 +290,7 @@ export default function WorkPage(): JSX.Element | null {
         <div className="mw-cover">{coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : null}</div>
         <h1 className="mw-title selectable">{w.title}</h1>
         {people && <div className="mw-people">{people}</div>}
+        <TagLine tags={w.tags} className="mw-tags" />
         <div className="mw-meta">
           작품{w.code ? ` · ${w.code}` : ''} · {LANG_LABEL[w.lang]} · {main.length}트랙 · {length(total) || '길이 미확인'}
           {done > 0 && ` · ${done}트랙 완료`}
@@ -341,6 +342,7 @@ export default function WorkPage(): JSX.Element | null {
                 )}
               </div>
             )}
+            <TagLine tags={w.tags} className="wp-tags" />
             <div className="wp-collect">
               <Stars id={w.id} rank={rank} />
               <div className="flat-group">

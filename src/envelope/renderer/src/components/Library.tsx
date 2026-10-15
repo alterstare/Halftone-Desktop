@@ -17,7 +17,7 @@ import {
   SubtitlesIcon,
   ViewListIcon
 } from './icons'
-import { Caret, Check, ChipMenu, Cover, Dropdown, FavButton, GroupButton, Pager, Popover, Stars, useAnchor, useNarrow } from './ui'
+import { Caret, Check, ChipMenu, Cover, Dropdown, FavButton, GroupButton, Pager, Popover, Stars, TagLine, useAnchor, useNarrow } from './ui'
 
 const CHIP_GAP = 17 // px between chips (the divider sits in the middle)
 const SORTS: [LibSort, string][] = [
@@ -131,6 +131,7 @@ function Tile({ w, nowId }: { w: WorkSummary; nowId?: number }): JSX.Element {
         <div className="tile-meta">
           <Meta w={w} />
         </div>
+        <TagLine tags={w.tags} />
       </div>
       <div className="tile-foot">
         <Stars id={w.id} rank={w.rank} />
@@ -294,7 +295,7 @@ export default function Library(): JSX.Element {
   const list = useMemo(() => {
     const q = query.trim().normalize('NFKC').toLowerCase()
     const text = (w: WorkSummary): string =>
-      [w.code, w.title, w.folderTitle, w.circle, ...w.voices].filter(Boolean).join(' ').normalize('NFKC').toLowerCase()
+      [w.code, w.title, w.folderTitle, w.circle, ...w.voices, ...w.tags.flatMap((t) => [t.ko, t.ja])].filter(Boolean).join(' ').normalize('NFKC').toLowerCase()
     return works.filter((w) => passes(w, filter) && (!q || text(w).includes(q)))
   }, [works, query, filter])
   // pages of pageSize (Halftone); the page is kept while the list stays the

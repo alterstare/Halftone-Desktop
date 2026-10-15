@@ -7,6 +7,11 @@ export interface DlsiteInfo {
   circle: string | null
   voices: string[]
   image: string | null // cover (https URL)
+  tags: DlTag[] // 장르: the Korean name DLsite gives, and the Japanese
+}
+export interface DlTag {
+  ko: string
+  ja: string
 }
 
 export type JsonFetch = (url: string, signal?: AbortSignal) => Promise<unknown>
@@ -32,13 +37,16 @@ interface ProductJson {
   maker_name?: string
   creaters?: { voice_by?: { name: string }[] }
   image_main?: { url?: string }
+  genres?: { name?: string; name_base?: string }[]
 }
 
 // null = DLsite doesn't know the code (removed, or not a DLsite work).
 export async function fetchDlsite(code: string, get: JsonFetch = fetchJson, signal?: AbortSignal): Promise<DlsiteInfo | null> {
   const id = code.toUpperCase()
   if (!/^[RVB]J\d{6,8}$/.test(id)) return null
-  const data = (await get(`https://www.dlsite.com/maniax/api/=/product.json?workno=${id}`, signal)) as ProductJson[] | unknown
+  // locale=ko_KR: the tags come with their Korean names (name) and the
+  // Japanese ones (name_base); everything else is the same as in Japanese
+  const data = (await get(`https://www.dlsite.com/maniax/api/=/product.json?workno=${id}&locale=ko_KR`, signal)) as ProductJson[] | unknown
   const p = Array.isArray(data) ? (data[0] as ProductJson | undefined) : undefined
   if (!p?.work_name) return null
   return {
@@ -46,6 +54,9 @@ export async function fetchDlsite(code: string, get: JsonFetch = fetchJson, sign
     title: p.work_name.trim(),
     circle: p.maker_name?.trim() || null,
     voices: [...new Set((p.creaters?.voice_by ?? []).map((v) => v.name.trim()).filter(Boolean))],
-    image: p.image_main?.url ? (p.image_main.url.startsWith('//') ? `https:${p.image_main.url}` : p.image_main.url) : null
+    image: p.image_main?.url ? (p.image_main.url.startsWith('//') ? `https:${p.image_main.url}` : p.image_main.url) : null,
+    tags: (p.genres ?? [])
+      .map((g) => ({ ko: (g.name ?? g.name_base ?? '').trim(), ja: (g.name_base ?? g.name ?? '').trim() }))
+      .filter((g) => g.ko || g.ja)
   }
 }
