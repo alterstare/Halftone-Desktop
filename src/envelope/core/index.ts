@@ -31,6 +31,7 @@ import { findScripts, previewScript, scriptSubWork } from './script'
 import type { NameStatus, ScriptPreview, ScriptSource, ScriptSubOptions, WorkContent } from '../shared/types'
 import { existsSync } from 'fs'
 import * as originals from './originals'
+import { mergeGlossary, parseGlossaryText } from './glossaryText'
 
 export interface CorePaths {
   dataDir: string
@@ -299,6 +300,15 @@ export class EnvCore {
       .prepare(`SELECT source, target FROM glossary WHERE ${workId === null ? 'work_id IS NULL' : 'work_id = ?'} ORDER BY id`)
       .all(...(workId === null ? [] : [workId])) as GlossaryEntry[]
   }
+  // 용어집 from a text document (txt / md / csv / tsv), merged into the list
+  async importGlossary(workId: number | null, path: string): Promise<ToolResult> {
+    const pairs = parseGlossaryText(decodeText(await fsp.readFile(path)))
+    if (!pairs.length) return { ok: false, message: '읽을 수 있는 항목이 없습니다 (한 줄에 "원문 → 번역" 꼴)', done: 0, failed: [] }
+    const { entries, added, changed } = mergeGlossary(this.glossaryOwn(workId), pairs)
+    this.setGlossary(workId, entries)
+    return { ok: true, message: `용어집에 ${added}개 더함${changed ? `, ${changed}개 바꿈` : ''} (${basename(path)})`, done: added + changed, failed: [] }
+  }
+
   setGlossary(workId: number | null, entries: GlossaryEntry[]): void {
     this.db.transaction(() => {
       if (workId === null) this.db.prepare('DELETE FROM glossary WHERE work_id IS NULL').run()

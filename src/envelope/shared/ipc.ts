@@ -81,6 +81,7 @@ export const IPC = {
   scriptSub: 'env:script:run',
   getGlossary: 'env:glossary:get',
   setGlossary: 'env:glossary:set',
+  importGlossary: 'env:glossary:import',
   decodeRequest: 'env:decode:request', // main → renderer: decode a track to 16 kHz
   decodeReply: 'env:decode:reply',
   updateStatus: 'env:update:status',
@@ -231,6 +232,8 @@ export interface Api {
   scriptSub: (workId: number, opts: ScriptSubOptions) => Promise<JobSummary>
   getGlossary: (workId: number | null) => Promise<GlossaryEntry[]>
   setGlossary: (workId: number | null, entries: GlossaryEntry[]) => Promise<void>
+  // 용어집 from a text document the user picks (null: cancelled)
+  importGlossary: (workId: number | null) => Promise<ToolResult | null>
   // the main process asks the screen to decode audio (Web Audio)
   onDecodeRequest: (cb: (r: { id: number; url: string }) => void) => () => void
   decodeReply: (id: number, pcm: Int16Array | null, error?: string) => void

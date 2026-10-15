@@ -6,7 +6,7 @@ import type { JSX } from 'react'
 import { useStore } from '../store'
 import type { EngineStatus, GlossaryEntry, Settings, WhisperModelId } from '../../../shared/types'
 import { Dropdown } from './ui'
-import { AddIcon, CheckIcon, CloudDownloadIcon, DeleteIcon, FolderOpenIcon } from './icons'
+import { AddIcon, CheckIcon, CloudDownloadIcon, DeleteIcon, FileOpenIcon, FolderOpenIcon } from './icons'
 
 const MODELS: [WhisperModelId, string, number][] = [
   ['large-v3-turbo-q5_0', 'large-v3-turbo (받아쓰기 기본)', 574],
@@ -81,6 +81,18 @@ export function Glossary({ workId = null }: { workId?: number | null }): JSX.Ele
       <div className="flat-group">
         <button className="mini" onClick={() => setRows([...rows, { source: '', target: '' }])}>
           <AddIcon /> 항목 추가
+        </button>
+        <button
+          className="mini"
+          title={'txt · md · csv · tsv — 한 줄에 하나: "원문 → 번역", "원문 = 번역", "원문: 번역", 탭 · 쉼표로 나눈 두 칸, 마크다운 표 "| 원문 | 번역 |". 같은 원문은 새 번역으로 바뀝니다.'}
+          onClick={async () => {
+            const r = await window.api.importGlossary(workId)
+            if (!r) return
+            useStore.getState().showToast(r)
+            setRows(await window.api.getGlossary(workId))
+          }}
+        >
+          <FileOpenIcon /> 텍스트 파일에서 가져오기
         </button>
       </div>
     </div>

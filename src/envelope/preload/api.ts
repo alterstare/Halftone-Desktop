@@ -93,6 +93,7 @@ export function createApi(ipcRenderer: IpcRenderer): Api {
     scriptSub: (id, o) => ipcRenderer.invoke(IPC.scriptSub, id, o),
     getGlossary: (id) => ipcRenderer.invoke(IPC.getGlossary, id),
     setGlossary: (id, e) => ipcRenderer.invoke(IPC.setGlossary, id, e),
+    importGlossary: (id) => ipcRenderer.invoke(IPC.importGlossary, id),
     onDecodeRequest: (cb) => on<{ id: number; url: string }>(IPC.decodeRequest, cb),
     decodeReply: (id, pcm, error) => ipcRenderer.send(IPC.decodeReply, { id, pcm, error }),
     onUpdateStatus: (cb) => on<UpdateStatus>(IPC.updateStatus, cb),

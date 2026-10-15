@@ -313,6 +313,17 @@ function registerIpc(): void {
   })
   ipcMain.handle(IPC.getGlossary, (_e, id: number | null) => core.glossaryOwn(id))
   ipcMain.handle(IPC.setGlossary, (_e, id: number | null, entries: GlossaryEntry[]) => core.setGlossary(id, entries))
+  ipcMain.handle(IPC.importGlossary, async (_e, id: number | null) => {
+    const r = await dlgOpen({
+      title: '용어집 가져오기',
+      properties: ['openFile'],
+      filters: [
+        { name: '텍스트 문서', extensions: ['txt', 'md', 'csv', 'tsv'] },
+        { name: '모든 파일', extensions: ['*'] }
+      ]
+    })
+    return r.canceled || !r.filePaths[0] ? null : core.importGlossary(id, r.filePaths[0])
+  })
   ipcMain.on(IPC.decodeReply, (_e, r: { id: number; pcm: Int16Array | null; error?: string }) => {
     const p = decoding.get(r.id)
     if (!p) return
