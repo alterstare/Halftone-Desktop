@@ -6,7 +6,7 @@ import { useState } from 'react'
 import type { JSX } from 'react'
 import { useStore } from '../store'
 import { play, resumeTarget } from '../player'
-import { AlbumIcon, CloseFullscreenIcon, CloseSmallIcon, OpenInFullIcon, PictureInPictureAltIcon } from './icons'
+import { AlbumIcon, CloseFullscreenIcon, CloseIcon, CloseSmallIcon, OpenInFullIcon, PictureInPictureAltIcon } from './icons'
 import { hosted, remote, requestHost } from '../embed'
 import { useNarrow } from './ui'
 import { enterMini } from '../miniMode'
@@ -72,14 +72,17 @@ function Lp({ id, n }: { id: number; n: number }): JSX.Element | null {
   )
 }
 
-// 최소화 모드 and 작은 창 ⇄ 큰 창. Inside Halftone: the bar at Halftone's
-// bottom, and the separate big window (from the panel) / back to the panel
-// (from the big window).
+// 최소화 모드 and 작은 창 ⇄ 큰 창. Inside Halftone: 음성 플레이어 닫기 on top,
+// then the bar at Halftone's bottom, and the separate big window (from the
+// panel) / back to the panel (from the big window).
 function SizeToggle(): JSX.Element | null {
   const narrow = useNarrow()
   if (hosted)
     return (
       <div className="lp-foot">
+        <button className="mini icon" title="음성 플레이어 닫기" onClick={() => requestHost({ what: 'close' })}>
+          <CloseIcon />
+        </button>
         <button className="mini icon" title="최소화 모드 (Halftone 아래 재생 바)" onClick={() => requestHost({ what: 'bar' })}>
           <PictureInPictureAltIcon />
         </button>

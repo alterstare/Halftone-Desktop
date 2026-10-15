@@ -335,9 +335,13 @@ single-instance lock), connect to the page target and click / call
 - Screen: `src/renderer/envelope.html` (+ `envelope-main.ts`). ONE frame
   (`components/EnvelopeDock.tsx`) that is never moved in the page — moving a
   frame reloads it and stops the sound; only its box changes:
-  - **panel** — right side between the tab bar and the activity bar, 360px by
-    default, its left edge drags it wider (≤845, kept in localStorage
-    `envelopeWidth`); `.app.env-panel > .body` gets `margin-right`.
+  - **panel** — beside Halftone at full height (tab bar, page and activity bar
+    end at its edge), 360px by default, its left edge drags it wider (≤845,
+    kept in localStorage `envelopeWidth`); `.app.env-panel` pads the right by
+    `--env-w`. The env-panel / env-bar class is part of App's className (from
+    `envelope` in the store) — toggled from outside, the next App render
+    (e.g. focus mode when reading starts) dropped it and the reader ran under
+    the panel.
   - **bar** — Envelope's mini-mode bar along Halftone's bottom at Halftone's
     full width (`.app.env-bar` pads the bottom; the activity bar sits above it).
     While the pointer is on its 음량 button the frame is lifted (`lift`, 150px,

@@ -180,6 +180,9 @@ export default function App(): JSX.Element {
   const focusHidden = useStore((s) => s.focusHidden)
   const setFocusHidden = useStore((s) => s.setFocusHidden)
   const focusOn = focusHidden && focusMode > 0 && view === 'reader'
+  // 음성 플레이어 beside / below: the page makes room for it. Part of the
+  // class here — set from outside, the next render (e.g. focus mode) drops it
+  const envRoom = useStore((s) => (!s.envelope.open ? '' : s.envelope.shape === 'panel' ? 'env-panel' : s.envelope.shape === 'bar' ? 'env-bar' : ''))
   useEffect(() => setFocusHidden(false), [view, activeTabId, focusMode, setFocusHidden])
   // Reveal by mouse: hovering where a hidden bar normally sits brings the chrome
   // back — the reader's top bar band (plus the tab bar's from 3단계), the bottom
@@ -327,7 +330,7 @@ export default function App(): JSX.Element {
   }
 
   return (
-    <div className={`app ${focusOn ? `focus focus-${focusMode}` : ''}`}>
+    <div className={`app ${focusOn ? `focus focus-${focusMode}` : ''} ${envRoom}`}>
       <div className="chrome-slide tabbar-chrome">
         <div className="chrome-clip">
           <TabBar />

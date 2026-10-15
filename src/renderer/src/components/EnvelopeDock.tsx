@@ -49,12 +49,10 @@ export default function EnvelopeDock(): JSX.Element | null {
     if (!open) loaded.current = false
   }, [open])
 
-  // the page makes room for it
+  // the page makes room for it (the env-panel / env-bar class is App's)
   useEffect(() => {
     const app = document.querySelector('.app') as HTMLElement | null
     if (!app) return
-    app.classList.toggle('env-panel', open && shape === 'panel')
-    app.classList.toggle('env-bar', open && shape === 'bar')
     app.style.setProperty('--env-w', `${width}px`)
     app.style.setProperty('--env-bar-h', `${BAR_H}px`)
   }, [open, shape, width])
