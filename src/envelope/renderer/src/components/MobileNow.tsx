@@ -212,18 +212,20 @@ function Sheet({
   onClose,
   leaving,
   foot,
+  fade,
   children
 }: {
   title: string
   onClose: () => void
   leaving?: boolean
+  fade?: boolean // blur in / out in place (Halftone's mode change) instead of sliding
   foot?: React.ReactNode // in place of the usual bar + play
   children: React.ReactNode
 }): JSX.Element {
   const now = useStore((s) => s.now)!
   const g = now.work.groups.find((x) => x.key === now.groupKey)
   return (
-    <div className={`mn-sheet ${leaving ? 'leaving' : ''}`}>
+    <div className={`mn-sheet ${fade ? 'fade' : ''} ${leaving ? 'leaving' : ''}`}>
       <header className="mn-head">
         <button className="mini icon" title="잠시 나가기" onClick={onClose}>
           <KeyboardArrowDownIcon />
@@ -315,7 +317,7 @@ export default function MobileNow(): JSX.Element {
       </div>
 
       {editEx.mounted && (
-        <Sheet title="자막 편집" leaving={editEx.leaving} foot={<EditorFoot />} onClose={() => useStore.setState({ editing: false })}>
+        <Sheet title="자막 편집" fade leaving={editEx.leaving} foot={<EditorFoot />} onClose={() => useStore.setState({ editing: false })}>
           <SubEditor sheet />
         </Sheet>
       )}
