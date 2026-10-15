@@ -1,5 +1,5 @@
 // 최소화 모드: the whole window is one bar (standalone only).
-//   [‹] 표지 [›]  |  자막 (원문 위 · 번역 아래) / 진행 막대  |  이전 · 재생 · 다음 · 음량 · 항상 위 · 원래 크기 · 닫기
+//   [‹] 표지 [›]  트랙 N  |  자막 (원문 위 · 번역 아래) / 진행 막대  |  이전 · 재생 · 다음 · 음량 · 항상 위 · 원래 크기 · 닫기
 // ‹ › go through the works on the LP bar (in its order): the next one is
 // loaded at its 이어 듣기 point — playing on if something was playing.
 // The bar itself moves the window (drag area); controls don't.
@@ -126,6 +126,15 @@ function LiftedVolume(): JSX.Element {
   )
 }
 
+// "트랙 3" / "부록 1" / "샘플 1": the place among the work's tracks of that kind
+const ROLE_LABEL = { main: '트랙', extra: '부록', sample: '샘플' } as const
+function trackNo(now: NonNullable<ReturnType<typeof useStore.getState>['now']>): string {
+  const g = now.work.groups.find((x) => x.key === now.groupKey)
+  if (!g) return ''
+  const same = now.work.groups.filter((x) => x.role === g.role)
+  return `${ROLE_LABEL[g.role] ?? '트랙'} ${same.indexOf(g) + 1}`
+}
+
 export default function MiniMode(): JSX.Element {
   const now = useStore((s) => s.now)
   const playing = useStore((s) => s.playing)
@@ -154,6 +163,7 @@ export default function MiniMode(): JSX.Element {
         <button className="mini icon mm-arrow" title="LP의 다음 작품" disabled={!canStep} onClick={() => step(1)}>
           <KeyboardArrowRightIcon />
         </button>
+        {now && <span className="mm-no">{trackNo(now)}</span>}
       </div>
       <div className="mm-center">
         <MiniSubs />
