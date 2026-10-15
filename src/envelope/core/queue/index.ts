@@ -6,6 +6,11 @@
 // any other job is added, a running background job is stopped (it must honor
 // the abort signal) and queued again after it — its promise settles only when
 // it finally completes.
+//
+// 모두 일시정지: nothing new starts; a running job that can start over
+// (resumable — engine results are cached, so it picks up where it was) is
+// stopped and put back first in line; one that changes files finishes. 재개
+// carries on; once nothing is left the queue is no longer paused.
 import type { ProgressEvent } from '../../shared/types'
 
 export interface JobContext {
@@ -24,6 +29,8 @@ interface Entry {
   reject: (e: unknown) => void
   background: boolean
   preempted: boolean
+  resumable: boolean
+  pausing: boolean // stopped by 일시정지: back first in line
 }
 
 export class CancelledError extends Error {
@@ -38,6 +45,7 @@ export class JobQueue {
   private waiting: Entry[] = []
   private running = new Map<number, Entry>()
   private listeners = new Set<(e: ProgressEvent) => void>()
+  private paused = false
 
   constructor(private concurrency = 1) {}
 
@@ -52,8 +60,9 @@ export class JobQueue {
 
   // Queue a job; the promise settles with its result (rejects with
   // CancelledError when cancelled).
-  add<T>(label: string, fn: JobFn<T>, opts: { background?: boolean } = {}): { id: number; done: Promise<T> } {
+  add<T>(label: string, fn: JobFn<T>, opts: { background?: boolean; resumable?: boolean } = {}): { id: number; done: Promise<T> } {
     const id = ++this.seq
+    if (this.paused && !this.size) this.paused = false // nothing was held: a new job just runs
     let resolve!: (v: unknown) => void
     let reject!: (e: unknown) => void
     const done = new Promise<T>((res, rej) => {
@@ -61,7 +70,7 @@ export class JobQueue {
       reject = rej
     })
     const background = !!opts.background
-    const entry: Entry = { id, label, fn: fn as JobFn<unknown>, ctrl: new AbortController(), resolve, reject, background, preempted: false }
+    const entry: Entry = { id, label, fn: fn as JobFn<unknown>, ctrl: new AbortController(), resolve, reject, background, preempted: false, resumable: opts.resumable !== false, pausing: false }
     if (background) this.waiting.push(entry)
     else {
       // ahead of waiting background jobs; a running one makes way
@@ -73,9 +82,37 @@ export class JobQueue {
           r.ctrl.abort()
         }
     }
-    this.emit({ jobId: id, label, done: 0, total: 0, state: 'queued', background })
+    this.emit({ jobId: id, label, done: 0, total: 0, state: 'queued', background, paused: this.paused })
     this.pump()
     return { id, done }
+  }
+
+  get isPaused(): boolean {
+    return this.paused
+  }
+
+  pauseAll(): void {
+    if (!this.size) return
+    this.paused = true
+    for (const r of this.running.values())
+      if (r.resumable && !r.pausing) {
+        r.pausing = true
+        r.ctrl.abort()
+      }
+    for (const w of this.waiting) this.emit({ jobId: w.id, label: w.label, done: 0, total: 0, state: 'queued', background: w.background, paused: true })
+  }
+
+  resumeAll(): void {
+    if (!this.paused) return
+    this.paused = false
+    for (const w of this.waiting) this.emit({ jobId: w.id, label: w.label, done: 0, total: 0, state: 'queued', background: w.background, paused: false })
+    this.pump()
+  }
+
+  cancelAll(): number {
+    const ids = [...this.waiting.map((e) => e.id), ...this.running.keys()]
+    for (const id of ids) this.cancel(id)
+    return ids.length
   }
 
   cancel(id: number): boolean {
@@ -84,11 +121,13 @@ export class JobQueue {
       const [e] = this.waiting.splice(i, 1)
       this.emit({ jobId: id, label: e.label, done: 0, total: 0, state: 'cancelled' })
       e.reject(new CancelledError())
+      this.pump()
       return true
     }
     const r = this.running.get(id)
     if (r) {
-      r.preempted = false // the user's cancel wins over "make way"
+      r.preempted = false // the user's cancel wins over "make way" / 일시정지
+      r.pausing = false
       r.ctrl.abort()
       return true
     }
@@ -100,7 +139,8 @@ export class JobQueue {
   }
 
   private pump(): void {
-    while (this.running.size < this.concurrency && this.waiting.length) {
+    if (this.paused && !this.size) this.paused = false
+    while (!this.paused && this.running.size < this.concurrency && this.waiting.length) {
       const e = this.waiting.shift()!
       this.running.set(e.id, e)
       void this.run(e)
@@ -120,6 +160,15 @@ export class JobQueue {
       this.emit({ jobId: e.id, label: e.label, ...last, state: 'done', background: e.background })
       e.resolve(v)
     } catch (err) {
+      if (e.pausing) {
+        // 일시정지: first in line again, same promise
+        e.pausing = false
+        e.preempted = false
+        e.ctrl = new AbortController()
+        this.waiting.unshift(e)
+        this.emit({ jobId: e.id, label: e.label, ...last, state: 'queued', background: e.background, paused: true })
+        return
+      }
       if (e.preempted) {
         // made way for another job: run again later, same promise
         e.preempted = false

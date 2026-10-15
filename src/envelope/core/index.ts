@@ -564,7 +564,7 @@ export class EnvCore {
       if (undo.items.length) this.log.record('tools.coversave', undo)
       ctx.report(items.length, items.length)
       return { ok: !failed.length, message: `표지 ${undo.items.length}개를 작품 폴더에 저장했습니다${failed.length ? `, ${failed.length}개 실패` : ''}`, done: undo.items.length, failed }
-    })
+    }, { resumable: false })
   }
 
   // 파일 정리 › 자막 › 폴더 변경: the program's subtitles as "<audio>.<lang>.vtt"
@@ -616,7 +616,7 @@ export class EnvCore {
       if (undo.items.length) this.log.record('tools.subexport', undo)
       ctx.report(items.length, items.length)
       return { ok: !failed.length, message: `자막 ${undo.items.length}개를 폴더에 저장했습니다${failed.length ? `, ${failed.length}개 실패` : ''}`, done: undo.items.length, failed }
-    })
+    }, { resumable: false })
   }
 
   setSubOffset(workId: number, groupKey: string, offset: number): void {
@@ -630,14 +630,15 @@ export class EnvCore {
     return this.queue.add('wav 정리 확인', (ctx) => tools.planWav(this.db, ids, ctx))
   }
   runWav(items: WavItem[], trash: TrashFn): { id: number; done: Promise<ToolResult> } {
-    return this.queue.add('wav 정리', (ctx) => tools.runWav(this.db, items, { encode: this.encode, trash, bitrate: this.settings().mp3Bitrate }, ctx))
+    return this.queue.add('wav 정리', (ctx) => tools.runWav(this.db, items, { encode: this.encode, trash, bitrate: this.settings().mp3Bitrate }, ctx), { resumable: false })
   }
   planCover(ids: number[] | null): { id: number; done: Promise<CoverItem[]> } {
     return this.queue.add('썸네일 확인', (ctx) => tools.planCover(this.db, ids, this.settings().coverSkipExisting, ctx))
   }
   runCover(items: CoverItem[]): { id: number; done: Promise<ToolResult> } {
     return this.queue.add('mp3 썸네일 넣기', (ctx) =>
-      tools.runCover(this.log, items, { square: this.settings().coverSquare, backupsDir: this.paths.backupsDir || this.paths.dataDir }, ctx)
+      tools.runCover(this.log, items, { square: this.settings().coverSquare, backupsDir: this.paths.backupsDir || this.paths.dataDir }, ctx),
+      { resumable: false }
     )
   }
   planRename(ids: number[] | null, mode: 'repair' | 'translate' = 'repair'): { id: number; done: Promise<RenameItem[]> } {
@@ -645,7 +646,7 @@ export class EnvCore {
   }
   runRename(items: RenameItem[]): { id: number; done: Promise<ToolResult> } {
     const label = items.some((x) => x.translated) ? '이름 바꾸기' : '이름 복구'
-    return this.queue.add(label, (ctx) => tools.runRename(this.log, items, ctx, (pairs, its) => this.relocate(pairs, its)))
+    return this.queue.add(label, (ctx) => tools.runRename(this.log, items, ctx, (pairs, its) => this.relocate(pairs, its)), { resumable: false })
   }
 
   // After folders / files were renamed (or a rename undone): the works and

@@ -19,7 +19,7 @@ import WorkPage from './components/WorkPage'
 import NowView from './components/NowView'
 import NowBar from './components/NowBar'
 import SettingsView from './components/SettingsView'
-import { CleaningServicesIcon, CloseIcon, LibraryMusicIcon, PlayArrowIcon, SettingsIcon } from './components/icons'
+import { CleaningServicesIcon, CloseIcon, LibraryMusicIcon, PauseIcon, PlayArrowIcon, SettingsIcon } from './components/icons'
 import ToolsView from './components/ToolsView'
 import MiniMode from './components/MiniMode'
 import TitleStrip from './components/TitleStrip'
@@ -80,16 +80,26 @@ function keepJob(list: ProgressEvent[], e: ProgressEvent): ProgressEvent[] {
 
 function JobPill(): JSX.Element | null {
   const job = useStore((s) => s.job)
+  const paused = useStore((s) => s.jobs.some((j) => j.state === 'queued' && j.paused))
   if (!job || (job.state !== 'running' && job.state !== 'queued')) return null
   const pct = job.total ? Math.floor((job.done / job.total) * 100) : null
   return (
-    <div className="job-pill" title={job.label}>
-      <span className="job-label">{job.label}</span>
+    <div className={`job-pill ${paused ? 'paused' : ''}`} title={job.label}>
+      <span className="job-label">{paused ? `중지됨 · ${job.title ?? job.label}` : job.label}</span>
       {pct !== null && <span className="job-pct">{pct}%</span>}
       <div className="job-bar">
         <div style={{ width: pct === null ? '30%' : `${pct}%` }} className={pct === null ? 'busy' : ''} />
       </div>
-      <button className="mini icon" title="멈추기" onClick={() => void window.api.cancelJob(job.jobId)}>
+      {paused ? (
+        <button className="mini icon" title="작업 모두 재개" onClick={() => void window.api.resumeJobs()}>
+          <PlayArrowIcon />
+        </button>
+      ) : (
+        <button className="mini icon" title="작업 모두 중지 (재개하면 이어서)" onClick={() => void window.api.pauseJobs()}>
+          <PauseIcon />
+        </button>
+      )}
+      <button className="mini icon" title="이 작업 취소" onClick={() => void window.api.cancelJob(job.jobId)}>
         <CloseIcon />
       </button>
     </div>

@@ -6,6 +6,9 @@ export const IPC = {
   saveSettings: 'env:settings:save',
   progress: 'env:queue:progress',
   cancelJob: 'env:queue:cancel',
+  pauseJobs: 'env:queue:pause',
+  resumeJobs: 'env:queue:resume',
+  cancelAllJobs: 'env:queue:cancelAll',
   pickFolder: 'env:dialog:pickFolder',
   addLibraryDir: 'env:library:addDir',
   removeLibraryDir: 'env:library:removeDir',
@@ -134,6 +137,10 @@ export interface Api {
   saveSettings: (patch: Partial<Settings>) => Promise<Settings>
   onProgress: (cb: (e: ProgressEvent) => void) => () => void
   cancelJob: (id: number) => Promise<boolean>
+  // 작업 모두 중지 (재개할 수 있게) / 재개 / 모두 취소
+  pauseJobs: () => Promise<void>
+  resumeJobs: () => Promise<void>
+  cancelAllJobs: () => Promise<number>
   pickFolder: () => Promise<string | null>
   // library
   addLibraryDir: (path: string) => Promise<JobSummary> // adds, then scans

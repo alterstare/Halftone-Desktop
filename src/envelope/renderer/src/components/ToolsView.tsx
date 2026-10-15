@@ -14,6 +14,7 @@ import { clock } from '../format'
 import {
   KeyboardArrowLeftIcon,
   AudioFileIcon,
+  CancelIcon,
   CloseIcon,
   CloudDownloadIcon,
   DriveFileRenameOutlineIcon,
@@ -21,6 +22,8 @@ import {
   FolderOpenIcon,
   ImageIcon,
   LibraryMusicIcon,
+  PauseIcon,
+  PlayArrowIcon,
   ScheduleIcon,
   SearchIcon,
   SubtitlesIcon,
@@ -46,7 +49,7 @@ const ABOUT: Record<ToolsMode, Record<ToolTab, string>> = {
     subs: '자막을 만들거나 번역해 프로그램 안에 저장합니다. 음성 파일 옆에는 쓰지 않습니다(폴더에 넣으려면 폴더 변경 › 자막).',
     cover: '프로그램에서 보여 줄 작품 표지를 고릅니다. mp3 파일은 바뀌지 않습니다.',
     wav: 'wav 정리는 파일을 바꾸는 작업이라 폴더 변경에서만 할 수 있습니다.',
-    jobs: '받아쓰기 · 대본 자막 · 번역 · 이름 번역 · 파일 정리 같은 작업의 진행 상황입니다. 진행 중이거나 기다리는 작업은 멈출 수 있습니다.'
+    jobs: '받아쓰기 · 대본 자막 · 번역 · 이름 번역 · 파일 정리 같은 작업의 진행 상황입니다. 작업마다 취소하거나, 모두 중지(재개하면 멈춘 곳부터 이어서) · 모두 취소할 수 있습니다.'
   },
   folder: {
     rename:
@@ -56,7 +59,7 @@ const ABOUT: Record<ToolsMode, Record<ToolTab, string>> = {
     cover:
       '폴더 이미지(트랙 번호가 같은 그림, 없으면 작품 표지)를 mp3 안에 앨범 커버로 넣습니다. 파일 날짜는 그대로이고, 원래 태그를 보관해 되돌릴 수 있습니다.',
     wav: '같은 폴더에서 확장자만 다른 같은 이름의 파일이 대상입니다. mp3와 길이가 같은 wav는 휴지통으로 보내고, wav만 있으면 mp3로 바꾼 뒤 길이를 확인하고 wav를 휴지통으로 보냅니다. 휴지통에서 복원할 수 있습니다.',
-    jobs: '받아쓰기 · 대본 자막 · 번역 · 이름 번역 · 파일 정리 같은 작업의 진행 상황입니다. 진행 중이거나 기다리는 작업은 멈출 수 있습니다.'
+    jobs: '받아쓰기 · 대본 자막 · 번역 · 이름 번역 · 파일 정리 같은 작업의 진행 상황입니다. 작업마다 취소하거나, 모두 중지(재개하면 멈춘 곳부터 이어서) · 모두 취소할 수 있습니다.'
   }
 }
 const LANG_NAME: Record<string, string> = { ja: '일본어', ko: '한국어', other: '기타' }
@@ -230,7 +233,7 @@ function History({ list, reload }: { list: HistoryEntry[]; reload: () => void })
   )
 }
 
-const JOB_STATE: Record<ProgressEvent['state'], string> = { queued: '기다리는 중', running: '진행 중', done: '완료', failed: '실패', cancelled: '멈춤' }
+const JOB_STATE: Record<ProgressEvent['state'], string> = { queued: '기다리는 중', running: '진행 중', done: '완료', failed: '실패', cancelled: '취소' }
 
 function JobRow({ j }: { j: ProgressEvent }): JSX.Element {
   const live = j.state === 'queued' || j.state === 'running'
@@ -243,10 +246,10 @@ function JobRow({ j }: { j: ProgressEvent }): JSX.Element {
   const step = j.label !== title ? j.label : ''
   const count = j.total ? (j.unit === 'bytes' ? `${mb(j.done)} / ${mb(j.total)}` : `${Math.floor(j.done)} / ${j.total}`) : ''
   return (
-    <div className={`job-row ${j.state}`}>
+    <div className={`job-row ${j.state} ${j.paused ? 'paused' : ''}`}>
       <span className="job-main">
         <span className="job-what">
-          <Tag kind={j.state === 'failed' ? 'bad' : j.state === 'cancelled' ? 'mute' : j.state === 'done' ? 'ok' : 'warn'}>{JOB_STATE[j.state]}</Tag>
+          <Tag kind={j.state === 'failed' ? 'bad' : j.state === 'cancelled' || j.paused ? 'mute' : j.state === 'done' ? 'ok' : 'warn'}>{j.state === 'queued' && j.paused ? '중지됨' : JOB_STATE[j.state]}</Tag>
           <span className="job-kind">{what}</span>
           {work && <span className="job-work">{work}</span>}
         </span>
@@ -263,11 +266,34 @@ function JobRow({ j }: { j: ProgressEvent }): JSX.Element {
       {!live && j.startedAt && <span className="hint">{new Date(j.startedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>}
       {live && (
         <div className="flat-group">
-          <button className="mini icon" title="멈추기" onClick={() => void window.api.cancelJob(j.jobId)}>
+          <button className="mini icon" title="이 작업 취소" onClick={() => void window.api.cancelJob(j.jobId)}>
             <CloseIcon />
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// 모두 중지 (stopped jobs wait, 재개 carries on from where they were — engine
+// results are cached) / 모두 재개 / 모두 취소. A job that changes files is
+// not cut off by 중지: it finishes, then nothing new starts.
+export function JobControls({ live }: { live: ProgressEvent[] }): JSX.Element {
+  const paused = live.some((j) => j.paused)
+  return (
+    <div className="flat-group job-controls">
+      {paused ? (
+        <button className="mini" onClick={() => void window.api.resumeJobs()}>
+          <PlayArrowIcon /> 모두 재개
+        </button>
+      ) : (
+        <button className="mini" title="진행 중인 작업을 멈추고 기다리게 합니다(파일을 바꾸는 작업은 끝까지). 재개하면 멈춘 곳부터 이어서 합니다." onClick={() => void window.api.pauseJobs()}>
+          <PauseIcon /> 모두 중지
+        </button>
+      )}
+      <button className="mini" title="진행 중 · 기다리는 작업을 모두 취소합니다" onClick={() => void window.api.cancelAllJobs()}>
+        <CancelIcon /> 모두 취소
+      </button>
     </div>
   )
 }
@@ -279,7 +305,12 @@ function Jobs(): JSX.Element {
   if (!jobs.length) return <p className="hint tools-empty">앱을 켠 뒤로 실행한 작업이 없습니다.</p>
   return (
     <section className="jobs">
-      {live.length > 0 && <h2>진행 중 · {live.length}</h2>}
+      {live.length > 0 && (
+        <div className="jobs-head">
+          <h2>{live.some((j) => j.paused) ? '중지됨' : '진행 중'} · {live.length}</h2>
+          <JobControls live={live} />
+        </div>
+      )}
       {live.map((j) => (
         <JobRow key={j.jobId} j={j} />
       ))}

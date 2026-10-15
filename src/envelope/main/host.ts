@@ -212,6 +212,9 @@ function registerIpc(): void {
     return s
   })
   ipcMain.handle(IPC.cancelJob, (_e, id: number) => core.queue.cancel(id))
+  ipcMain.handle(IPC.pauseJobs, () => core.queue.pauseAll())
+  ipcMain.handle(IPC.resumeJobs, () => core.queue.resumeAll())
+  ipcMain.handle(IPC.cancelAllJobs, () => core.queue.cancelAll())
 
   // 자동 자막 · 번역
   ipcMain.handle(IPC.autoSub, async (_e, workId: number, o: AutoSubOptions): Promise<JobSummary> => {

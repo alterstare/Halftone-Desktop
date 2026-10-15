@@ -65,6 +65,7 @@ export interface ProgressEvent {
   state: 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
   error?: string
   background?: boolean // never blocks other actions; yields to any other job
+  paused?: boolean // queued while the queue is paused (모두 일시정지)
 }
 
 export interface AppInfo {
