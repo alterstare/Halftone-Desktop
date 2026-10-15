@@ -53,7 +53,7 @@ const ABOUT: Record<ToolsMode, Record<ToolTab, string>> = {
   },
   folder: {
     rename:
-      '작품 폴더와 그 안의 폴더 · 파일 이름을 실제로 바꿉니다. 복구한 이름: 압축 해제 때 깨진 일본어 이름(뷁어)을 원래 이름으로(사라진 글자는 작품 제목 · 다른 이름 · 단어 사전으로 채움). 번역한 이름: 프로그램 내 변경 › 이름에서 번역해 둔 한국어 이름으로(자막 등 짝 파일도 같은 이름). 줄마다 새 이름을 고칠 수 있고, 이어 듣기 · 북마크는 그대로 남으며, 되돌릴 수 있습니다.',
+      '작품 폴더와 그 안의 폴더 · 파일 이름을 실제로 바꿉니다. 복구한 이름: 압축 해제 때 깨진 일본어 이름(뷁어)을 원래 이름으로(사라진 글자는 작품 제목 · 다른 이름 · 단어 사전으로 채움). 번역한 이름: 프로그램 내 변경 › 이름에서 번역해 둔 한국어 이름으로(자막 등 짝 파일도 같은 이름). 기록한 원래 이름: 처음 스캔했을 때 기록해 둔 일본어 이름으로(번역 · 다른 프로그램으로 바꾼 이름도). 줄마다 새 이름을 고칠 수 있고, 이어 듣기 · 북마크는 그대로 남으며, 되돌릴 수 있습니다.',
     dlsite: 'DLsite에서 가져온 표지 그림을 작품 폴더에 cover.jpg로 저장합니다(이미 있으면 cover (DLsite).jpg). 되돌릴 수 있습니다.',
     subs: '프로그램 안에 저장된 자막을 음성 파일 옆에 "이름.ja.vtt" · "이름.ko.vtt"로 저장합니다. 다른 프로그램이 만든 같은 이름의 파일은 체크해야만 바꿉니다. 되돌릴 수 있습니다.',
     cover:
@@ -542,6 +542,35 @@ function SubsApp({ scope }: { scope: number[] | null }): JSX.Element {
   )
 }
 
+// 원래 이름 기록: the Japanese subtitles recorded when the work was first
+// scanned, back into the program (only where they differ from now).
+function SubsRestore({ scope }: { scope: number[] | null }): JSX.Element {
+  const [busy, setBusy] = useState(false)
+  return (
+    <section className="app-panel">
+      <div className="tools-summary">
+        <span>처음 스캔했을 때 기록해 둔 일본어 자막</span>
+        <span className="grow" />
+        <button
+          className="mini"
+          disabled={busy}
+          title="기록한 일본어 자막을 프로그램 안으로 되살립니다(지금 자막과 같으면 건너뜀). 기록에서 되돌릴 수 있습니다."
+          onClick={async () => {
+            setBusy(true)
+            try {
+              useStore.getState().showToast(await window.api.restoreSubs(scope))
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          <UndoIcon /> 기록한 일본어 자막 되살리기
+        </button>
+      </div>
+    </section>
+  )
+}
+
 // 썸네일: which cover the program shows.
 function CoverApp(): JSX.Element {
   const settings = useStore((s) => s.settings)
@@ -593,7 +622,7 @@ export default function ToolsView(): JSX.Element {
   const [planned, setPlanned] = useState<{ tab: typeof tab; items: Item[] } | null>(null)
   const items = planned && planned.tab === tab ? planned.items : null
   // 이름 정리: repaired names, or the translated ones (이름 번역)
-  const [renameMode, setRenameMode] = useState<'repair' | 'translate'>('repair')
+  const [renameMode, setRenameMode] = useState<'repair' | 'translate' | 'original'>('repair')
   const [on, setOn] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState<'plan' | 'run' | null>(null)
   const [ask, setAsk] = useState(false)
@@ -751,11 +780,12 @@ export default function ToolsView(): JSX.Element {
             </div>
           )}
           {tab === 'rename' && (
-            <div className="flat-group" title="번역한 이름: 프로그램 내 변경 › 이름에서 번역해 둔 한국어 이름(번역이 없는 이름은 복구한 이름)">
+            <div className="flat-group" title="번역한 이름: 프로그램 내 변경 › 이름에서 번역해 둔 한국어 이름(번역이 없는 이름은 복구한 이름). 기록한 원래 이름: 처음 스캔했을 때의 일본어 이름(깨진 이름은 복구한 일본어)">
               {(
                 [
                   ['repair', '복구한 이름'],
-                  ['translate', '번역한 이름']
+                  ['translate', '번역한 이름'],
+                  ['original', '기록한 원래 이름']
                 ] as const
               ).map(([m, l]) => (
                 <button key={m} className={`mini ${renameMode === m ? 'on' : ''}`} onClick={() => (setRenameMode(m), setPlanned(null))}>
@@ -803,6 +833,7 @@ export default function ToolsView(): JSX.Element {
       {mode === 'app' && tab === 'rename' && <NameTranslate scope={scope} onDone={() => setPlanned(null)} />}
       {mode === 'app' && tab === 'dlsite' && <DlsiteApp scope={scope} />}
       {mode === 'app' && tab === 'subs' && <SubsApp key={String(scope)} scope={scope} />}
+      {mode === 'app' && tab === 'subs' && <SubsRestore scope={scope} />}
       {mode === 'app' && tab === 'cover' && <CoverApp />}
       {mode === 'app' && tab === 'wav' && <FolderOnly />}
       {mode === 'folder' && items && (

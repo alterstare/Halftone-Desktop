@@ -30,6 +30,7 @@ import { namesMap, needsTranslation, translateNames } from './names/translate'
 import { findScripts, previewScript, scriptSubWork } from './script'
 import type { NameStatus, ScriptPreview, ScriptSource, ScriptSubOptions } from '../shared/types'
 import { existsSync } from 'fs'
+import * as originals from './originals'
 
 export interface CorePaths {
   dataDir: string
@@ -116,6 +117,10 @@ export class EnvCore {
         prev: (this.db.prepare('SELECT vtt FROM app_subs WHERE track_path = ? AND lang = ?').get(p.trackPath, p.lang) as { vtt: string } | undefined)?.vtt ?? null
       })
     )
+    // 기록한 자막 되살리기: each track's Japanese subtitle as it was before.
+    this.log.register<{ label: string; items: { trackPath: string; prev: string | null }[] }>('subtitle.restore', async (p) => {
+      for (const it of p.items) this.putAppSub(it.trackPath, 'ja', it.prev)
+    })
     // 표지 저장: the cover files it added go again.
     this.log.register<{ label: string; items: string[] }>('tools.coversave', async (p) => {
       for (const f of p.items) await fsp.rm(f, { force: true })
@@ -182,8 +187,10 @@ export class EnvCore {
           const { root, dir } = all[i]
           ctx.report(i, all.length)
           try {
-            library.saveWork(this.db, root, await scanWork(dir, library.knownProbes(this.db, dir)))
+            const id = library.saveWork(this.db, root, await scanWork(dir, library.knownProbes(this.db, dir)))
             found.add(dir)
+            // 원래 이름 기록: names / Japanese subtitles not seen before
+            await originals.recordWork(this.db, id).catch(() => false)
           } catch (e) {
             failed.push(`${dir}: ${String((e as Error)?.message ?? e)}`)
           }
@@ -546,8 +553,25 @@ export class EnvCore {
       return out
     })
   }
+  // A folder change (파일 정리 › 폴더 변경) for these works: their 원래 이름
+  // 기록 is brought up to date first, and left in each work folder after
+  // (envelope-original.json, unless turned off in 설정).
+  private async folderChange<T>(workIds: number[], run: () => Promise<T>): Promise<T> {
+    const ids = [...new Set(workIds)]
+    for (const id of ids) await originals.recordWork(this.db, id).catch(() => false)
+    try {
+      return await run()
+    } finally {
+      await this.leaveRecords(ids)
+    }
+  }
+  private async leaveRecords(ids: number[]): Promise<void> {
+    if (!this.settings().originalsInFolder) return
+    for (const id of ids) await originals.writeFolderRecord(this.db, id).catch(() => undefined)
+  }
+
   runCoverSave(items: CoverSaveItem[]): { id: number; done: Promise<ToolResult> } {
-    return this.queue.add('표지 저장', async (ctx) => {
+    return this.queue.add('표지 저장', (ctx) => this.folderChange(items.map((x) => x.workId), async () => {
       const undo: { label: string; items: string[] } = { label: '표지 저장', items: [] }
       const failed: string[] = []
       for (let i = 0; i < items.length; i++) {
@@ -565,7 +589,7 @@ export class EnvCore {
       if (undo.items.length) this.log.record('tools.coversave', undo)
       ctx.report(items.length, items.length)
       return { ok: !failed.length, message: `표지 ${undo.items.length}개를 작품 폴더에 저장했습니다${failed.length ? `, ${failed.length}개 실패` : ''}`, done: undo.items.length, failed }
-    }, { resumable: false })
+    }), { resumable: false })
   }
 
   // 파일 정리 › 자막 › 폴더 변경: the program's subtitles as "<audio>.<lang>.vtt"
@@ -592,7 +616,7 @@ export class EnvCore {
     })
   }
   runSubExport(items: SubExportItem[]): { id: number; done: Promise<ToolResult> } {
-    return this.queue.add('자막 내보내기', async (ctx) => {
+    return this.queue.add('자막 내보내기', (ctx) => this.folderChange(items.map((x) => x.workId), async () => {
       const undo: { label: string; items: { to: string; prev: string | null }[] } = { label: '자막 내보내기', items: [] }
       const failed: string[] = []
       for (let i = 0; i < items.length; i++) {
@@ -617,7 +641,7 @@ export class EnvCore {
       if (undo.items.length) this.log.record('tools.subexport', undo)
       ctx.report(items.length, items.length)
       return { ok: !failed.length, message: `자막 ${undo.items.length}개를 폴더에 저장했습니다${failed.length ? `, ${failed.length}개 실패` : ''}`, done: undo.items.length, failed }
-    }, { resumable: false })
+    }), { resumable: false })
   }
 
   setSubOffset(workId: number, groupKey: string, offset: number): void {
@@ -633,13 +657,17 @@ export class EnvCore {
   runWav(items: WavItem[], trash: TrashFn): { id: number; done: Promise<ToolResult> } {
     return this.queue.add(
       'wav 정리',
-      async (ctx) => {
-        try {
-          return await tools.runWav(this.db, items, { encode: this.encode, trash, bitrate: this.settings().mp3Bitrate }, ctx)
-        } finally {
-          this.moveAppSubs(items.filter((x) => x.kind === 'convert' || x.kind === 'delete').map((x) => [x.wav, x.mp3]))
-        }
-      },
+      (ctx) =>
+        this.folderChange(
+          items.map((x) => x.workId),
+          async () => {
+            try {
+              return await tools.runWav(this.db, items, { encode: this.encode, trash, bitrate: this.settings().mp3Bitrate }, ctx)
+            } finally {
+              this.moveAppSubs(items.filter((x) => x.kind === 'convert' || x.kind === 'delete').map((x) => [x.wav, x.mp3]))
+            }
+          }
+        ),
       { resumable: false }
     )
   }
@@ -656,22 +684,76 @@ export class EnvCore {
         drop.run(from)
       }
     })()
+    // the 원래 이름 기록 follows too (the wav's name, the mp3's extension)
+    const gone = new Map(pairs.filter(([from, to]) => !existsSync(from) && existsSync(to)))
+    originals.moveRecords(this.db, (p) => gone.get(p) ?? p)
   }
   planCover(ids: number[] | null): { id: number; done: Promise<CoverItem[]> } {
     return this.queue.add('썸네일 확인', (ctx) => tools.planCover(this.db, ids, this.settings().coverSkipExisting, ctx))
   }
   runCover(items: CoverItem[]): { id: number; done: Promise<ToolResult> } {
-    return this.queue.add('mp3 썸네일 넣기', (ctx) =>
-      tools.runCover(this.log, items, { square: this.settings().coverSquare, backupsDir: this.paths.backupsDir || this.paths.dataDir }, ctx),
+    return this.queue.add(
+      'mp3 썸네일 넣기',
+      (ctx) =>
+        this.folderChange(
+          items.map((x) => x.workId),
+          () => tools.runCover(this.log, items, { square: this.settings().coverSquare, backupsDir: this.paths.backupsDir || this.paths.dataDir }, ctx)
+        ),
       { resumable: false }
     )
   }
-  planRename(ids: number[] | null, mode: 'repair' | 'translate' = 'repair'): { id: number; done: Promise<RenameItem[]> } {
-    return this.queue.add(mode === 'translate' ? '이름 바꾸기 확인' : '이름 복구 확인', (ctx) => tools.planRename(this.db, ids, ctx, mode))
+  planRename(ids: number[] | null, mode: 'repair' | 'translate' | 'original' = 'repair'): { id: number; done: Promise<RenameItem[]> } {
+    const label = mode === 'translate' ? '이름 바꾸기 확인' : mode === 'original' ? '원래 이름 확인' : '이름 복구 확인'
+    return this.queue.add(label, async (ctx) => {
+      if (mode === 'original')
+        for (const w of this.db.prepare('SELECT id FROM works').all() as { id: number }[])
+          if (!ids || ids.includes(w.id)) await originals.recordWork(this.db, w.id).catch(() => false)
+      return tools.planRename(this.db, ids, ctx, mode, (w) => originals.originalNames(this.db, w))
+    })
   }
   runRename(items: RenameItem[]): { id: number; done: Promise<ToolResult> } {
-    const label = items.some((x) => x.translated) ? '이름 바꾸기' : '이름 복구'
-    return this.queue.add(label, (ctx) => tools.runRename(this.log, items, ctx, (pairs, its) => this.relocate(pairs, its)), { resumable: false })
+    const label = items.some((x) => x.original) ? '원래 이름으로 되돌리기' : items.some((x) => x.translated) ? '이름 바꾸기' : '이름 복구'
+    return this.queue.add(
+      label,
+      (ctx) => this.folderChange(items.map((x) => x.workId), () => tools.runRename(this.log, items, ctx, (pairs, its) => this.relocate(pairs, its))),
+      { resumable: false }
+    )
+  }
+
+  // 파일 정리 › 자막 › 프로그램 내 변경: the Japanese subtitles in the 원래 이름
+  // 기록 back into the program (where a track's Japanese subtitle now differs).
+  // One undo step.
+  restoreSubs(ids: number[] | null): { id: number; done: Promise<ToolResult> } {
+    return this.queue.add('기록한 자막 되살리기', async (ctx) => {
+      const undo: { label: string; items: { trackPath: string; prev: string | null }[] } = { label: '기록한 일본어 자막 되살리기', items: [] }
+      const ws = this.db.prepare('SELECT id, path FROM works').all() as { id: number; path: string }[]
+      const todo = ws.filter((w) => !ids || ids.includes(w.id))
+      for (let i = 0; i < todo.length; i++) {
+        ctx.report(i, todo.length)
+        for (const s of await originals.recordedSubs(this.db, todo[i])) {
+          if (!this.db.prepare('SELECT 1 FROM tracks WHERE path = ?').get(s.trackPath)) continue
+          const prev = (this.db.prepare("SELECT vtt FROM app_subs WHERE track_path = ? AND lang = 'ja'").get(s.trackPath) as { vtt: string } | undefined)?.vtt ?? null
+          if (prev === s.vtt) continue
+          if (prev === null && (await this.currentJa(s.trackPath)) === s.vtt) continue // the file next to it is that subtitle
+          this.putAppSub(s.trackPath, 'ja', s.vtt)
+          undo.items.push({ trackPath: s.trackPath, prev })
+        }
+      }
+      if (undo.items.length) this.log.record('subtitle.restore', undo)
+      ctx.report(todo.length, todo.length)
+      return { ok: true, message: undo.items.length ? `일본어 자막 ${undo.items.length}개를 되살렸습니다` : '되살릴 자막이 없습니다 (기록이 없거나 지금 자막과 같습니다)', done: undo.items.length, failed: [] }
+    })
+  }
+  // A track's Japanese subtitle file next to it, as vtt (null: none).
+  private async currentJa(trackPath: string): Promise<string | null> {
+    const t = this.db.prepare('SELECT subs_json FROM tracks WHERE path = ?').get(trackPath) as { subs_json: string } | undefined
+    const f = t && (JSON.parse(t.subs_json) as { path: string; lang: string }[]).find((x) => x.lang === 'ja')
+    if (!f) return null
+    try {
+      return toVtt(parseSubtitle(decodeText(await fsp.readFile(f.path)), extname(f.path)))
+    } catch {
+      return null
+    }
   }
 
   // After folders / files were renamed (or a rename undone): the works and
@@ -685,7 +767,9 @@ export class EnvCore {
       for (const { from, to } of pairs) if (under(q, from)) q = to + q.slice(from.length)
       return q
     }
+    originals.moveRecords(this.db, map)
     const works = this.db.prepare('SELECT id, path, root FROM works').all() as { id: number; path: string; root: string }[]
+    const touched = works.filter((w) => pairs.some((x) => under(x.from, w.path) || under(w.path, x.from))).map((w) => w.id)
     for (const w of works) {
       if (!pairs.some((x) => under(x.from, w.path) || under(w.path, x.from))) continue
       const old = this.db.prepare('SELECT path, group_key AS gk FROM tracks WHERE work_id = ?').all(w.id) as { path: string; gk: string }[]
@@ -741,6 +825,8 @@ export class EnvCore {
         }
       }
     })()
+    // a rename (or its undo) is a folder change: the record goes with it
+    await this.leaveRecords(touched)
   }
 
   // ---- 작품 정보 (DLsite) ----
@@ -804,6 +890,7 @@ export class EnvCore {
       'subtitle.save': 'subtitle',
       'subtitle.app': 'subtitle',
       'tools.subexport': 'subtitle',
+      'subtitle.restore': 'subtitle',
       'tools.coversave': 'cover',
       'tools.cover': 'cover',
       'tools.rename': 'rename'

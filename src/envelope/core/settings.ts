@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS: Settings = {
   mp3Bitrate: 320,
   coverSquare: false,
   coverSkipExisting: true,
+  originalsInFolder: true,
   shortcuts: {},
   tabSide: 'right',
   miniOnTop: true,

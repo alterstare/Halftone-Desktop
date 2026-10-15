@@ -25,6 +25,7 @@ export interface Settings {
   mp3Bitrate: 192 | 256 | 320 // wav → mp3
   coverSquare: boolean // ID3 cover cropped square (else whole picture)
   coverSkipExisting: boolean // leave mp3s that already have a cover
+  originalsInFolder: boolean // 폴더 변경 also leaves the 원래 이름 기록 in the work folder (envelope-original.json)
   shortcuts: Partial<Record<string, string[]>> // user overrides (shared/shortcuts.ts)
   tabSide: 'left' | 'right' // LP tab bar
   miniOnTop: boolean // 최소화 모드 stays over other windows
@@ -241,6 +242,7 @@ export interface RenameItem {
   dir: boolean
   work?: boolean // the work folder itself
   translated?: boolean // the new name is the translation (이름 번역)
+  original?: boolean // back to the recorded original name (원래 이름 기록)
   filled: number // lost characters filled in
   unfilled: number // "_" still left
   problem?: 'conflict' | 'too-long'

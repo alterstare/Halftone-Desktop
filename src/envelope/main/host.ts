@@ -186,7 +186,12 @@ function registerIpc(): void {
   ipcMain.handle(IPC.runWav, (_e, items: WavItem[]) => tool(core.runWav(items, trash).done))
   ipcMain.handle(IPC.planCover, (_e, ids: number[] | null) => core.planCover(ids).done)
   ipcMain.handle(IPC.runCover, (_e, items: CoverItem[]) => tool(core.runCover(items).done))
-  ipcMain.handle(IPC.planRename, (_e, ids: number[] | null, mode?: 'repair' | 'translate') => core.planRename(ids, mode).done)
+  ipcMain.handle(IPC.planRename, (_e, ids: number[] | null, mode?: 'repair' | 'translate' | 'original') => core.planRename(ids, mode).done)
+  ipcMain.handle(IPC.restoreSubs, async (_e, ids: number[] | null) => {
+    const r = await core.restoreSubs(ids).done
+    changed()
+    return r
+  })
   ipcMain.handle(IPC.planSubExport, (_e, ids: number[] | null) => core.planSubExport(ids).done)
   ipcMain.handle(IPC.runSubExport, (_e, items: SubExportItem[]) => tool(core.runSubExport(items).done))
   ipcMain.handle(IPC.planCoverSave, (_e, ids: number[] | null) => core.planCoverSave(ids).done)

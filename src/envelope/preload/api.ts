@@ -47,6 +47,7 @@ export function createApi(ipcRenderer: IpcRenderer): Api {
     planSubExport: (ids) => ipcRenderer.invoke(IPC.planSubExport, ids),
     runSubExport: (items) => ipcRenderer.invoke(IPC.runSubExport, items),
     planCoverSave: (ids) => ipcRenderer.invoke(IPC.planCoverSave, ids),
+    restoreSubs: (ids) => ipcRenderer.invoke(IPC.restoreSubs, ids),
     runCoverSave: (items) => ipcRenderer.invoke(IPC.runCoverSave, items),
     runWav: (items) => ipcRenderer.invoke(IPC.runWav, items),
     planCover: (ids) => ipcRenderer.invoke(IPC.planCover, ids),

@@ -255,6 +255,9 @@ export function safeName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, (c) => FORBIDDEN[c]).replace(/[. ]+$/, '') || '_'
 }
 
+// 원래 이름 기록 left in a work folder (core/originals.ts): not part of the work.
+export const ORIGINALS_FILE = 'envelope-original.json'
+
 // Every folder and file of a work, its repaired name (lost characters filled
 // from the title and the other names), deepest first; the work folder last.
 export interface WorkEntry {
@@ -278,6 +281,7 @@ export async function workEntries(w: { path: string }): Promise<WorkEntry[]> {
     for (let k = 0; k < list.length; k++) {
       const e = list[k]
       if (!e.isDirectory() && !e.isFile()) continue
+      if (e.name === ORIGINALS_FILE) continue
       const p = join(dir, e.name)
       raw.push({ path: p, dir: e.isDirectory(), name: e.name, fixed: fixed[k].text, depth, moji: fixed[k].mojibake })
       if (e.isDirectory()) await walk(p, depth + 1, fixed[k].mojibake)
@@ -320,7 +324,15 @@ function translatedFolder(fixed: string, translated: string): string {
   return code ? `${code} ${translated}` : translated
 }
 
-export async function planRename(db: Db, ids: number[] | null, ctx?: JobContext, mode: 'repair' | 'translate' = 'repair'): Promise<RenameItem[]> {
+// mode 'original': back to the names in the 원래 이름 기록 (`originalOf` gives
+// them per work: absolute path → name); what it has no name for stays.
+export async function planRename(
+  db: Db,
+  ids: number[] | null,
+  ctx?: JobContext,
+  mode: 'repair' | 'translate' | 'original' = 'repair',
+  originalOf?: (w: { id: number; path: string }) => Promise<Map<string, string>>
+): Promise<RenameItem[]> {
   const out: RenameItem[] = []
   const works = worksOf(db, ids)
   const translated = mode === 'translate' ? namesMap(db) : null
@@ -328,6 +340,8 @@ export async function planRename(db: Db, ids: number[] | null, ctx?: JobContext,
     ctx?.report(i, works.length)
     const w = works[i]
     const entries = await workEntries(w)
+    const originals = mode === 'original' && originalOf ? await originalOf(w) : null
+    if (mode === 'original' && !originals?.size) continue
     const taken = new Map<string, Set<string>>() // folder → lower-case names after renaming
     for (const e of entries) {
       const d = dirname(e.path)
@@ -340,7 +354,9 @@ export async function planRename(db: Db, ids: number[] | null, ctx?: JobContext,
       // translated for showing)
       const found = translated?.get(e.path)
       const t = found && (e.depth >= 0 || needsTranslation(workTitle(e.fixed).title)) ? found : undefined
-      const target = !t ? e.fixed : e.depth < 0 ? translatedFolder(e.fixed, t) : t + splitSuffix(e.fixed, e.dir).suffix
+      const orig = originals?.get(e.path)
+      if (originals && orig === undefined) continue
+      const target = orig ?? (!t ? e.fixed : e.depth < 0 ? translatedFolder(e.fixed, t) : t + splitSuffix(e.fixed, e.dir).suffix)
       let name = safeName(target)
       if (name === e.name) continue
       const used = taken.get(dirname(e.path))!
@@ -363,10 +379,11 @@ export async function planRename(db: Db, ids: number[] | null, ctx?: JobContext,
         to,
         dir: e.dir,
         work: e.depth < 0 || undefined,
-        translated: !!t || undefined,
-        filled: e.filled,
+        translated: (!orig && !!t) || undefined,
+        original: orig !== undefined || undefined,
+        filled: orig !== undefined ? 0 : e.filled,
         // in a 뷁어 name every "_" left may be a lost character (or a real one)
-        unfilled: e.moji ? (name.match(/_/g) ?? []).length : 0,
+        unfilled: e.moji && orig === undefined ? (name.match(/_/g) ?? []).length : 0,
         problem
       })
     }
@@ -385,7 +402,7 @@ export type AfterRename = (pairs: { from: string; to: string }[], items?: Rename
 // valid when its turn comes. Undo goes backwards. Never over an existing
 // file (Windows rename would replace it).
 export async function runRename(log: ActionLog, items: RenameItem[], ctx: JobContext, after?: AfterRename): Promise<ToolResult> {
-  const undo: RenameUndo = { label: items.some((x) => x.translated) ? '이름 바꾸기 (번역)' : '이름 복구', items: [] }
+  const undo: RenameUndo = { label: items.some((x) => x.original) ? '원래 이름으로 되돌리기' : items.some((x) => x.translated) ? '이름 바꾸기 (번역)' : '이름 복구', items: [] }
   const failed: string[] = []
   const todo = items.filter((x) => x.problem !== 'too-long')
   for (let i = 0; i < todo.length; i++) {

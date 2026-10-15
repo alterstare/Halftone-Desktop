@@ -194,6 +194,19 @@ export default function SettingsView(): JSX.Element | null {
             onChange={(v) => void save({ nameDisplay: v }).then(() => (st().loadWorks(), st().refreshWork()))}
           />
         </Row>
+        <Row
+          label="원래 이름 기록"
+          hint="처음 스캔했을 때의 일본어 이름(깨진 이름은 복구한 일본어)과 일본어 자막을 프로그램 안에 기록해 두고, 파일 정리 › 폴더 변경을 실행한 작품 폴더에는 envelope-original.json으로도 남깁니다. 되돌리기: 파일 정리 › 이름 › 폴더 변경 › 기록한 원래 이름, 자막 › 프로그램 내 변경 › 기록한 일본어 자막 되살리기."
+        >
+          <Seg
+            value={s.originalsInFolder ? 'on' : 'off'}
+            options={[
+              ['on', '작품 폴더에도 남기기'],
+              ['off', '프로그램 안에만']
+            ]}
+            onChange={(v) => void save({ originalsInFolder: v === 'on' })}
+          />
+        </Row>
         <Row label="DLsite에서 가져오기" hint="아직 가져오지 않은 작품의 제목 · 서클 · 성우 · 표지를 가져옵니다 (1초에 한 작품).">
           <div className="flat-group">
             <button

@@ -35,6 +35,7 @@ export const IPC = {
   planSubExport: 'env:tools:planSubExport',
   runSubExport: 'env:tools:runSubExport',
   planCoverSave: 'env:tools:planCoverSave',
+  restoreSubs: 'env:tools:restoreSubs',
   runCoverSave: 'env:tools:runCoverSave',
   runWav: 'env:tools:runWav',
   planCover: 'env:tools:planCover',
@@ -179,7 +180,9 @@ export interface Api {
   runWav: (items: WavItem[]) => Promise<ToolResult>
   planCover: (ids: number[] | null) => Promise<CoverItem[]>
   runCover: (items: CoverItem[]) => Promise<ToolResult>
-  planRename: (ids: number[] | null, mode?: 'repair' | 'translate') => Promise<RenameItem[]>
+  planRename: (ids: number[] | null, mode?: 'repair' | 'translate' | 'original') => Promise<RenameItem[]>
+  // 원래 이름 기록: its Japanese subtitles back into the program
+  restoreSubs: (ids: number[] | null) => Promise<ToolResult>
   runRename: (items: RenameItem[]) => Promise<ToolResult>
   history: () => Promise<HistoryEntry[]>
   // 작품 정보 from DLsite by work code (ids null = works not asked yet)

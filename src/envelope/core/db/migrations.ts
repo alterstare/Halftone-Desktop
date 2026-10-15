@@ -165,6 +165,15 @@ export const MIGRATIONS: string[] = [
     updated_at INTEGER NOT NULL,
     PRIMARY KEY (track_path, lang)
   );
+  `,
+  // v10: 원래 이름 기록 — each work's names as first seen and its Japanese
+  // subtitles (core/originals.ts)
+  `
+  CREATE TABLE originals (
+    work_id INTEGER PRIMARY KEY,
+    json TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
   `
 ]
 
