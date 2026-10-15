@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import { useStore } from '../store'
 import type { EngineStatus, GlossaryEntry, Settings, WhisperModelId } from '../../../shared/types'
+import { Dropdown } from './ui'
 import { AddIcon, CheckIcon, CloudDownloadIcon, DeleteIcon, FolderOpenIcon } from './icons'
 
 const MODELS: [WhisperModelId, string, number][] = [
@@ -133,9 +134,10 @@ export default function AutoSubSettings(): JSX.Element | null {
                   <button className="model-pick" disabled={!eng?.models[m]} title="받아쓰기에 쓸 모델" onClick={() => set({ localModel: m })}>
                     {s.localModel === m && <CheckIcon />}
                     <span>{label}</span>
-                    <span className="hint">{mb} MB</span>
                   </button>
-                  <div className="flat-group">
+                  {/* the size in a fixed column just left of the button — it doesn't move with the name */}
+                  <span className="hint model-size">{mb} MB</span>
+                  <div className="flat-group model-act">
                     {eng?.models[m] ? (
                       <button className="mini icon" title="모델 지우기" onClick={async () => (await window.api.removeModel(m), refresh())}>
                         <DeleteIcon />
@@ -164,7 +166,9 @@ export default function AutoSubSettings(): JSX.Element | null {
       <section>
         <h3>번역</h3>
         <Row label="번역 엔진" hint="Google은 키 없이 쓰는 비공식 번역(무료, 막힐 수 있음)입니다. LLM은 문맥과 용어집을 함께 보고 번역합니다.">
-          <Seg
+          <Dropdown
+            kind="mini"
+            title="번역 엔진"
             value={s.translator}
             options={[
               ['google', 'Google (무료)'],
@@ -193,7 +197,9 @@ export default function AutoSubSettings(): JSX.Element | null {
         {s.translator === 'llm' && (
           <>
             <Row label="LLM 제공자" hint="OpenAI 호환 API. Groq는 받아쓰기 키를 함께 씁니다(따로 넣으면 그 키).">
-              <Seg
+              <Dropdown
+                kind="mini"
+                title="LLM 제공자"
                 value={s.llmProvider}
                 options={[
                   ['groq', 'Groq'],
