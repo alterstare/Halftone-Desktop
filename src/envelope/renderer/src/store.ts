@@ -5,7 +5,10 @@ import type { Group, ProgressEvent, Settings, SubtitleText, WorkDetail, WorkLang
 
 // library → work page → now playing (full player with subtitles)
 export type View = 'library' | 'work' | 'now' | 'tools' | 'settings'
-export type ToolTab = 'cover' | 'wav' | 'rename' | 'jobs'
+export type ToolTab = 'rename' | 'dlsite' | 'subs' | 'cover' | 'wav' | 'jobs'
+// 파일 정리 changes either only what the program keeps (names shown, DLsite
+// info, subtitles, the cover shown) or the library's folders and files
+export type ToolsMode = 'app' | 'folder'
 export type SleepMode = 'off' | 'time' | 'track' | 'work'
 export type ListenState = 'new' | 'listening' | 'done'
 
@@ -67,6 +70,7 @@ export interface State {
   hostMode: HostMode // inside Halftone: right panel / bottom bar / hidden (big window open)
   toolsScope: number[] | null // works the file tools look at; null = all
   toolsTab: ToolTab
+  toolsMode: ToolsMode
   toast: JobSummary | null
   // LP tabs: open works, top to bottom
   tabs: number[]
@@ -123,7 +127,8 @@ export const useStore = create<State>((set, get) => ({
   hostMode: 'panel',
 
   toolsScope: null,
-  toolsTab: 'cover',
+  toolsTab: 'rename',
+  toolsMode: 'app',
   toast: null,
   tabs: [],
   closedTabs: [],

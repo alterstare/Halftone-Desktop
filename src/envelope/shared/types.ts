@@ -245,6 +245,29 @@ export interface RenameItem {
   problem?: 'conflict' | 'too-long'
 }
 
+// 파일 정리 › DLsite 정보 › 폴더 변경: the DLsite cover saved into the work
+// folder (a name that's free: cover.jpg, else "cover (DLsite).jpg").
+export interface CoverSaveItem {
+  id: string
+  workId: number
+  workTitle: string
+  from: string // the cover the program keeps
+  to: string
+}
+
+// 파일 정리 › 자막 › 폴더 변경: a program subtitle written next to its audio.
+// new = no file there · update = a file Envelope made · conflict = another
+// program's file (replaced only when ticked)
+export interface SubExportItem {
+  id: string
+  workId: number
+  workTitle: string
+  trackPath: string
+  lang: SubLang
+  to: string
+  state: 'new' | 'update' | 'conflict'
+}
+
 // 이름 번역 status of a work: names with Japanese in them, and how many of
 // those have no translation yet.
 export interface NameStatus {

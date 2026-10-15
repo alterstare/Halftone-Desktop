@@ -127,7 +127,7 @@ export default function AutoSubButton({ w }: { w: WorkDetail }): JSX.Element {
               </>
             )}
             <Check checked={redo} onChange={setRedo}>
-              Envelope가 만든 자막 다시 만들기
+              이미 만든 자막 다시 만들기
             </Check>
             <div className="hint autosub-engines">
               {method === 'script' && source

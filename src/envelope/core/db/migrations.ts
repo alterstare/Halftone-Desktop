@@ -154,6 +154,17 @@ export const MIGRATIONS: string[] = [
     engine TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  `,
+  // v9: subtitles made or edited in the program live here (not next to the
+  // audio); 파일 정리 › 자막 › 폴더 변경 exports them as files
+  `
+  CREATE TABLE app_subs (
+    track_path TEXT NOT NULL,
+    lang TEXT NOT NULL,
+    vtt TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (track_path, lang)
+  );
   `
 ]
 

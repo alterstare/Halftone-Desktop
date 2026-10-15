@@ -15,8 +15,7 @@ import type {
   TrackVersion,
   WorkDetail,
   WorkLang,
-  WorkSummary
-} from '../../shared/types'
+  WorkSummary, SubLang } from '../../shared/types'
 import type { KnownProbes, ScannedWork } from './scan'
 import { naturalCompare } from '../names/normalize'
 
@@ -156,6 +155,29 @@ interface WorkRow {
   dl_cover: string | null
 }
 
+// Subtitles kept in the program are listed as "envsub:<lang>:<audio path>",
+// before the files next to the audio (they win when both have a language).
+export const APP_SUB = 'envsub:'
+export const appSubPath = (lang: string, trackPath: string): string => `${APP_SUB}${lang}:${trackPath}`
+export function parseAppSubPath(p: string): { lang: SubLang; trackPath: string } | null {
+  if (!p.startsWith(APP_SUB)) return null
+  const rest = p.slice(APP_SUB.length)
+  const at = rest.indexOf(':')
+  return at < 0 ? null : { lang: rest.slice(0, at) as SubLang, trackPath: rest.slice(at + 1) }
+}
+function withAppSubs(db: Db, rows: TrackRow[]): TrackRow[] {
+  const all = db.prepare('SELECT track_path, lang FROM app_subs').all() as { track_path: string; lang: string }[]
+  if (!all.length) return rows
+  const by = new Map<string, string[]>()
+  for (const r of all) by.set(r.track_path, [...(by.get(r.track_path) ?? []), r.lang])
+  return rows.map((t) => {
+    const langs = by.get(t.path)
+    if (!langs) return t
+    const own = langs.map((lang) => ({ path: appSubPath(lang, t.path), lang }))
+    return { ...t, subs_json: JSON.stringify([...own, ...(JSON.parse(t.subs_json) as SubFile[])]) }
+  })
+}
+
 const toVersion = (t: TrackRow): TrackVersion => ({
   id: t.id,
   path: t.path,
@@ -292,7 +314,7 @@ export function titleToTranslate(w: { title: string; code: string | null; dl_tit
 export function listWorks(db: Db, s: Settings): WorkSummary[] {
   const works = db.prepare('SELECT * FROM works').all() as WorkRow[]
   const names = shownNames(db, s)
-  const tracks = byWork(db.prepare('SELECT * FROM tracks').all() as TrackRow[])
+  const tracks = byWork(withAppSubs(db, db.prepare('SELECT * FROM tracks').all() as TrackRow[]))
   const progress = progressOf(db)
   const offsets = offsetsOf(db)
   const groupIds = groupIdsOf(db)
@@ -347,7 +369,7 @@ function imagesOf(w: WorkRow, s: Settings): string[] {
 export function workDetail(db: Db, id: number, s: Settings): WorkDetail | null {
   const w = db.prepare('SELECT * FROM works WHERE id = ?').get(id) as WorkRow | undefined
   if (!w) return null
-  const tracks = db.prepare('SELECT * FROM tracks WHERE work_id = ?').all(id) as TrackRow[]
+  const tracks = withAppSubs(db, db.prepare('SELECT * FROM tracks WHERE work_id = ?').all(id) as TrackRow[])
   const names = shownNames(db, s)
   const { groups, editions, edition } = buildGroups(w, tracks, progressOf(db, id).get(id) ?? new Map(), offsetsOf(db, id).get(id) ?? new Map(), s, names)
   return {

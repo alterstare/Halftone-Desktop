@@ -1,4 +1,4 @@
-import type { AppInfo, CoverItem, Cue, Group, HistoryEntry, ProgressEvent, RenameItem, SePref, Settings, SubLang, SubtitleText, ToolResult, UndoResult, WavItem, WorkDetail, WorkSummary, AutoSubOptions, EngineStatus, GlossaryEntry, ScriptPreview, ScriptSource, ScriptSubOptions, WhisperModelId, NameStatus } from './types'
+import type { AppInfo, CoverItem, Cue, Group, HistoryEntry, ProgressEvent, RenameItem, SePref, Settings, SubLang, SubtitleText, ToolResult, UndoResult, WavItem, WorkDetail, WorkSummary, AutoSubOptions, EngineStatus, GlossaryEntry, ScriptPreview, ScriptSource, ScriptSubOptions, WhisperModelId, NameStatus, SubExportItem, CoverSaveItem } from './types'
 
 export const IPC = {
   appInfo: 'env:app:info',
@@ -29,6 +29,10 @@ export const IPC = {
   saveSubtitle: 'env:sub:save',
   setSubOffset: 'env:sub:offset',
   planWav: 'env:tools:planWav',
+  planSubExport: 'env:tools:planSubExport',
+  runSubExport: 'env:tools:runSubExport',
+  planCoverSave: 'env:tools:planCoverSave',
+  runCoverSave: 'env:tools:runCoverSave',
   runWav: 'env:tools:runWav',
   planCover: 'env:tools:planCover',
   runCover: 'env:tools:runCover',
@@ -160,6 +164,11 @@ export interface Api {
   // 파일 정리 (Phase 3): plan (nothing changes) → run the kept items.
   // ids = works to look at, null = the whole library.
   planWav: (ids: number[] | null) => Promise<WavItem[]>
+  // 파일 정리 › 폴더 변경: program subtitles / DLsite covers into the folders
+  planSubExport: (ids: number[] | null) => Promise<SubExportItem[]>
+  runSubExport: (items: SubExportItem[]) => Promise<ToolResult>
+  planCoverSave: (ids: number[] | null) => Promise<CoverSaveItem[]>
+  runCoverSave: (items: CoverSaveItem[]) => Promise<ToolResult>
   runWav: (items: WavItem[]) => Promise<ToolResult>
   planCover: (ids: number[] | null) => Promise<CoverItem[]>
   runCover: (items: CoverItem[]) => Promise<ToolResult>

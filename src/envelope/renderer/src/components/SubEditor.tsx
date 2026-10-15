@@ -69,7 +69,7 @@ export default function SubEditor(): JSX.Element {
   const [past, setPast] = useState<Cue[][]>([])
   const [future, setFuture] = useState<Cue[][]>([])
   const [dirty, setDirty] = useState(false)
-  const [ask, setAsk] = useState<null | 'overwrite' | 'close'>(null)
+  const [ask, setAsk] = useState<null | 'close'>(null)
   const ref = useRef<HTMLDivElement>(null)
   const lang = sources[src]?.lang ?? 'ko'
   const reference = lang === 'ko' ? (subs?.ja ?? subs?.other) : subs?.ko // shown under each line
@@ -124,12 +124,12 @@ export default function SubEditor(): JSX.Element {
     change(sorted([...cues, { start: t, end: t + 3, text: '' }]))
   }
 
-  const doSave = async (overwrite = false): Promise<void> => {
+  // kept in the program; into the folder only via 파일 정리 › 자막 › 폴더 변경
+  const doSave = async (): Promise<void> => {
     const clean = sorted(cues.filter((c) => c.text.trim() && c.end > c.start))
-    const r = await window.api.saveSubtitle(now.trackId, lang, clean, overwrite)
-    if (r.conflict) return setAsk('overwrite')
+    await window.api.saveSubtitle(now.trackId, lang, clean, false)
     setDirty(false)
-    showToast({ ok: true, message: `자막을 저장했습니다: ${r.path.split(/[\\/]/).pop()}` })
+    showToast({ ok: true, message: `${LANG_NAME[lang]} 자막을 프로그램 안에 저장했습니다` })
     await useStore.getState().refreshWork(now.work.id)
     const n = useStore.getState().now
     if (n) await loadSubs(n.work, n.groupKey, n.trackId)
@@ -224,15 +224,6 @@ export default function SubEditor(): JSX.Element {
           )
         })}
       </div>
-      {ask === 'overwrite' && (
-        <Confirm
-          title="같은 이름의 자막 파일이 있습니다"
-          body={`다른 프로그램이 만든 ${LANG_NAME[lang]} 자막 파일을 새 내용으로 바꿉니다. 저장 후 되돌리기로 원래 파일을 복원할 수 있습니다.`}
-          ok="바꾸기"
-          onCancel={() => setAsk(null)}
-          onOk={() => (setAsk(null), void doSave(true))}
-        />
-      )}
       {ask === 'close' && (
         <Confirm
           title="저장하지 않은 변경이 있습니다"

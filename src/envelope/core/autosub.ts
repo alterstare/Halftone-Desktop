@@ -76,7 +76,7 @@ export async function autoSubWork(db: Db, work: WorkDetail, deps: AutoSubDeps, o
     try {
       let original = await subOf(g, lang, deps.readSub)
       if (opts.transcribe) {
-        if (original && !(opts.redo && original.envMade)) res.skipped.push(`${g.title}: 자막이 이미 있습니다`)
+        if (original && !opts.redo) res.skipped.push(`${g.title}: 자막이 이미 있습니다`)
         else if (!deps.asr) throw new Error('받아쓰기 엔진이 없습니다')
         else {
           report(0, `받아쓰기 · ${g.title}`)
@@ -96,7 +96,7 @@ export async function autoSubWork(db: Db, work: WorkDetail, deps: AutoSubDeps, o
       if (opts.translate && lang === 'ja') {
         const ko = await subOf(g, 'ko', deps.readSub)
         if (!original?.cues.length) res.skipped.push(`${g.title}: 번역할 일본어 자막이 없습니다`)
-        else if (ko && !(opts.redo && ko.envMade)) res.skipped.push(`${g.title}: 한국어 자막이 이미 있습니다`)
+        else if (ko && !opts.redo) res.skipped.push(`${g.title}: 한국어 자막이 이미 있습니다`)
         else if (!deps.translator) throw new Error('번역 엔진이 없습니다')
         else {
           report(0, `번역 · ${g.title}`)

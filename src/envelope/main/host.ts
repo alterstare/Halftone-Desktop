@@ -16,7 +16,7 @@ import { isInside, mimeOf, parseRange } from '../core/media'
 import { thumbnail } from '../core/thumbs'
 import { IPC, MEDIA_SCHEME } from '../shared/ipc'
 import type { EnvStatus, HostRequest, JobSummary, RemoteCommand } from '../shared/ipc'
-import type { AutoSubOptions, ScriptSubOptions, CoverItem, Cue, GlossaryEntry, RenameItem, SePref, Settings, SubLang, ToolResult, WavItem, WhisperModelId } from '../shared/types'
+import type { AutoSubOptions, ScriptSubOptions, CoverItem, CoverSaveItem, SubExportItem, Cue, GlossaryEntry, RenameItem, SePref, Settings, SubLang, ToolResult, WavItem, WhisperModelId } from '../shared/types'
 
 export interface EnvHostOptions {
   dataDir: string
@@ -163,7 +163,8 @@ function registerIpc(): void {
   ipcMain.handle(IPC.setGroupMembership, (_e, ids: number[], g: number, on: boolean) => core.setGroupMembership(ids, g, on))
   const inLibrary = (p: string): boolean => core.settings().libraryDirs.some((r) => isInside(p, r))
   ipcMain.handle(IPC.readSubtitle, (_e, p: string) => {
-    if (!inLibrary(p)) throw new Error('라이브러리 밖의 파일입니다')
+    const app = p.startsWith('envsub:') ? p.slice(p.indexOf(':', 7) + 1) : null
+    if (!inLibrary(app ?? p)) throw new Error('라이브러리 밖의 파일입니다')
     return core.readSubtitle(p)
   })
   ipcMain.handle(IPC.saveSubtitle, (_e, id: number, lang: SubLang, cues: Cue[], ow?: boolean) => core.saveSubtitle(id, lang, cues, ow))
@@ -186,6 +187,10 @@ function registerIpc(): void {
   ipcMain.handle(IPC.planCover, (_e, ids: number[] | null) => core.planCover(ids).done)
   ipcMain.handle(IPC.runCover, (_e, items: CoverItem[]) => tool(core.runCover(items).done))
   ipcMain.handle(IPC.planRename, (_e, ids: number[] | null, mode?: 'repair' | 'translate') => core.planRename(ids, mode).done)
+  ipcMain.handle(IPC.planSubExport, (_e, ids: number[] | null) => core.planSubExport(ids).done)
+  ipcMain.handle(IPC.runSubExport, (_e, items: SubExportItem[]) => tool(core.runSubExport(items).done))
+  ipcMain.handle(IPC.planCoverSave, (_e, ids: number[] | null) => core.planCoverSave(ids).done)
+  ipcMain.handle(IPC.runCoverSave, (_e, items: CoverSaveItem[]) => tool(core.runCoverSave(items).done))
   ipcMain.handle(IPC.runRename, (_e, items: RenameItem[]) => tool(core.runRename(items).done))
   ipcMain.handle(IPC.history, () => core.history())
   ipcMain.handle(IPC.fetchDlsite, (_e, ids: number[] | null) => dlsiteJob(ids))

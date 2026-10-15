@@ -87,7 +87,7 @@ export async function scriptSubWork(db: Db, work: WorkDetail, src: ScriptSource,
     const report = (f: number, label: string): void => ctx.report(Math.min(total, step + f), total, `${label} · ${g.title}`)
     try {
       const existing = await hasSub(g, lang, deps.readSub)
-      if (existing && !(opts.redo && existing.envMade)) {
+      if (existing && !opts.redo) {
         res.skipped.push(`${g.title}: 자막이 이미 있습니다`)
         step++
         continue
@@ -120,7 +120,7 @@ export async function scriptSubWork(db: Db, work: WorkDetail, src: ScriptSource,
       else res.made++
       if (lang === 'ja' && opts.translate) {
         const ko = await hasSub(g, 'ko', deps.readSub)
-        if (ko && !(opts.redo && ko.envMade)) res.skipped.push(`${g.title}: 한국어 자막이 이미 있습니다`)
+        if (ko && !opts.redo) res.skipped.push(`${g.title}: 한국어 자막이 이미 있습니다`)
         else if (!deps.translator) throw new Error('번역 엔진이 없습니다')
         else {
           const out = await translateLines(lines, deps.translator, {

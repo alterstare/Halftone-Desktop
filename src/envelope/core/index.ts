@@ -2,7 +2,7 @@
 // Halftone and the tests all drive the same code.
 import { mkdirSync, promises as fsp, readFileSync } from 'fs'
 import { basename, dirname, extname, join } from 'path'
-import type { CoverItem, Cue, Group, HistoryEntry, RenameItem, SePref, Settings, SubLang, SubtitleText, ToolResult, WavItem, WorkDetail, WorkSummary } from '../shared/types'
+import type { CoverItem, CoverSaveItem, Cue, Group, HistoryEntry, RenameItem, SePref, Settings, SubExportItem, SubLang, SubtitleText, ToolResult, WavItem, WorkDetail, WorkSummary } from '../shared/types'
 import * as tools from './tools'
 import type { EncodeFn, TrashFn } from './tools'
 import { encodeWavToMp3 } from './tools/wav'
@@ -107,7 +107,27 @@ export class EnvCore {
     this.log = new ActionLog(this.db)
     tools.registerCoverUndo(this.log)
     tools.registerRenameUndo(this.log, (pairs) => this.relocate(pairs))
-    // 자막 저장: put the old file back (or remove the new one).
+    // 자막 저장 (in the program): the previous text back, or none.
+    this.log.register<{ trackPath: string; lang: SubLang; prev: string | null; label: string }>(
+      'subtitle.app',
+      async (p) => this.putAppSub(p.trackPath, p.lang, p.prev),
+      (p) => ({
+        ...p,
+        prev: (this.db.prepare('SELECT vtt FROM app_subs WHERE track_path = ? AND lang = ?').get(p.trackPath, p.lang) as { vtt: string } | undefined)?.vtt ?? null
+      })
+    )
+    // 표지 저장: the cover files it added go again.
+    this.log.register<{ label: string; items: string[] }>('tools.coversave', async (p) => {
+      for (const f of p.items) await fsp.rm(f, { force: true })
+    })
+    // 자막 내보내기: each written file back as it was (or gone).
+    this.log.register<{ label: string; items: { to: string; prev: string | null }[] }>('tools.subexport', async (p) => {
+      for (const it of p.items) {
+        if (it.prev === null) await fsp.rm(it.to, { force: true })
+        else await fsp.writeFile(it.to, it.prev, 'utf8')
+      }
+    })
+    // 자막 저장 (before 0.2, files next to the audio): put the old file back (or remove the new one).
     this.log.register<{ path: string; prev: string | null; trackId: number; lang: SubLang; label: string }>(
       'subtitle.save',
       async (p) => {
@@ -474,28 +494,129 @@ export class EnvCore {
   // ---- subtitles (Phase 2) ----
 
   async readSubtitle(path: string): Promise<SubtitleText> {
+    const app = library.parseAppSubPath(path)
+    if (app) {
+      const row = this.db.prepare('SELECT vtt FROM app_subs WHERE track_path = ? AND lang = ?').get(app.trackPath, app.lang) as { vtt: string } | undefined
+      if (!row) throw new Error('자막을 찾지 못했습니다')
+      return { path, cues: parseSubtitle(row.vtt, '.vtt'), lang: app.lang, envMade: true }
+    }
     const text = decodeText(await fsp.readFile(path))
     const cues = parseSubtitle(text, extname(path))
     return { path, cues, lang: langOfName(basename(path)) ?? langOfText(cues.map((c) => c.text).join(' ')), envMade: isEnvMade(text) }
   }
 
-  // Write "<audio name>.<lang>.vtt" next to the track. Another program's file
-  // of that name is only replaced with `overwrite`. One undo step.
-  async saveSubtitle(trackId: number, lang: SubLang, cues: Cue[], overwrite = false): Promise<{ path: string; conflict: boolean }> {
+  // Save a track's subtitle INSIDE the program (outside 파일 정리 nothing in
+  // the library folders changes); 파일 정리 › 자막 › 폴더 변경 writes them
+  // next to the audio. One undo step. `overwrite` is kept for callers.
+  async saveSubtitle(trackId: number, lang: SubLang, cues: Cue[], _overwrite = false): Promise<{ path: string; conflict: boolean }> {
     const t = library.trackById(this.db, trackId)
     if (!t) throw new Error('트랙을 찾지 못했습니다')
-    const path = join(dirname(t.path), `${basename(t.path, extname(t.path))}.${lang === 'other' ? 'sub' : lang}.vtt`)
-    let prev: string | null = null
-    try {
-      prev = decodeText(await fsp.readFile(path))
-    } catch {
-      prev = null
-    }
-    if (prev !== null && !isEnvMade(prev) && !overwrite) return { path, conflict: true }
-    await fsp.writeFile(path, toVtt(cues), 'utf8')
-    this.log.record('subtitle.save', { path, prev, trackId, lang, label: '자막 저장' })
-    library.addTrackSub(this.db, trackId, { path, lang })
-    return { path, conflict: false }
+    const prev = (this.db.prepare('SELECT vtt FROM app_subs WHERE track_path = ? AND lang = ?').get(t.path, lang) as { vtt: string } | undefined)?.vtt ?? null
+    this.putAppSub(t.path, lang, toVtt(cues))
+    this.log.record('subtitle.app', { trackPath: t.path, lang, prev, label: '자막 저장' })
+    return { path: library.appSubPath(lang, t.path), conflict: false }
+  }
+
+  private putAppSub(trackPath: string, lang: string, vtt: string | null): void {
+    if (vtt === null) this.db.prepare('DELETE FROM app_subs WHERE track_path = ? AND lang = ?').run(trackPath, lang)
+    else
+      this.db
+        .prepare('INSERT INTO app_subs (track_path, lang, vtt, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(track_path, lang) DO UPDATE SET vtt = excluded.vtt, updated_at = excluded.updated_at')
+        .run(trackPath, lang, vtt, Date.now())
+  }
+
+  // 파일 정리 › DLsite 정보 › 폴더 변경: the fetched cover into the work folder.
+  planCoverSave(ids: number[] | null): { id: number; done: Promise<CoverSaveItem[]> } {
+    return this.queue.add('표지 저장 확인', async () => {
+      const rows = this.db.prepare('SELECT id, path, title, dl_cover FROM works WHERE dl_cover IS NOT NULL ORDER BY title').all() as {
+        id: number
+        path: string
+        title: string
+        dl_cover: string
+      }[]
+      const out: CoverSaveItem[] = []
+      for (const w of rows) {
+        if (ids && !ids.includes(w.id)) continue
+        if (!existsSync(w.dl_cover)) continue
+        const ext = extname(w.dl_cover) || '.jpg'
+        const to = [join(w.path, `cover${ext}`), join(w.path, `cover (DLsite)${ext}`)].find((p) => !existsSync(p))
+        if (to) out.push({ id: String(w.id), workId: w.id, workTitle: this.work(w.id)?.title ?? w.title, from: w.dl_cover, to })
+      }
+      return out
+    })
+  }
+  runCoverSave(items: CoverSaveItem[]): { id: number; done: Promise<ToolResult> } {
+    return this.queue.add('표지 저장', async (ctx) => {
+      const undo: { label: string; items: string[] } = { label: '표지 저장', items: [] }
+      const failed: string[] = []
+      for (let i = 0; i < items.length; i++) {
+        if (ctx.signal.aborted) break
+        const it = items[i]
+        ctx.report(i, items.length, `표지 저장 · ${it.workTitle}`)
+        try {
+          if (existsSync(it.to)) throw new Error('같은 이름의 파일이 이미 있습니다')
+          await fsp.copyFile(it.from, it.to)
+          undo.items.push(it.to)
+        } catch (e) {
+          failed.push(`${it.workTitle}: ${String((e as Error)?.message ?? e)}`)
+        }
+      }
+      if (undo.items.length) this.log.record('tools.coversave', undo)
+      ctx.report(items.length, items.length)
+      return { ok: !failed.length, message: `표지 ${undo.items.length}개를 작품 폴더에 저장했습니다${failed.length ? `, ${failed.length}개 실패` : ''}`, done: undo.items.length, failed }
+    })
+  }
+
+  // 파일 정리 › 자막 › 폴더 변경: the program's subtitles as "<audio>.<lang>.vtt"
+  // next to the audio. Another program's file of that name is listed but not
+  // chosen by default (replacing it needs a tick).
+  planSubExport(ids: number[] | null): { id: number; done: Promise<SubExportItem[]> } {
+    return this.queue.add('자막 내보내기 확인', async () => {
+      const rows = this.db
+        .prepare('SELECT a.track_path, a.lang, t.work_id, w.title FROM app_subs a JOIN tracks t ON t.path = a.track_path JOIN works w ON w.id = t.work_id ORDER BY w.title, a.track_path')
+        .all() as { track_path: string; lang: string; work_id: number; title: string }[]
+      const out: SubExportItem[] = []
+      for (const r of rows) {
+        if (ids && !ids.includes(r.work_id)) continue
+        const to = join(dirname(r.track_path), `${basename(r.track_path, extname(r.track_path))}.${r.lang === 'other' ? 'sub' : r.lang}.vtt`)
+        let state: SubExportItem['state'] = 'new'
+        try {
+          state = isEnvMade(decodeText(await fsp.readFile(to))) ? 'update' : 'conflict'
+        } catch {
+          state = 'new'
+        }
+        out.push({ id: `${r.track_path}|${r.lang}`, workId: r.work_id, workTitle: r.title, trackPath: r.track_path, lang: r.lang as SubLang, to, state })
+      }
+      return out
+    })
+  }
+  runSubExport(items: SubExportItem[]): { id: number; done: Promise<ToolResult> } {
+    return this.queue.add('자막 내보내기', async (ctx) => {
+      const undo: { label: string; items: { to: string; prev: string | null }[] } = { label: '자막 내보내기', items: [] }
+      const failed: string[] = []
+      for (let i = 0; i < items.length; i++) {
+        if (ctx.signal.aborted) break
+        const it = items[i]
+        ctx.report(i, items.length, `자막 내보내기 · ${basename(it.to)}`)
+        try {
+          const row = this.db.prepare('SELECT vtt FROM app_subs WHERE track_path = ? AND lang = ?').get(it.trackPath, it.lang) as { vtt: string } | undefined
+          if (!row) throw new Error('자막이 없습니다')
+          let prev: string | null = null
+          try {
+            prev = await fsp.readFile(it.to, 'utf8')
+          } catch {
+            prev = null
+          }
+          await fsp.writeFile(it.to, row.vtt, 'utf8')
+          undo.items.push({ to: it.to, prev })
+        } catch (e) {
+          failed.push(`${basename(it.to)}: ${String((e as Error)?.message ?? e)}`)
+        }
+      }
+      if (undo.items.length) this.log.record('tools.subexport', undo)
+      ctx.report(items.length, items.length)
+      return { ok: !failed.length, message: `자막 ${undo.items.length}개를 폴더에 저장했습니다${failed.length ? `, ${failed.length}개 실패` : ''}`, done: undo.items.length, failed }
+    })
   }
 
   setSubOffset(workId: number, groupKey: string, offset: number): void {
@@ -574,6 +695,11 @@ export class EnvCore {
         this.db.prepare("DELETE FROM track_prefs WHERE work_id = ? AND substr(group_key, 1, 1) = char(1)").run(w.id)
       })()
     }
+    // program subtitles follow their audio
+    for (const r of this.db.prepare('SELECT track_path, lang FROM app_subs').all() as { track_path: string; lang: string }[]) {
+      const q = map(r.track_path)
+      if (q !== r.track_path) this.db.prepare('UPDATE OR REPLACE app_subs SET track_path = ? WHERE track_path = ? AND lang = ?').run(q, r.track_path, r.lang)
+    }
     // name translations move with their files; a name renamed to its
     // translation now shows what it was renamed to
     const renamed = new Map((items ?? []).filter((x) => x.translated).map((x) => [x.to, x]))
@@ -648,7 +774,14 @@ export class EnvCore {
   // Changes made to files, newest first. Only the newest undoable one can be
   // undone (the log goes back one step at a time).
   history(limit = 30): HistoryEntry[] {
-    const kinds: Record<string, HistoryEntry['kind']> = { 'subtitle.save': 'subtitle', 'tools.cover': 'cover', 'tools.rename': 'rename' }
+    const kinds: Record<string, HistoryEntry['kind']> = {
+      'subtitle.save': 'subtitle',
+      'subtitle.app': 'subtitle',
+      'tools.subexport': 'subtitle',
+      'tools.coversave': 'cover',
+      'tools.cover': 'cover',
+      'tools.rename': 'rename'
+    }
     const logged = this.log.recent(limit).filter((a) => a.type in kinds)
     const newest = this.log.recent(1)[0]
     const out: HistoryEntry[] = logged.map((a) => {
