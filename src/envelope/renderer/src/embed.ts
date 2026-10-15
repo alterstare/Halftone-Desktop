@@ -5,6 +5,9 @@
 import type { ProgressEvent } from '../../shared/types'
 
 export const embedded = window.parent !== window
+// mark it before the first paint: styles for the frame (its top bar as tall as
+// Halftone's) apply from the start instead of after a message
+if (embedded) document.documentElement.classList.add('env-embedded')
 
 // The host page (same origin), or null when standalone / not reachable.
 function hostDocument(): Document | null {

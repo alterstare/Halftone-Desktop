@@ -7553,9 +7553,13 @@ select:hover,
   border-left: 1px solid var(--line);
   background: var(--bg);
 }
+/* hidden while the big window shows it: fades out in place (EnvelopeDock),
+   then invisible — still there, still playing */
 .envelope-dock.hidden {
-  visibility: hidden;
   pointer-events: none;
+}
+.envelope-dock {
+  will-change: transform, opacity;
 }
 .envelope-frame {
   width: 100%;

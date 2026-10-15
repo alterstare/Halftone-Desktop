@@ -6,7 +6,7 @@
 // as Halftone), or hidden while its separate big window shows it (it keeps
 // playing). The frame asks for those shapes with postMessage; keys Halftone
 // doesn't use itself go down to it.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { useStore } from '../store'
 import { comboFromEvent, SHORTCUTS, shortcutCombos } from '../../../shared/shortcuts'
@@ -110,6 +110,48 @@ export default function EnvelopeDock(): JSX.Element | null {
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
+  // Changing shape is animated the way Windows minimizes: the box jumps to its
+  // new place at once, then is squeezed from the old box into it with a GPU
+  // transform (nothing is laid out frame by frame). Opening the big window,
+  // the panel lifts off and fades; coming back, it settles in again.
+  const dock = useRef<HTMLDivElement>(null)
+  const lastRect = useRef<DOMRect | null>(null)
+  const lastShape = useRef(shape)
+  useLayoutEffect(() => {
+    const el = dock.current
+    if (!el) {
+      lastRect.current = null
+      lastShape.current = shape
+      return
+    }
+    const now = el.getBoundingClientRect()
+    const before = lastRect.current
+    const from = lastShape.current
+    lastShape.current = shape
+    if (shape !== 'hidden') lastRect.current = now
+    if (!before || from === shape) return
+    el.getAnimations().forEach((a) => a.cancel())
+    el.style.visibility = ''
+    const LIFT = 'translateY(-14px) scale(0.94)'
+    if (shape === 'hidden') {
+      const a = el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: LIFT }], { duration: 300, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' })
+      a.onfinish = () => (el.style.visibility = 'hidden')
+      return
+    }
+    const first =
+      from === 'hidden'
+        ? { transform: LIFT, opacity: 0 }
+        : {
+            transform: `translate(${before.left - now.left}px, ${before.top - now.top}px) scale(${before.width / now.width}, ${before.height / now.height})`,
+            opacity: 1
+          }
+    el.animate([{ ...first, transformOrigin: '0 0' }, { transform: 'none', opacity: 1, transformOrigin: '0 0' }], {
+      duration: 360,
+      // into the bar: faster and faster (sucked in); out of it: settling
+      easing: shape === 'bar' ? 'cubic-bezier(0.5, 0, 0.75, 0.25)' : 'cubic-bezier(0.2, 0.8, 0.25, 1)'
+    })
+  }, [shape, open])
+
   if (!open) return null
 
   // drag the panel's left edge to widen it
@@ -141,9 +183,9 @@ export default function EnvelopeDock(): JSX.Element | null {
       ? { top: 0, bottom: 0, right: 0, width }
       : shape === 'bar'
         ? { left: 0, right: 0, bottom: 0, height: BAR_H + lift }
-        : { right: 0, bottom: 0, width: 1, height: 1 }
+        : { top: 0, bottom: 0, right: 0, width }
   return (
-    <div className={`envelope-dock ${shape} ${dragging ? 'dragging' : ''}`} style={style}>
+    <div ref={dock} className={`envelope-dock ${shape} ${dragging ? 'dragging' : ''}`} style={style}>
       {shape === 'panel' && <div className="envelope-resize" title="끌어서 폭 조절" onPointerDown={startDrag} />}
       <iframe ref={frame} className="envelope-frame" src="envelope.html" aria-label="음성 플레이어" onLoad={() => ((loaded.current = true), sendShape())} />
     </div>
