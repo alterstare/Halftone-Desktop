@@ -120,11 +120,12 @@ export class EnvCore {
     this.log.register<{ label: string; items: string[] }>('tools.coversave', async (p) => {
       for (const f of p.items) await fsp.rm(f, { force: true })
     })
-    // 자막 내보내기: each written file back as it was (or gone).
+    // 자막 내보내기: each written file back as it was, byte for byte (another
+    // program's file may be Shift-JIS / UTF-16), or gone.
     this.log.register<{ label: string; items: { to: string; prev: string | null }[] }>('tools.subexport', async (p) => {
       for (const it of p.items) {
         if (it.prev === null) await fsp.rm(it.to, { force: true })
-        else await fsp.writeFile(it.to, it.prev, 'utf8')
+        else await fsp.writeFile(it.to, Buffer.from(it.prev, 'base64'))
       }
     })
     // 자막 저장 (before 0.2, files next to the audio): put the old file back (or remove the new one).
@@ -601,9 +602,9 @@ export class EnvCore {
         try {
           const row = this.db.prepare('SELECT vtt FROM app_subs WHERE track_path = ? AND lang = ?').get(it.trackPath, it.lang) as { vtt: string } | undefined
           if (!row) throw new Error('자막이 없습니다')
-          let prev: string | null = null
+          let prev: string | null = null // base64 of the file it replaces
           try {
-            prev = await fsp.readFile(it.to, 'utf8')
+            prev = (await fsp.readFile(it.to)).toString('base64')
           } catch {
             prev = null
           }
@@ -630,7 +631,31 @@ export class EnvCore {
     return this.queue.add('wav 정리 확인', (ctx) => tools.planWav(this.db, ids, ctx))
   }
   runWav(items: WavItem[], trash: TrashFn): { id: number; done: Promise<ToolResult> } {
-    return this.queue.add('wav 정리', (ctx) => tools.runWav(this.db, items, { encode: this.encode, trash, bitrate: this.settings().mp3Bitrate }, ctx), { resumable: false })
+    return this.queue.add(
+      'wav 정리',
+      async (ctx) => {
+        try {
+          return await tools.runWav(this.db, items, { encode: this.encode, trash, bitrate: this.settings().mp3Bitrate }, ctx)
+        } finally {
+          this.moveAppSubs(items.filter((x) => x.kind === 'convert' || x.kind === 'delete').map((x) => [x.wav, x.mp3]))
+        }
+      },
+      { resumable: false }
+    )
+  }
+
+  // The program's subtitles of a wav that went (converted / a same mp3 kept)
+  // go to the mp3 — unless the mp3 has its own in that language.
+  private moveAppSubs(pairs: [string, string][]): void {
+    const move = this.db.prepare('UPDATE OR IGNORE app_subs SET track_path = ? WHERE track_path = ?')
+    const drop = this.db.prepare('DELETE FROM app_subs WHERE track_path = ?')
+    this.db.transaction(() => {
+      for (const [from, to] of pairs) {
+        if (existsSync(from) || !existsSync(to)) continue
+        move.run(to, from)
+        drop.run(from)
+      }
+    })()
   }
   planCover(ids: number[] | null): { id: number; done: Promise<CoverItem[]> } {
     return this.queue.add('썸네일 확인', (ctx) => tools.planCover(this.db, ids, this.settings().coverSkipExisting, ctx))
@@ -786,9 +811,15 @@ export class EnvCore {
     const logged = this.log.recent(limit).filter((a) => a.type in kinds)
     const newest = this.log.recent(1)[0]
     const out: HistoryEntry[] = logged.map((a) => {
-      const p = a.payload as { label?: string; items?: unknown[]; path?: string }
+      const p = a.payload as { label?: string; items?: unknown[]; path?: string; trackPath?: string; lang?: string }
       const n = p.items?.length
-      const summary = a.type === 'subtitle.save' ? `자막 저장 · ${(p.path ?? '').split(/[\\/]/).pop()}` : `${p.label ?? a.type}${n ? ` · ${n}개` : ''}`
+      const LANG: Record<string, string> = { ja: '일본어', ko: '한국어', other: '기타' }
+      const summary =
+        a.type === 'subtitle.save'
+          ? `자막 저장 · ${(p.path ?? '').split(/[\\/]/).pop()}`
+          : a.type === 'subtitle.app'
+            ? `자막 저장 · ${(p.trackPath ?? '').split(/[\\/]/).pop()} (${LANG[p.lang ?? ''] ?? p.lang})`
+            : `${p.label ?? a.type}${n ? ` · ${n}개` : ''}`
       return { id: `log:${a.id}`, kind: kinds[a.type], summary, createdAt: a.createdAt, undoable: newest?.id === a.id }
     })
     const files = this.db.prepare('SELECT id, kind, summary, created_at FROM file_history ORDER BY id DESC LIMIT ?').all(limit) as {

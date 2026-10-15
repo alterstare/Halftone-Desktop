@@ -7,7 +7,7 @@ import { followRemote, serveRemote } from './remote'
 import { useStore } from './store'
 import type { View } from './store'
 import { media, next, prev, setRate, setVolume, skip, toggle } from './player'
-import { nudgeSubOffset } from './subs'
+import { loadSubs, nudgeSubOffset } from './subs'
 import { serveDecoding } from './decode'
 import { toggleBookmarkHere } from './components/Bookmarks'
 import { comboFromEvent, shortcutCombos } from '../../shared/shortcuts'
@@ -48,7 +48,7 @@ export default function App(): JSX.Element | null {
     return (
       <div className="locked">
         <h2>{st.lockedBy ?? '다른 앱'}에서 Envelope 데이터를 쓰고 있습니다</h2>
-        <p>Envelope 독립 앱과 Halftone은 같은 데이터를 함께 씁니다. {st.lockedBy ?? '다른 앱'}을(를) 닫은 뒤 다시 시도하세요.</p>
+        <p>Envelope 독립 앱과 Halftone은 같은 데이터를 함께 씁니다. {st.lockedBy === 'Envelope' ? 'Envelope를' : `${st.lockedBy ?? '다른 앱'}을`} 닫은 뒤 다시 시도하세요.</p>
         <button className="btn primary" onClick={() => void window.api.retryLock().then(setSt)}>
           다시 시도
         </button>
@@ -137,9 +137,15 @@ function Main(): JSX.Element {
         useStore.setState((s) => ({ jobs: keepJob(s.jobs, e) }))
         postJob(e)
       }),
-      window.api.onLibraryChanged(() => {
-        void useStore.getState().loadWorks()
-        void useStore.getState().refreshWork()
+      // after a scan / undo: the lists, the work shown, and the playing
+      // track's subtitles (a saved or undone subtitle shows at once)
+      window.api.onLibraryChanged(async () => {
+        const st = useStore.getState()
+        void st.loadWorks()
+        await st.refreshWork()
+        if (st.now && st.now.work.id !== st.shown?.id) await st.refreshWork(st.now.work.id)
+        const n = useStore.getState().now
+        if (n) void loadSubs(n.work, n.groupKey, n.trackId)
       }),
       window.api.onToast((t) => useStore.getState().showToast(t)),
       ...(hosted ? [] : [window.api.onWindowState((w) => useStore.setState({ win: w }))]),

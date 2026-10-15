@@ -176,7 +176,7 @@ export default function SubEditor(): JSX.Element {
           <button className="mini icon" title="닫기" onClick={close}>
             <CloseIcon />
           </button>
-          <button className="mini on" disabled={!dirty} onClick={() => void doSave()} title="음성 파일 옆에 vtt로 저장 (Ctrl+S)">
+          <button className="mini on" disabled={!dirty} onClick={() => void doSave()} title="프로그램 안에 저장 (Ctrl+S) — 폴더에는 파일 정리 › 자막 › 폴더 변경으로">
             <SaveIcon /> 저장
           </button>
         </div>
