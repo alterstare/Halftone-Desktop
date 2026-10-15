@@ -239,6 +239,21 @@ export default function SubEditor({ sheet = false }: { sheet?: boolean }): JSX.E
               className={`se-row ${i === active ? 'on' : ''} ${c.low ? 'low' : ''}`}
               title={c.low ? '대본 맞추기에서 위치가 확실하지 않은 줄입니다. 시간을 고치면 표시가 사라집니다.' : undefined}
             >
+              {/* number on the left, the line's tools on the right, on top */}
+              <div className="se-top">
+                <span className="se-no">{i + 1}</span>
+                <div className="se-actions flat-group">
+                  <button className="mini icon" title="둘로 나누기" onClick={() => split(i)}>
+                    <ContentCutIcon />
+                  </button>
+                  <button className="mini icon" title="다음 줄과 합치기" disabled={i === cues.length - 1} onClick={() => merge(i)}>
+                    <MergeIcon />
+                  </button>
+                  <button className="mini icon danger" title="줄 삭제" onClick={() => change(cues.filter((_, j) => j !== i))}>
+                    <DeleteIcon />
+                  </button>
+                </div>
+              </div>
               <div className="se-times">
                 <button className="mini icon" title="여기서 재생" onClick={() => (seek(c.start + offset), void media().play())}>
                   <PlayArrowIcon />
@@ -250,17 +265,6 @@ export default function SubEditor({ sheet = false }: { sheet?: boolean }): JSX.E
                 <TimeInput value={c.end} onChange={(v) => edit(i, { end: v })} />
                 <button className="mini icon" title="끝을 지금 위치로" onClick={() => edit(i, { end: pos() })}>
                   <LastPageIcon />
-                </button>
-              </div>
-              <div className="se-actions flat-group">
-                <button className="mini icon" title="둘로 나누기" onClick={() => split(i)}>
-                  <ContentCutIcon />
-                </button>
-                <button className="mini icon" title="다음 줄과 합치기" disabled={i === cues.length - 1} onClick={() => merge(i)}>
-                  <MergeIcon />
-                </button>
-                <button className="mini icon danger" title="줄 삭제" onClick={() => change(cues.filter((_, j) => j !== i))}>
-                  <DeleteIcon />
                 </button>
               </div>
               <div className="se-text">
