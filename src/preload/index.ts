@@ -202,6 +202,9 @@ const api: Api = {
 // page gets Halftone's; any other frame gets nothing.
 if (/\/envelope\.html$/.test(location.pathname)) {
   contextBridge.exposeInMainWorld('api', createEnvelopeApi(ipcRenderer))
+  // the frame (and its big window) start in Halftone's theme — before the
+  // first paint, so the panel doesn't flash light
+  applyInitialTheme()
 } else if (/\/sorta\.html$/.test(location.pathname)) {
   contextBridge.exposeInMainWorld('api', createSortaApi(ipcRenderer))
   applyInitialTheme() // the Sorta frame follows Halftone's theme from its first paint

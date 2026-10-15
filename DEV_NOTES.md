@@ -357,6 +357,10 @@ single-instance lock), connect to the page target and click / call
   posts `env-mode` (its shape) and `env-key`. **Never post to the frame before
   its `load`** — touching the frame's first (empty) window keeps Electron's
   preload from giving the real page its `window.api`.
+- Theme from the first paint: the preload stamps Halftone's theme on the
+  frame's (and big window's) <html> like Sorta's, and envelope.html / index.html
+  colour the first paint from it with a small inline style (the stylesheet
+  arrives later — in dev it is injected by script), so nothing flashes light.
 - Keys: everything works when the frame has focus; with focus in Halftone, a
   key goes down to the frame only if no Halftone shortcut (incl. user
   overrides) uses it and it isn't reserved for the reader / scrolling

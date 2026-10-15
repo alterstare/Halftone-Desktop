@@ -12,6 +12,12 @@
       content="default-src 'self'; img-src 'self' mangaimg: data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net; worker-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://tessdata.projectnaptha.com"
     />
     <title>Halftone</title>
+    <!-- the theme the preload stamps on <html> colours the very first paint,
+         before the stylesheet arrives (no light flash in dark mode) -->
+    <style>
+      html[data-theme="dark"] { background: #0b0d13; color-scheme: dark; }
+      html[data-theme="light"] { background: #f4f5f8; color-scheme: light; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

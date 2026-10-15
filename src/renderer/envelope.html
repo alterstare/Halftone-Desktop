@@ -11,6 +11,12 @@
       content="default-src 'self'; connect-src 'self' env-media:; img-src 'self' env-media: data: blob:; media-src 'self' env-media: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'"
     />
     <title>Envelope</title>
+    <!-- the theme the preload stamps on <html> colours the very first paint,
+         before the stylesheet arrives (no light flash in dark mode) -->
+    <style>
+      html[data-theme="dark"] { background: #0b0d13; color-scheme: dark; }
+      html[data-theme="light"] { background: #f4f5f8; color-scheme: light; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
