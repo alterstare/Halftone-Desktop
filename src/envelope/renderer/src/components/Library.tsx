@@ -45,8 +45,30 @@ export async function addLibraryFolder(): Promise<void> {
   st.showToast(r)
 }
 
-// where the library list was scrolled to (kept while the app runs)
-let libScroll = 0
+// Where the library was scrolled to (kept while the app runs): the card at
+// the top of the view and how far it sat from the top — the layout can come
+// back slightly different (이어 듣기 row, card sizes measured after the first
+// paint), so the card is lined up again rather than a pixel offset reused.
+const libAnchor = { id: null as string | null, nth: 0, offset: 0, top: 0 }
+const ITEM = '[data-wid]'
+function saveAnchor(home: HTMLElement): void {
+  const top = home.getBoundingClientRect().top
+  const items = [...home.querySelectorAll<HTMLElement>(ITEM)]
+  const first = items.find((x) => x.getBoundingClientRect().bottom > top + 1)
+  libAnchor.top = home.scrollTop
+  libAnchor.id = home.scrollTop > 0 && first ? first.dataset.wid! : null
+  libAnchor.nth = first ? items.filter((x) => x.dataset.wid === first.dataset.wid).indexOf(first) : 0
+  libAnchor.offset = first ? first.getBoundingClientRect().top - top : 0
+}
+function restoreAnchor(home: HTMLElement): void {
+  if (!libAnchor.id) {
+    home.scrollTop = libAnchor.top
+    return
+  }
+  const el = [...home.querySelectorAll<HTMLElement>(`[data-wid="${libAnchor.id}"]`)][libAnchor.nth]
+  if (!el) return
+  home.scrollTop += el.getBoundingClientRect().top - home.getBoundingClientRect().top - libAnchor.offset
+}
 
 function passes(w: WorkSummary, f: LibFilter): boolean {
   if (f.favorites && !w.favorite) return false
@@ -118,7 +140,7 @@ function Tile({ w, nowId }: { w: WorkSummary; nowId?: number }): JSX.Element {
   const open = useStore((s) => s.openWork)
   const done = listenState(w) === 'done'
   return (
-    <div className={`tile ${nowId === w.id ? 'now' : ''}`} onClick={() => void open(w.id)} title={w.folderTitle && w.folderTitle !== w.title ? `${w.title}\n${w.folderTitle}` : w.title}>
+    <div data-wid={w.id} className={`tile ${nowId === w.id ? 'now' : ''}`} onClick={() => void open(w.id)} title={w.folderTitle && w.folderTitle !== w.title ? `${w.title}\n${w.folderTitle}` : w.title}>
       <Art path={w.cover}>
         {done && (
           <span className="badge-done">
@@ -151,7 +173,7 @@ function Row({ w, nowId }: { w: WorkSummary; nowId?: number }): JSX.Element {
   const open = useStore((s) => s.openWork)
   const st = listenState(w)
   return (
-    <div className={`lrow ${nowId === w.id ? 'now' : ''}`} onClick={() => void open(w.id)}>
+    <div data-wid={w.id} className={`lrow ${nowId === w.id ? 'now' : ''}`} onClick={() => void open(w.id)}>
       <div className="lrow-cover">
         <Cover path={w.cover} />
       </div>
@@ -234,13 +256,29 @@ export default function Library(): JSX.Element {
   // narrow grid: 2 columns while every card's meta line fits beside its play
   // button; once one doesn't, 1 column (until the page is wider than that)
   const homeRef = useRef<HTMLDivElement>(null)
-  // back to where the list was when the library is opened again
+  // back to where the list was when the library is opened again: lined up
+  // again while the layout settles (scroll events then aren't recorded);
+  // the user scrolling ends it at once
+  const restoring = useRef(true)
   useLayoutEffect(() => {
     const el = homeRef.current
     if (!el) return
-    el.scrollTop = libScroll
-    const id = requestAnimationFrame(() => (el.scrollTop = libScroll)) // after the cards are measured
-    return () => cancelAnimationFrame(id)
+    restoring.current = true
+    restoreAnchor(el)
+    const ro = new ResizeObserver(() => restoring.current && restoreAnchor(el))
+    for (const c of el.children) ro.observe(c)
+    const stop = (): void => {
+      restoring.current = false
+      ro.disconnect()
+    }
+    const t = setTimeout(stop, 1200)
+    el.addEventListener('wheel', stop, { once: true, passive: true })
+    el.addEventListener('pointerdown', stop, { once: true })
+    el.addEventListener('keydown', stop, { once: true })
+    return () => {
+      clearTimeout(t)
+      stop()
+    }
   }, [])
   const [homeW, setHomeW] = useState(0)
   const [oneColBelow, setOneColBelow] = useState(0)
@@ -420,7 +458,7 @@ export default function Library(): JSX.Element {
   )
   const anyFilter = listenActive || langActive || ageActive || groupActive
   return (
-    <div className={`home ${oneCol ? 'one-col' : ''} ${compactCards ? 'compact-cards' : ''}`} ref={homeRef} onScroll={(e) => (libScroll = e.currentTarget.scrollTop)}>
+    <div className={`home ${oneCol ? 'one-col' : ''} ${compactCards ? 'compact-cards' : ''}`} ref={homeRef} onScroll={(e) => !restoring.current && saveAnchor(e.currentTarget)}>
       <div className="home-head">
         <div className="badge">Voice</div>
         <h1>라이브러리</h1>
