@@ -1,2 +1,2 @@
 // Envelope version this copy was synced from.
-export const ENVELOPE_VERSION = '0.1.1'
+export const ENVELOPE_VERSION = '0.1.2'
