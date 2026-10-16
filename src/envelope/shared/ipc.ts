@@ -77,6 +77,7 @@ export const IPC = {
   translateNamesOf: 'env:translate:namesOf',
   nameStatus: 'env:translate:nameStatus',
   findScripts: 'env:script:find',
+  pickScript: 'env:script:pick',
   previewScript: 'env:script:preview',
   scriptSub: 'env:script:run',
   getGlossary: 'env:glossary:get',
@@ -228,6 +229,8 @@ export interface Api {
   nameStatus: (workIds: number[] | null) => Promise<NameStatus[]>
   // 대본 기반 자막 (Phase 6)
   findScripts: (workId: number) => Promise<ScriptSource[]>
+  // 파일 고르기…: any txt / pdf / docx as the work's script (null = cancelled)
+  pickScript: (workId: number) => Promise<ScriptSource | null>
   previewScript: (workId: number, sourceId: string) => Promise<ScriptPreview[]>
   scriptSub: (workId: number, opts: ScriptSubOptions) => Promise<JobSummary>
   getGlossary: (workId: number | null) => Promise<GlossaryEntry[]>

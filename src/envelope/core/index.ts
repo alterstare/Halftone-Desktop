@@ -27,7 +27,7 @@ import { TranslateStop, makeTranslator, translateLines } from './translate'
 import type { AutoSubOptions, AutoSubResult, DecodeFn } from './autosub'
 import { autoSubWork } from './autosub'
 import { namesMap, needsTranslation, translateNames } from './names/translate'
-import { findScripts, previewScript, scriptSubWork } from './script'
+import { findScripts, previewScript, scriptFromFile, scriptSubWork } from './script'
 import type { NameStatus, ScriptPreview, ScriptSource, ScriptSubOptions, WorkContent } from '../shared/types'
 import { existsSync } from 'fs'
 import * as originals from './originals'
@@ -426,9 +426,20 @@ export class EnvCore {
     const w = this.work(workId)
     return w ? findScripts(w) : []
   }
+  // A file the user picked (파일 고르기…) as a script source.
+  scriptFromFile(path: string): Promise<ScriptSource | null> {
+    return scriptFromFile(path)
+  }
+  // A source found in the work, or a picked file (`file:<path>`) anywhere
+  private async resolveScript(w: WorkDetail, sourceId: string): Promise<ScriptSource | undefined> {
+    const found = (await findScripts(w)).find((s) => s.id === sourceId)
+    if (found) return found
+    const path = sourceId.startsWith('file:') ? sourceId.slice(5) : ''
+    return (path && existsSync(path) && (await scriptFromFile(path))) || undefined
+  }
   async previewScript(workId: number, sourceId: string): Promise<ScriptPreview[]> {
     const w = this.work(workId)
-    const src = w && (await findScripts(w)).find((s) => s.id === sourceId)
+    const src = w && (await this.resolveScript(w, sourceId))
     if (!w || !src) throw new Error('대본을 찾지 못했습니다')
     return previewScript(w, src)
   }
@@ -455,7 +466,7 @@ export class EnvCore {
     if (!w) throw new Error('작품을 찾지 못했습니다')
     const s = this.settings()
     return this.queue.add(`대본 자막 · ${w.title}`, async (ctx) => {
-      const src = (await findScripts(w)).find((x) => x.id === opts.sourceId)
+      const src = await this.resolveScript(w, opts.sourceId)
       if (!src) throw new Error('대본을 찾지 못했습니다')
       const translator = src.lang !== 'ko' && opts.translate ? this.translator() : null
       return scriptSubWork(

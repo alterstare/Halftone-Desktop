@@ -96,6 +96,7 @@ export function createApi(ipcRenderer: IpcRenderer): Api {
     translateNamesOf: (ids, only) => invoke(IPC.translateNamesOf, ids, only),
     nameStatus: (ids) => invoke(IPC.nameStatus, ids),
     findScripts: (id) => invoke(IPC.findScripts, id),
+    pickScript: (id) => invoke(IPC.pickScript, id),
     previewScript: (id, src) => invoke(IPC.previewScript, id, src),
     scriptSub: (id, o) => invoke(IPC.scriptSub, id, o),
     getGlossary: (id) => invoke(IPC.getGlossary, id),

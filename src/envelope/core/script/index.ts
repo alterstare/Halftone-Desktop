@@ -14,7 +14,7 @@ import { readScript } from './read'
 import { scriptLines, splitByTracks } from './text'
 import { ALIGN, alignAcross, alignByLength, alignJapanese, toAlignedCues } from './align'
 
-export { findScripts } from './read'
+export { findScripts, scriptFromFile } from './read'
 
 // The script lines of each track; null = a whole script without track
 // headings (the lines are then placed by aligning across all tracks).

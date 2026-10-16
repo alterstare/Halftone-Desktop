@@ -56,6 +56,13 @@ function groupOf(file: string, groups: TrackGroup[]): TrackGroup | undefined {
   return n !== null ? main.find((g) => trackNumber(g.title) === n) : undefined
 }
 
+// A file the user picked as the script (any name, anywhere): one script for
+// the whole work, like a found one. null = not a txt / pdf / docx.
+export async function scriptFromFile(path: string): Promise<ScriptSource | null> {
+  if (!EXTS.has(extname(path).toLowerCase())) return null
+  return { id: `file:${path}`, kind: 'whole', path, label: basename(path), lang: await sampleLang(path) }
+}
+
 async function sampleLang(path: string): Promise<'ja' | 'ko' | 'other'> {
   try {
     const text = extname(path).toLowerCase() === '.txt' ? decodeText(await fsp.readFile(path)) : await readScript(path)

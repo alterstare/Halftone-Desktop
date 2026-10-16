@@ -1,13 +1,14 @@
 // 작품 화면 › 자동 자막: how to make the subtitles — 받아쓰기 (speech engine),
-// or 대본 (the work's script, timed by a small model) when one is found —
-// which tracks, the work's own glossary; then one background job.
+// or 대본 (a script found in the work, or any txt / pdf / docx picked with
+// 파일 고르기…, timed by a small model) — which tracks, the work's own
+// glossary; then one background job.
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import { useStore } from '../store'
 import type { ScriptPreview, ScriptSource, WorkDetail } from '../../../shared/types'
 import { Check, Dropdown, Popover, useAnchor } from './ui'
 import { Glossary } from './AutoSubSettings'
-import { SubtitlesIcon } from './icons'
+import { FileOpenIcon, SubtitlesIcon } from './icons'
 
 const ENGINE: Record<string, string> = { local: '로컬 whisper.cpp', groq: 'Groq' }
 const TRANSLATOR: Record<string, string> = { google: 'Google 번역', deepl: 'DeepL', gemini: 'Gemini', llm: 'LLM' }
@@ -30,13 +31,23 @@ export default function AutoSubButton({ w }: { w: WorkDetail }): JSX.Element {
   useEffect(() => {
     if (!pop.open) return
     void window.api.findScripts(w.id).then((list) => {
-      setScripts(list)
-      if (list.length && !list.some((x) => x.id === src)) setSrc(list[0].id)
+      // keep a file picked earlier in the list
+      const picked = scripts.filter((x) => x.id.startsWith('file:') && !list.some((y) => y.id === x.id))
+      const all = [...list, ...picked]
+      setScripts(all)
+      if (all.length && !all.some((x) => x.id === src)) setSrc(all[0].id)
     })
   }, [pop.open, w.id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => setPreview(null), [src])
 
   const source = scripts.find((x) => x.id === src)
+  const pickFile = async (): Promise<void> => {
+    const f = await window.api.pickScript(w.id)
+    if (!f) return
+    setScripts((list) => [...list.filter((x) => x.id !== f.id), f])
+    setSrc(f.id)
+    setMethod('script')
+  }
   const start = async (): Promise<void> => {
     pop.close()
     const st = useStore.getState()
@@ -67,17 +78,22 @@ export default function AutoSubButton({ w }: { w: WorkDetail }): JSX.Element {
         <Popover anchor={pop.anchor} closing={pop.closing} onClose={pop.close}>
           <div className="autosub-pop">
             <div className="menu-title">자동 자막</div>
-            {scripts.length > 0 && (
-              <div className="flat-group">
-                <button className={`mini ${method === 'asr' ? 'on' : ''}`} onClick={() => setMethod('asr')}>
-                  받아쓰기
+            <div className="flat-group">
+              <button className={`mini ${method === 'asr' ? 'on' : ''}`} onClick={() => setMethod('asr')}>
+                받아쓰기
+              </button>
+              <button className={`mini ${method === 'script' ? 'on' : ''}`} onClick={() => setMethod('script')}>
+                대본 사용
+              </button>
+            </div>
+            {method === 'script' && !source ? (
+              <>
+                <div className="hint">작품 폴더에서 대본을 찾지 못했습니다. txt · pdf · docx 파일을 직접 고를 수 있습니다.</div>
+                <button className="mini" onClick={() => void pickFile()}>
+                  <FileOpenIcon /> 파일 고르기…
                 </button>
-                <button className={`mini ${method === 'script' ? 'on' : ''}`} onClick={() => setMethod('script')}>
-                  대본 사용
-                </button>
-              </div>
-            )}
-            {method === 'asr' || !source ? (
+              </>
+            ) : method === 'asr' || !source ? (
               <>
                 <Check checked={transcribe} onChange={setTranscribe}>
                   받아쓰기 — {w.lang === 'ko-voice' ? '한국어' : '일본어'} 자막 만들기
@@ -93,13 +109,18 @@ export default function AutoSubButton({ w }: { w: WorkDetail }): JSX.Element {
               </>
             ) : (
               <>
-                <Dropdown<string>
-                  kind="mini"
-                  title="대본"
-                  value={source.id}
-                  options={scripts.map((x) => [x.id, `${x.label} · ${LANG[x.lang]}${x.kind === 'perTrack' ? ' · 트랙별' : ''}`] as const)}
-                  onChange={setSrc}
-                />
+                <div className="autosub-script">
+                  <Dropdown<string>
+                    kind="mini"
+                    title="대본"
+                    value={source.id}
+                    options={scripts.map((x) => [x.id, `${x.label} · ${LANG[x.lang]}${x.kind === 'perTrack' ? ' · 트랙별' : ''}`] as const)}
+                    onChange={setSrc}
+                  />
+                  <button className="mini icon" title="파일 고르기… (txt · pdf · docx)" onClick={() => void pickFile()}>
+                    <FileOpenIcon />
+                  </button>
+                </div>
                 {source.lang !== 'ko' && (
                   <Check checked={translate} onChange={setTranslate}>
                     대본을 한국어로 번역
@@ -140,7 +161,7 @@ export default function AutoSubButton({ w }: { w: WorkDetail }): JSX.Element {
                 작품 용어집
               </button>
               <span className="grow" />
-              <button className="btn primary small" disabled={method === 'asr' && !transcribe && !translate} onClick={() => void start()}>
+              <button className="btn primary small" disabled={method === 'asr' ? !transcribe && !translate : !source} onClick={() => void start()}>
                 시작
               </button>
             </div>

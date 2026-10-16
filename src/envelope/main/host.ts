@@ -297,6 +297,15 @@ function registerIpc(): void {
   })
   ipcMain.handle(IPC.nameStatus, (_e, ids: number[] | null) => core.nameStatus(ids).done)
   ipcMain.handle(IPC.findScripts, (_e, id: number) => core.findScripts(id))
+  ipcMain.handle(IPC.pickScript, async (_e, id: number) => {
+    const r = await dlgOpen({
+      title: '대본 파일 고르기',
+      defaultPath: core.work(id)?.path,
+      properties: ['openFile'],
+      filters: [{ name: '대본 (txt · pdf · docx)', extensions: ['txt', 'pdf', 'docx'] }]
+    })
+    return r.canceled || !r.filePaths[0] ? null : core.scriptFromFile(r.filePaths[0])
+  })
   ipcMain.handle(IPC.previewScript, (_e, id: number, src: string) => core.previewScript(id, src))
   ipcMain.handle(IPC.scriptSub, async (_e, id: number, o: ScriptSubOptions): Promise<JobSummary> => {
     try {

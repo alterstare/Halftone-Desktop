@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { JSX, ReactNode } from 'react'
 import { useStore } from '../store'
 import type { ToolTab, ToolsMode } from '../store'
-import type { CoverItem, CoverSaveItem, HistoryEntry, NameStatus, ProgressEvent, RenameItem, SubExportItem, ToolResult, WavItem } from '../../../shared/types'
+import type { CoverItem, CoverSaveItem, HistoryEntry, NameStatus, ProgressEvent, RenameItem, ScriptSource, SubExportItem, ToolResult, WavItem } from '../../../shared/types'
 import { clock } from '../format'
 import {
   KeyboardArrowLeftIcon,
@@ -19,6 +19,7 @@ import {
   CloudDownloadIcon,
   DriveFileRenameOutlineIcon,
   EditIcon,
+  FileOpenIcon,
   FolderOpenIcon,
   ImageIcon,
   LibraryMusicIcon,
@@ -30,7 +31,7 @@ import {
   TranslateIcon,
   UndoIcon
 } from './icons'
-import { Confirm } from './ui'
+import { Confirm, Dropdown } from './ui'
 
 type Item = CoverItem | WavItem | RenameItem | CoverSaveItem | SubExportItem
 const TABS: [ToolTab, string, typeof ImageIcon][] = [
@@ -460,22 +461,56 @@ function DlsiteApp({ scope }: { scope: number[] | null }): JSX.Element {
   )
 }
 
-// 자막: make / translate subtitles kept in the program, for many works.
+// 자막: make / translate subtitles kept in the program, for many works —
+// 받아쓰기 (speech engine) or 대본 (each work's script: the one found in its
+// folder, another one found there, or any txt / pdf / docx picked by hand).
+const SCRIPT_LANG: Record<string, string> = { ja: '일본어', ko: '한국어', other: '언어 미확인' }
 function SubsApp({ scope }: { scope: number[] | null }): JSX.Element {
   const works = useStore((s) => s.works)
   const inScope = works.filter((w) => !scope || scope.includes(w.id))
+  const [method, setMethod] = useState<'asr' | 'script'>('asr')
   const [picked, setPicked] = useState<Set<number>>(() => new Set(inScope.filter((w) => w.subtitled < w.tracks).map((w) => w.id)))
   const [transcribe, setTranscribe] = useState(true)
   const [translate, setTranslate] = useState(true)
   const [redo, setRedo] = useState(false)
   const [busy, setBusy] = useState(false)
+  // 대본: each work's scripts (looked up once 대본 사용 is chosen) and the chosen one
+  const [scripts, setScripts] = useState<Map<number, ScriptSource[]> | null>(null)
+  const [chosen, setChosen] = useState<Map<number, string>>(new Map())
+  useEffect(() => {
+    if (method !== 'script' || scripts) return undefined
+    let alive = true
+    void (async () => {
+      const found = new Map<number, ScriptSource[]>()
+      for (const w of inScope) found.set(w.id, await window.api.findScripts(w.id).catch(() => []))
+      if (!alive) return
+      setScripts(found)
+      setChosen(new Map([...found].filter(([, l]) => l.length).map(([id, l]) => [id, l[0].id])))
+      // with a script, and not every track subtitled yet
+      setPicked(new Set(inScope.filter((w) => found.get(w.id)?.length && w.subtitled < w.tracks).map((w) => w.id)))
+    })()
+    return () => {
+      alive = false
+    }
+  }, [method]) // eslint-disable-line react-hooks/exhaustive-deps
+  const pickFile = async (id: number): Promise<void> => {
+    const f = await window.api.pickScript(id)
+    if (!f || !scripts) return
+    setScripts(new Map(scripts).set(id, [...(scripts.get(id) ?? []).filter((x) => x.id !== f.id), f]))
+    setChosen(new Map(chosen).set(id, f.id))
+    setPicked(new Set(picked).add(id))
+  }
+  const usable = (id: number): boolean => method === 'asr' || !!chosen.get(id)
   const run = async (): Promise<void> => {
     setBusy(true)
     let made = 0
     const failed: string[] = []
     try {
-      for (const id of [...picked]) {
-        const r = await window.api.autoSub(id, { transcribe, translate, extras: false, redo })
+      for (const id of [...picked].filter(usable)) {
+        const r =
+          method === 'script'
+            ? await window.api.scriptSub(id, { sourceId: chosen.get(id)!, translate, redo })
+            : await window.api.autoSub(id, { transcribe, translate, extras: false, redo })
         if (r.ok) made++
         else failed.push(r.message)
       }
@@ -485,15 +520,27 @@ function SubsApp({ scope }: { scope: number[] | null }): JSX.Element {
     useStore.getState().showToast({ ok: !failed.length, message: failed.length ? `작품 ${made}개 끝 · ${failed.length}개 실패 — ${failed[0]}` : `작품 ${made}개의 자막을 프로그램 안에 저장했습니다` })
     void useStore.getState().loadWorks()
   }
-  const all = inScope.length > 0 && inScope.every((w) => picked.has(w.id))
+  const rows = method === 'script' ? inScope.filter((w) => scripts?.has(w.id)) : inScope
+  const count = [...picked].filter((id) => usable(id) && rows.some((w) => w.id === id)).length
+  const all = rows.some((w) => usable(w.id)) && rows.every((w) => picked.has(w.id) || !usable(w.id))
   return (
     <section className="app-panel">
       <div className="tools-actions">
         <div className="flat-group">
-          <button className={`mini ${transcribe ? 'on' : ''}`} onClick={() => setTranscribe(!transcribe)}>
+          <button className={`mini ${method === 'asr' ? 'on' : ''}`} onClick={() => setMethod('asr')}>
             받아쓰기
           </button>
-          <button className={`mini ${translate ? 'on' : ''}`} onClick={() => setTranslate(!translate)}>
+          <button className={`mini ${method === 'script' ? 'on' : ''}`} onClick={() => setMethod('script')}>
+            대본 사용
+          </button>
+        </div>
+        <div className="flat-group">
+          {method === 'asr' && (
+            <button className={`mini ${transcribe ? 'on' : ''}`} onClick={() => setTranscribe(!transcribe)}>
+              받아쓰기
+            </button>
+          )}
+          <button className={`mini ${translate ? 'on' : ''}`} title={method === 'script' ? '일본어 대본은 한국어 자막도 만들기' : undefined} onClick={() => setTranslate(!translate)}>
             번역
           </button>
         </div>
@@ -503,40 +550,80 @@ function SubsApp({ scope }: { scope: number[] | null }): JSX.Element {
           </button>
         </div>
       </div>
+      {method === 'script' && (
+        <p className="hint">
+          작품 폴더의 대본(txt · pdf · docx)으로 자막을 만듭니다. 대본은 그대로 두고, 작은 모델로 대사 위치만 맞춥니다. 대본을 찾지 못한 작품은 파일을 직접 고를 수 있습니다.
+        </p>
+      )}
       <div className="tools-summary">
-        <span>작품 {picked.size}개 선택</span>
+        <span>작품 {count}개 선택</span>
         <span className="grow" />
-        <button className="btn primary" disabled={busy || !picked.size || (!transcribe && !translate)} onClick={() => void run()}>
+        <button className="btn primary" disabled={busy || !count || (method === 'asr' && !transcribe && !translate)} onClick={() => void run()}>
           선택한 작품 자막 만들기
         </button>
       </div>
-      <section className="tgroup">
-        <label className="tgroup-head check">
-          <input type="checkbox" checked={all} onChange={(e) => setPicked(new Set(e.target.checked ? inScope.map((w) => w.id) : []))} />
-          <span className="tgroup-title">전체 선택</span>
-          <span className="hint">{inScope.length}</span>
-        </label>
-        {inScope.map((w) => (
-          <label key={w.id} className="trow-tool">
-            <input
-              type="checkbox"
-              checked={picked.has(w.id)}
-              onChange={(e) => {
-                const next = new Set(picked)
-                if (e.target.checked) next.add(w.id)
-                else next.delete(w.id)
-                setPicked(next)
-              }}
-            />
-            <span className="tr-main">
-              <span className="tr-name">{w.title}</span>
-            </span>
-            <span className="tr-side">
-              {w.subtitled >= w.tracks ? <Tag kind="ok">모든 트랙 자막</Tag> : <Tag kind="warn">자막 없는 트랙 {w.tracks - w.subtitled}</Tag>}
-            </span>
+      {method === 'script' && !scripts ? (
+        <p className="hint">작품마다 대본을 찾는 중…</p>
+      ) : (
+        <section className="tgroup">
+          <label className="tgroup-head check">
+            <input type="checkbox" checked={all} onChange={(e) => setPicked(new Set(e.target.checked ? rows.filter((w) => usable(w.id)).map((w) => w.id) : []))} />
+            <span className="tgroup-title">전체 선택</span>
+            <span className="hint">{rows.length}</span>
           </label>
-        ))}
-      </section>
+          {rows.map((w) => {
+            const list = scripts?.get(w.id) ?? []
+            const sel = chosen.get(w.id)
+            return (
+              <label key={w.id} className="trow-tool">
+                <input
+                  type="checkbox"
+                  checked={picked.has(w.id) && usable(w.id)}
+                  disabled={!usable(w.id)}
+                  onChange={(e) => {
+                    const next = new Set(picked)
+                    if (e.target.checked) next.add(w.id)
+                    else next.delete(w.id)
+                    setPicked(next)
+                  }}
+                />
+                <span className="tr-main">
+                  <span className="tr-name">{w.title}</span>
+                </span>
+                {/* the controls here don't tick the row */}
+                <span className="tr-side" onClick={(e) => method === 'script' && e.preventDefault()}>
+                  {method === 'script' ? (
+                    <>
+                      {list.length > 1 && sel ? (
+                        <Dropdown<string>
+                          kind="mini"
+                          title="대본"
+                          value={sel}
+                          options={list.map((x) => [x.id, `${x.label} · ${SCRIPT_LANG[x.lang]}${x.kind === 'perTrack' ? ' · 트랙별' : ''}`] as const)}
+                          onChange={(v) => setChosen(new Map(chosen).set(w.id, v))}
+                        />
+                      ) : list.length === 1 ? (
+                        <Tag kind="ok">
+                          {list[0].label} · {SCRIPT_LANG[list[0].lang]}
+                        </Tag>
+                      ) : (
+                        <Tag kind="mute">대본을 찾지 못했습니다</Tag>
+                      )}
+                      <button className="mini icon" title="파일 고르기… (txt · pdf · docx)" onClick={() => void pickFile(w.id)}>
+                        <FileOpenIcon />
+                      </button>
+                    </>
+                  ) : w.subtitled >= w.tracks ? (
+                    <Tag kind="ok">모든 트랙 자막</Tag>
+                  ) : (
+                    <Tag kind="warn">자막 없는 트랙 {w.tracks - w.subtitled}</Tag>
+                  )}
+                </span>
+              </label>
+            )
+          })}
+        </section>
+      )}
       {busy && <p className="hint">진행 상황은 작업 탭에서 작품별로 볼 수 있습니다.</p>}
     </section>
   )
