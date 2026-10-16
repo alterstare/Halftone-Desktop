@@ -346,6 +346,21 @@ export function GroupButton({ id, groupIds }: { id: number; groupIds: number[] }
 }
 
 // Halftone's confirm dialog: title, text, [action][취소] — Enter / Escape.
+// An on/off switch (Halftone's look) with the state it's in written on its
+// right — a two-way choice that two buttons side by side would blur.
+export function Toggle({ on, onChange, labels, title }: { on: boolean; onChange: (v: boolean) => void; labels: [off: string, on: string]; title?: string }): JSX.Element {
+  return (
+    <label className="tswitch" title={title}>
+      <button type="button" role="switch" aria-checked={on} className={`toggle ${on ? 'on' : ''}`} onClick={() => onChange(!on)}>
+        <span className="toggle-knob" />
+      </button>
+      <span className="tswitch-say">
+        {on ? labels[1] : labels[0]}
+      </span>
+    </label>
+  )
+}
+
 export function Confirm({
   title,
   body,

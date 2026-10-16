@@ -32,7 +32,7 @@ import {
   SubtitlesIcon,
   UndoIcon
 } from './icons'
-import { Confirm, Dropdown } from './ui'
+import { Confirm, Dropdown, Toggle } from './ui'
 
 type Item = CoverItem | WavItem | RenameItem | CoverSaveItem | SubExportItem
 const TABS: [ToolTab, string, typeof ImageIcon][] = [
@@ -796,16 +796,7 @@ function SubsApp({ scope, tick }: { scope: number[] | null; tick: number }): JSX
             </button>
           ))}
         </div>
-        {kind === 'make' && (
-          <div className="flat-group">
-            <button className={`mini ${andTranslate ? '' : 'on'}`} onClick={() => setAndTranslate(false)}>
-              자막 생성만
-            </button>
-            <button className={`mini ${andTranslate ? 'on' : ''}`} onClick={() => setAndTranslate(true)}>
-              번역까지
-            </button>
-          </div>
-        )}
+        {kind === 'make' && <Toggle on={andTranslate} onChange={setAndTranslate} labels={['자막 생성만', '번역까지']} title="켜면 한국어 자막까지 만듭니다" />}
         <div className="flat-group">
           <button className={`mini ${redo ? 'on' : ''}`} title="이미 있는 자막도 새로 만들기 (프로그램 안의 것만 바뀝니다)" onClick={() => setRedo(!redo)}>
             다시 만들기
@@ -1178,14 +1169,7 @@ export default function ToolsView(): JSX.Element {
             <ScanButton busy={!!busy} onClick={() => void scanLibrary()} />
             {tab === 'rename' && <div className="flat-group">{nameOptions}</div>}
             {tab === 'rename' && (
-              <div className="flat-group" title="바꿀 이름">
-                <button className={`mini ${foldersOnly ? 'on' : ''}`} onClick={() => setFoldersOnly(true)}>
-                  폴더 이름만
-                </button>
-                <button className={`mini ${foldersOnly ? '' : 'on'}`} onClick={() => setFoldersOnly(false)}>
-                  트랙 및 모든 파일 이름
-                </button>
-              </div>
+              <Toggle on={!foldersOnly} onChange={(v) => setFoldersOnly(!v)} labels={['폴더 이름만', '트랙 및 모든 파일 이름']} title="켜면 트랙과 모든 파일 이름까지" />
             )}
             {mode === 'folder' && tab === 'wav' && (
               <div className="flat-group" title="만들 mp3의 음질">
