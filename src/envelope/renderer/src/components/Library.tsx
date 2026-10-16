@@ -166,7 +166,8 @@ function Tile({ w, nowId }: { w: WorkSummary; nowId?: number }): JSX.Element {
             <PlayButton w={w} />
           </div>
         </div>
-        <TagLine tags={w.tags} />
+        {/* no tags: an empty line keeps every card's rows in the same place */}
+        {w.tags.length ? <TagLine tags={w.tags} /> : <div className="tag-line" />}
       </div>
       {workMenu}
     </div>
