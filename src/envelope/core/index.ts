@@ -21,7 +21,7 @@ import type { AsrEngine, Fetch, WhisperModel } from './asr/engines'
 import { GROQ, GroqAsr, WhisperCppAsr, modelPath } from './asr/engines'
 import { pcm16FromWav } from './asr/audio'
 import type { EngineStatus } from './asr/install'
-import { engineStatus, installCpuEngine, installModel, removeModel } from './asr/install'
+import { engineStatus, installEngines, installModel, removeModel } from './asr/install'
 import type { GlossaryEntry, Translator } from './translate'
 import { TranslateStop, makeTranslator, translateLines } from './translate'
 import type { AutoSubOptions, AutoSubResult, DecodeFn } from './autosub'
@@ -502,7 +502,7 @@ export class EnvCore {
   }
   installEngine(): { id: number; done: Promise<string> } {
     return this.queue.add('whisper.cpp 엔진 받기', (ctx) =>
-      installCpuEngine(this.paths.enginesDir, this.fetchFn, (d, t) => ctx.report(d, t, 'whisper.cpp 엔진 받기', 'bytes'), ctx.signal)
+      installEngines(this.paths.enginesDir, this.fetchFn, (d, t, label) => ctx.report(d, t, label, 'bytes'), ctx.signal)
     )
   }
   installModel(m: WhisperModel): { id: number; done: Promise<void> } {

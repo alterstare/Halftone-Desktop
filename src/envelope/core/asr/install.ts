@@ -1,14 +1,13 @@
-// 엔진 · 모델 받기: the whisper.cpp CPU build from the official releases, the
-// ggml models from Hugging Face — into the data folder, through ".part" files
-// so a broken download never looks finished. (The Vulkan build is made with
-// scripts/build-whisper-vulkan.ps1 and placed in engines/whisper-vulkan.)
+// 엔진 · 모델 받기: the whisper.cpp builds (CPU from the official releases,
+// Vulkan from Envelope's CI) and the ggml models from Hugging Face — into the
+// data folder, through ".part" files so a broken download never looks finished.
 import { createWriteStream, existsSync, promises as fsp } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { execFile } from 'child_process'
 import AdmZip from 'adm-zip'
 import type { EngineStatus } from '../../shared/types'
-import type { Fetch, WhisperModel } from './engines'
+import type { Fetch, WhisperBuild, WhisperModel } from './engines'
 import { MODEL_URL, WHISPER_MODELS, modelPath, whisperBinary } from './engines'
 
 export type { EngineStatus }
@@ -55,33 +54,58 @@ export async function removeModel(modelsDir: string, m: WhisperModel): Promise<v
   await fsp.rm(modelPath(modelsDir, m), { force: true })
 }
 
-const RELEASES = 'https://api.github.com/repos/ggml-org/whisper.cpp/releases?per_page=15'
-const CPU_ASSET = process.platform === 'win32' ? 'whisper-bin-x64.zip' : 'whisper-bin-ubuntu-x64.tar.gz'
+// Where each build comes from: the official whisper.cpp releases have only a CPU
+// build; the Vulkan build is made by .github/workflows/whisper-vulkan.yml into an
+// Envelope pre-release (whisper-vulkan-v<whisper.cpp version>).
+const SOURCES: Record<WhisperBuild, { releases: string; asset: string | null }> = {
+  cpu: {
+    releases: 'https://api.github.com/repos/ggml-org/whisper.cpp/releases?per_page=15',
+    asset: process.platform === 'win32' ? 'whisper-bin-x64.zip' : 'whisper-bin-ubuntu-x64.tar.gz'
+  },
+  vulkan: {
+    releases: 'https://api.github.com/repos/alterstare/Envelope/releases?per_page=50',
+    asset: process.platform === 'win32' ? 'whisper-vulkan-win-x64.zip' : process.platform === 'linux' ? 'whisper-vulkan-linux-x64.tar.gz' : null
+  }
+}
 
-// The newest official CPU build → engines/whisper-cpu.
-export async function installCpuEngine(enginesDir: string, fetchFn: Fetch, onProgress: Progress, signal?: AbortSignal): Promise<string> {
-  const res = await fetchFn(RELEASES, { signal, headers: { Accept: 'application/vnd.github+json' } })
+// The newest release of one build → engines/whisper-<build>. Returns the release tag.
+export async function installBuild(enginesDir: string, build: WhisperBuild, fetchFn: Fetch, onProgress: Progress, signal?: AbortSignal): Promise<string> {
+  const { releases: url, asset: name } = SOURCES[build]
+  const label = build === 'vulkan' ? 'Vulkan' : 'CPU'
+  if (!name) throw new Error(`이 운영체제용 whisper.cpp ${label} 빌드가 없습니다`)
+  const res = await fetchFn(url, { signal, headers: { Accept: 'application/vnd.github+json' } })
   if (!res.ok) throw new Error(`릴리즈 목록 HTTP ${res.status}`)
-  const releases = (await res.json()) as { tag_name: string; assets: { name: string; browser_download_url: string }[] }[]
-  const rel = releases.find((r) => r.assets.some((a) => a.name === CPU_ASSET))
-  const asset = rel?.assets.find((a) => a.name === CPU_ASSET)
-  if (!rel || !asset) throw new Error('whisper.cpp CPU 빌드를 찾지 못했습니다')
+  const releases = (await res.json()) as { tag_name: string; draft?: boolean; assets: { name: string; browser_download_url: string }[] }[]
+  const rel = releases.find((r) => !r.draft && r.assets.some((a) => a.name === name))
+  const asset = rel?.assets.find((a) => a.name === name)
+  if (!rel || !asset) throw new Error(`whisper.cpp ${label} 빌드를 찾지 못했습니다`)
   const tmp = await fsp.mkdtemp(join(tmpdir(), 'env-engine-'))
   try {
-    const file = join(tmp, CPU_ASSET)
+    const file = join(tmp, name)
     await download(asset.browser_download_url, file, fetchFn, onProgress, signal)
-    const dest = join(enginesDir, 'whisper-cpu')
+    const dest = join(enginesDir, `whisper-${build}`)
     await fsp.rm(dest, { recursive: true, force: true })
     await fsp.mkdir(dest, { recursive: true })
-    if (CPU_ASSET.endsWith('.zip')) new AdmZip(file).extractAllTo(dest, true)
+    if (name.endsWith('.zip')) new AdmZip(file).extractAllTo(dest, true)
     else await new Promise<void>((ok, bad) => execFile('tar', ['-xzf', file, '-C', dest], (e) => (e ? bad(e) : ok())))
-    if (process.platform !== 'win32') {
-      const bin = whisperBinary(enginesDir, 'cpu')
-      if (bin) await fsp.chmod(bin, 0o755)
-    }
-    if (!whisperBinary(enginesDir, 'cpu')) throw new Error('받은 파일에 whisper-cli가 없습니다')
+    const bin = whisperBinary(enginesDir, build)
+    if (!bin) throw new Error('받은 파일에 whisper-cli가 없습니다')
+    if (process.platform !== 'win32') await fsp.chmod(bin, 0o755)
     return rel.tag_name
   } finally {
     await fsp.rm(tmp, { recursive: true, force: true })
+  }
+}
+
+// 엔진 받기: the CPU build (always works — the fallback) and the Vulkan build
+// (GPU). A failed Vulkan download doesn't undo the CPU one; it's in the message.
+export async function installEngines(enginesDir: string, fetchFn: Fetch, onProgress: (done: number, total: number, label: string) => void, signal?: AbortSignal): Promise<string> {
+  await installBuild(enginesDir, 'cpu', fetchFn, (d, t) => onProgress(d, t, 'whisper.cpp CPU 엔진 받기'), signal)
+  try {
+    await installBuild(enginesDir, 'vulkan', fetchFn, (d, t) => onProgress(d, t, 'whisper.cpp Vulkan 엔진 받기'), signal)
+    return 'whisper.cpp 엔진(Vulkan · CPU)을 받았습니다'
+  } catch (e) {
+    if (signal?.aborted) throw e
+    return `CPU 엔진을 받았습니다. Vulkan 엔진은 받지 못했습니다: ${(e as Error).message}`
   }
 }

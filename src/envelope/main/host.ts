@@ -239,17 +239,17 @@ function registerIpc(): void {
       return { ok: false, message: String((e as Error)?.message ?? e) }
     }
   })
-  const job = async (p: Promise<unknown>, okMsg: string): Promise<JobSummary> => {
+  const job = async (p: Promise<unknown>, okMsg: string | ((result: unknown) => string)): Promise<JobSummary> => {
     try {
-      await p
-      return { ok: true, message: okMsg }
+      const result = await p
+      return { ok: true, message: typeof okMsg === 'string' ? okMsg : okMsg(result) }
     } catch (e) {
       if (e instanceof CancelledError) return { ok: false, message: '취소했습니다.' }
       return { ok: false, message: String((e as Error)?.message ?? e) }
     }
   }
   ipcMain.handle(IPC.engineStatus, () => core.engineStatus())
-  ipcMain.handle(IPC.installEngine, () => job(core.installEngine().done, 'whisper.cpp 엔진을 받았습니다'))
+  ipcMain.handle(IPC.installEngine, () => job(core.installEngine().done, (msg) => msg as string))
   ipcMain.handle(IPC.installModel, (_e, m: WhisperModelId) => job(core.installModel(m).done, '모델을 받았습니다'))
   ipcMain.handle(IPC.removeModel, (_e, m: WhisperModelId) => core.removeModel(m))
   ipcMain.handle(IPC.importVulkanEngine, async (): Promise<JobSummary> => {

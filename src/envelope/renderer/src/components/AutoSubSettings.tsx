@@ -130,9 +130,9 @@ export default function AutoSubSettings(): JSX.Element | null {
             >
               <div className="flat-group">
                 <button className="mini" disabled={busy} onClick={async () => (toast(await window.api.installEngine()), refresh())}>
-                  <CloudDownloadIcon /> CPU 엔진 받기
+                  <CloudDownloadIcon /> 엔진 받기
                 </button>
-                <button className="mini" title="직접 빌드한 Vulkan whisper-cli.exe 넣기" onClick={async () => (toast(await window.api.importVulkanEngine()), refresh())}>
+                <button className="mini" title="직접 빌드한 Vulkan whisper-cli 넣기" onClick={async () => (toast(await window.api.importVulkanEngine()), refresh())}>
                   <FolderOpenIcon /> Vulkan 엔진 넣기
                 </button>
               </div>
