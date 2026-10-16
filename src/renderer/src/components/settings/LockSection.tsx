@@ -94,7 +94,7 @@ export default function LockSection(): JSX.Element | null {
       <div className="set-block">
         <SettingRow
           title="가짜 PIN"
-          desc={`이 번호를 입력하면 동인지 작품이 하나도 없는 빈 라이브러리가 열립니다. 그 상태에서는 이 잠금 설정도 보이지 않습니다.${lock.decoyHash ? ' (설정됨)' : ''}`}
+          desc={`이 번호를 입력하면 동인지 작품이 하나도 없는 빈 라이브러리가 열립니다. 그 상태에서는 이 잠금 설정도 보이지 않습니다.${lock.decoyHash ? ' (설정 완료)' : ''}`}
         />
         <div className="lock-fields">
           <input

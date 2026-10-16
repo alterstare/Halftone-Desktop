@@ -6,7 +6,7 @@ import { useLock } from '../lock'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
 import { groupSeries, analyzeSeries } from '../util'
-import { HomeIcon, LanguageIcon, MenuIcon, DownloadIcon, SettingsIcon, CloseIcon, CompareArrowsIcon, KeyboardArrowRightIcon, ArrowDownIcon } from './icons'
+import { ArrowDownIcon, CloseIcon, CompareArrowsIcon, DownloadIcon, HomeIcon, KeyboardArrowRightIcon, LanguageIcon, MenuIcon, SettingsIcon, AddIcon, CallSplitIcon, EditIcon, FolderOpenIcon, LeftPanelCloseIcon, RefreshIcon, RemoveIcon, RightPanelCloseIcon, SwapHorizIcon, VerticalSplitIcon } from './icons'
 
 export default function TabBar(): JSX.Element {
   const tabs = useStore((s) => s.tabs)
@@ -198,7 +198,7 @@ export default function TabBar(): JSX.Element {
       onClick: () => setTabGroup(t.id, g.id)
     }))
     items.push({
-      label: '＋ 새 그룹',
+      label: '새 그룹', icon: <AddIcon />, separator: true,
       onClick: () => {
         const id = createTabGroup()
         setTabGroup(t.id, id)
@@ -208,33 +208,33 @@ export default function TabBar(): JSX.Element {
   }
 
   const menuItems = (t: Tab): MenuItem[] => {
-    const items: MenuItem[] = [{ label: '새로고침', onClick: () => refreshTab(t.id) }]
+    const items: MenuItem[] = [{ label: '새로고침', icon: <RefreshIcon />, onClick: () => refreshTab(t.id) }]
     if (t.split) {
       items.push({
-        label: '분할 뷰 정렬',
+        label: '분할 뷰 정렬', icon: <VerticalSplitIcon />,
         children: [
-          { label: '뷰 분리', onClick: () => splitDetach(t.id) },
-          { label: '왼쪽 뷰 닫기', onClick: () => closeSplitSide(t.id, 'left') },
-          { label: '오른쪽 뷰 닫기', onClick: () => closeSplitSide(t.id, 'right') },
-          { label: '뷰 반전', onClick: () => swapSplitSides(t.id) }
+          { label: '뷰 분리', icon: <CallSplitIcon />, onClick: () => splitDetach(t.id) },
+          { label: '왼쪽 뷰 닫기', icon: <LeftPanelCloseIcon />, onClick: () => closeSplitSide(t.id, 'left') },
+          { label: '오른쪽 뷰 닫기', icon: <RightPanelCloseIcon />, onClick: () => closeSplitSide(t.id, 'right') },
+          { label: '뷰 반전', icon: <SwapHorizIcon />, onClick: () => swapSplitSides(t.id) }
         ]
       })
     } else {
-      items.push({ label: '그룹에 탭 추가', children: groupSubmenu(t) })
-      if (t.groupId) items.push({ label: '그룹에서 제거', onClick: () => setTabGroup(t.id, null) })
-      items.push({ label: '분할 뷰에서 열기', onClick: () => openSplitFromTab(t.id) })
+      items.push({ label: '그룹에 탭 추가', icon: <AddIcon />, children: groupSubmenu(t) })
+      if (t.groupId) items.push({ label: '그룹에서 제거', icon: <RemoveIcon />, onClick: () => setTabGroup(t.id, null) })
+      items.push({ label: '분할 뷰에서 열기', icon: <VerticalSplitIcon />, onClick: () => openSplitFromTab(t.id) })
       if (activeTab?.split && activeTab.id !== t.id) {
         items.push({
-          label: '탭을 분할 보기로 이동',
+          label: '탭을 분할 보기로 이동', icon: <SwapHorizIcon />,
           children: [
-            { label: '왼쪽 뷰와 바꾸기', onClick: () => swapTabIntoSplit(t.id, 'left') },
-            { label: '오른쪽 뷰와 바꾸기', onClick: () => swapTabIntoSplit(t.id, 'right') }
+            { label: '왼쪽 뷰와 바꾸기', icon: <SwapHorizIcon />, onClick: () => swapTabIntoSplit(t.id, 'left') },
+            { label: '오른쪽 뷰와 바꾸기', icon: <SwapHorizIcon />, onClick: () => swapTabIntoSplit(t.id, 'right') }
           ]
         })
       }
-      if (!t.online) items.push({ label: '폴더 열기', onClick: () => window.api.openInExplorer(t.workId) })
+      if (!t.online) items.push({ label: '폴더 열기', icon: <FolderOpenIcon />, onClick: () => window.api.openInExplorer(t.workId) })
     }
-    items.push({ label: '닫기', danger: true, onClick: () => startClose(t.id) })
+    items.push({ label: '닫기', icon: <CloseIcon />, separator: true, danger: true, onClick: () => startClose(t.id) })
     return items
   }
 
@@ -255,7 +255,7 @@ export default function TabBar(): JSX.Element {
   }, [works, normalRoots, chapterScheme])
   const localLabel = (workId: string): string => {
     const w = workById.get(workId)
-    if (!w) return '(삭제됨)'
+    if (!w) return '(삭제된 작품)'
     const info = normalLabels.get(w.id)
     return info && info.series ? `${info.label} · ${info.series}` : w.title
   }
@@ -265,7 +265,7 @@ export default function TabBar(): JSX.Element {
   const titleOf = (t: Tab): string =>
     t.online ? onlineLabel(t.online) : localLabel(t.workId)
   const rightTitleOf = (t: Tab): string =>
-    t.rightOnline ? onlineLabel(t.rightOnline) : t.rightWorkId ? localLabel(t.rightWorkId) : '비어 있음'
+    t.rightOnline ? onlineLabel(t.rightOnline) : t.rightWorkId ? localLabel(t.rightWorkId) : '빈 화면'
 
   const unify = useStore((s) => s.settings.unifyTabsAcrossModes)
   // Tabs belong to a mode; the bar shows only the current mode's tabs. Glance
@@ -518,8 +518,8 @@ export default function TabBar(): JSX.Element {
           x={grpMenu.x}
           y={grpMenu.y}
           items={[
-            { label: '이름 변경', onClick: () => setRenaming({ id: grpMenu.group.id, value: grpMenu.group.name }) },
-            { label: '그룹 해제', danger: true, onClick: () => deleteTabGroup(grpMenu.group.id) }
+            { label: '이름 변경', icon: <EditIcon />, onClick: () => setRenaming({ id: grpMenu.group.id, value: grpMenu.group.name }) },
+            { label: '그룹 해제', icon: <CloseIcon />, separator: true, danger: true, onClick: () => deleteTabGroup(grpMenu.group.id) }
           ]}
           onClose={() => setGrpMenu(null)}
         />

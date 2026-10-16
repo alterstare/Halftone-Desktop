@@ -143,7 +143,7 @@ export default function ActivityBar(): JSX.Element | null {
     ? updateLabel
     : cur
       ? `${cur.title}${cur.total > 0 ? ` · ${pct(cur.done, cur.total)}%` : ' · 진행 중…'}`
-      : `작업 ${rows.length}개 · 진행 중 없음`
+      : `작업 ${rows.length}개 · 모두 완료`
   const anyActive = downloads.some((d) => downloadMode(d.code) === libraryMode && ACTIVE.has(d.phase))
   const anyPaused = downloads.some(
     (d) => downloadMode(d.code) === libraryMode && (d.phase === 'stopped' || d.phase === 'error') && d.spec
@@ -152,7 +152,7 @@ export default function ActivityBar(): JSX.Element | null {
   // Phase-aware sub label for download rows.
   const subLabel = (r: Row): string => {
     if (r.dl?.phase === 'converting') return r.total > 0 ? `webp 변환 ${r.done}/${r.total}` : 'webp 변환 중…'
-    if (r.dl?.phase === 'stopped') return '일시정지됨'
+    if (r.dl?.phase === 'stopped') return '일시정지'
     if (r.status === 'error') return `오류: ${r.error ?? '실패'}`
     if (r.status === 'done') return r.detail ?? '완료'
     if (r.detail && r.total > 0 && r.detail.endsWith(' MB')) return `${r.detail} (${pct(r.done, r.total)}%)`
@@ -196,7 +196,7 @@ export default function ActivityBar(): JSX.Element | null {
                 <div className="activity-row-main">
                   <div className="activity-row-title">
                     {update.state === 'downloaded'
-                      ? '업데이트 준비됨'
+                      ? '업데이트 준비 완료'
                       : update.state === 'downloading'
                         ? '업데이트 다운로드 중'
                         : '새 버전 발견'}

@@ -65,7 +65,7 @@ export default function ShortcutSettings(): JSX.Element {
                       </button>
                     </span>
                   ))}
-                  {!combos.length && <span className="hint">지정 안 함</span>}
+                  {!combos.length && <span className="hint">미지정</span>}
                 </span>
                 <div className="flat-group">
                   <button className={`mini ${capture === d.id ? 'on' : ''}`} onClick={() => setCapture(capture === d.id ? null : d.id)}>

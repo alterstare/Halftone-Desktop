@@ -131,10 +131,8 @@ export function FavButton({ id, on }: { id: number; on: boolean }): JSX.Element 
   )
 }
 
-// Closes on outside click / Escape.
 // small window = where the library grid drops from 3 columns to 2 (846px+ fits 3)
 export const NARROW = '(max-width: 845px)'
-export const ONE_COLUMN = '(max-width: 419px)' // under the 작은 창: grid of one column
 export function useMedia(q: string): boolean {
   const [n, setN] = useState(() => window.matchMedia(q).matches)
   useEffect(() => {
@@ -172,6 +170,33 @@ export function useExit(on: boolean, ms = CLOSE_MS): { mounted: boolean; leaving
 
 // A panel under its button: open state, the closing animation, and closing
 // on an outside click / Escape.
+// A popup goes away at anything done outside it — a click (either button),
+// the wheel, a scroll, a key pressed outside it, the window losing focus.
+// `inside(node)` = part of the popup (or its own button). Returns the cleanup.
+function closeOnOutside(inside: (n: Node | null) => boolean, close: () => void): () => void {
+  const out = (e: Event): void => {
+    if (!inside(e.target as Node | null)) close()
+  }
+  const key = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape' || !inside(document.activeElement)) close()
+  }
+  const opts = { capture: true, passive: true }
+  window.addEventListener('pointerdown', out, true)
+  window.addEventListener('wheel', out, opts)
+  window.addEventListener('scroll', out, true)
+  window.addEventListener('keydown', key, true)
+  window.addEventListener('blur', close)
+  window.addEventListener('resize', close)
+  return () => {
+    window.removeEventListener('pointerdown', out, true)
+    window.removeEventListener('wheel', out, opts)
+    window.removeEventListener('scroll', out, true)
+    window.removeEventListener('keydown', key, true)
+    window.removeEventListener('blur', close)
+    window.removeEventListener('resize', close)
+  }
+}
+
 export function usePopover(): {
   open: boolean
   mounted: boolean
@@ -184,18 +209,7 @@ export function usePopover(): {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
-    const down = (e: MouseEvent): void => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    const key = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    window.addEventListener('mousedown', down)
-    window.addEventListener('keydown', key)
-    return () => {
-      window.removeEventListener('mousedown', down)
-      window.removeEventListener('keydown', key)
-    }
+    return closeOnOutside((n) => !!n && !!ref.current?.contains(n), () => setOpen(false))
   }, [open])
   return { open, mounted: ex.mounted, closing: ex.leaving, setOpen, ref }
 }
@@ -271,22 +285,9 @@ export function Popover({
     setPos({ left, top })
   }, [anchor])
   useEffect(() => {
-    const down = (e: MouseEvent): void => {
-      const t = e.target as Node
-      if (!ref.current?.contains(t) && !anchor.contains(t)) onClose()
-    }
-    const key = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('mousedown', down)
-    window.addEventListener('keydown', key)
-    window.addEventListener('resize', onClose)
-    return () => {
-      window.removeEventListener('mousedown', down)
-      window.removeEventListener('keydown', key)
-      window.removeEventListener('resize', onClose)
-    }
-  }, [anchor, onClose])
+    if (closing) return undefined
+    return closeOnOutside((n) => !!n && (!!ref.current?.contains(n) || anchor.contains(n)), onClose)
+  }, [anchor, onClose, closing])
   return createPortal(
     <div className={`popover ${closing ? 'closing' : ''}`} ref={ref} style={pos} onClick={(e) => e.stopPropagation()}>
       {children}

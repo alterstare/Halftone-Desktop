@@ -85,7 +85,7 @@ export default function ShortcutSection(): JSX.Element {
               <SettingRow key={s.id} title={s.label}>
                 <div className="key-combos">
                   {combos.length === 0 && (
-                    <span className="key-none">없음</span>
+                    <span className="key-none">미지정</span>
                   )}
                   {combos.map((c) => (
                     <span key={c} className="key-chip">

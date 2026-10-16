@@ -1,3 +1,4 @@
+import { useWorkMenu } from './WorkMenu'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { ALL_FILTER, listenState, useStore } from '../store'
@@ -32,7 +33,7 @@ const SORTS: [LibSort, string][] = [
 const AGES: ['r18' | 'general' | 'unknown', string][] = [
   ['r18', 'R18'],
   ['general', '일반'],
-  ['unknown', 'DLsite 정보 없음']
+  ['unknown', '연령 미확인']
 ]
 
 export async function addLibraryFolder(): Promise<void> {
@@ -138,9 +139,10 @@ function Meta({ w }: { w: WorkSummary }): JSX.Element {
 // Card: picture (with 즐겨찾기 / 그룹 on its top edge) → title → meta → 별점 · 재생.
 function Tile({ w, nowId }: { w: WorkSummary; nowId?: number }): JSX.Element {
   const open = useStore((s) => s.openWork)
+  const { workMenu, openWorkMenu } = useWorkMenu()
   const done = listenState(w) === 'done'
   return (
-    <div data-wid={w.id} className={`tile ${nowId === w.id ? 'now' : ''}`} onClick={() => void open(w.id)} title={w.folderTitle && w.folderTitle !== w.title ? `${w.title}\n${w.folderTitle}` : w.title}>
+    <div data-wid={w.id} className={`tile ${nowId === w.id ? 'now' : ''}`} onClick={() => void open(w.id)} onContextMenu={(e) => openWorkMenu(e, w)} title={w.folderTitle && w.folderTitle !== w.title ? `${w.title}\n${w.folderTitle}` : w.title}>
       <Art path={w.cover}>
         {done && (
           <span className="badge-done">
@@ -152,28 +154,31 @@ function Tile({ w, nowId }: { w: WorkSummary; nowId?: number }): JSX.Element {
           <FavButton id={w.id} on={w.favorite} />
         </div>
       </Art>
+      {/* 제목 / 메타 · 평점 (재생 버튼은 두 줄에 걸쳐 오른쪽) / 태그 */}
       <div className="tile-body">
         <div className="tile-title">{w.title}</div>
-        <div className="tile-meta">
-          <Meta w={w} />
+        <div className="tile-mid">
+          <div className="tile-meta">
+            <Meta w={w} />
+          </div>
+          <Stars id={w.id} rank={w.rank} />
+          <div className="flat-group tile-play" onClick={(e) => e.stopPropagation()}>
+            <PlayButton w={w} />
+          </div>
         </div>
         <TagLine tags={w.tags} />
       </div>
-      <div className="tile-foot">
-        <Stars id={w.id} rank={w.rank} />
-        <div className="flat-group" onClick={(e) => e.stopPropagation()}>
-          <PlayButton w={w} />
-        </div>
-      </div>
+      {workMenu}
     </div>
   )
 }
 
 function Row({ w, nowId }: { w: WorkSummary; nowId?: number }): JSX.Element {
   const open = useStore((s) => s.openWork)
+  const { workMenu, openWorkMenu } = useWorkMenu()
   const st = listenState(w)
   return (
-    <div data-wid={w.id} className={`lrow ${nowId === w.id ? 'now' : ''}`} onClick={() => void open(w.id)}>
+    <div data-wid={w.id} className={`lrow ${nowId === w.id ? 'now' : ''}`} onClick={() => void open(w.id)} onContextMenu={(e) => openWorkMenu(e, w)}>
       <div className="lrow-cover">
         <Cover path={w.cover} />
       </div>
@@ -204,6 +209,7 @@ function Row({ w, nowId }: { w: WorkSummary; nowId?: number }): JSX.Element {
         </span>
         <PlayButton w={w} />
       </div>
+      {workMenu}
     </div>
   )
 }

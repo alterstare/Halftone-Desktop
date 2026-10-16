@@ -113,7 +113,7 @@ export function RootList({
           </button>
         </div>
       ))}
-      {roots.length === 0 && <div className="path-item empty">등록된 폴더 없음</div>}
+      {roots.length === 0 && <div className="path-item empty">등록된 폴더가 없습니다.</div>}
     </div>
   )
 }

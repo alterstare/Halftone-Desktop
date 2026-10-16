@@ -80,7 +80,7 @@ function SplitPicker({ tab, onPick }: { tab: Tab; onPick: (src: PaneSrc) => void
       <div className="split-pick-list">
         {candidates.map((t) => {
           const work = t.online ? null : works.find((w) => w.id === t.workId)
-          const title = t.online ? t.online.title : work?.title ?? '(삭제됨)'
+          const title = t.online ? t.online.title : work?.title ?? '(삭제된 작품)'
           const artist = t.online ? t.online.artist : work?.artist
           const pages = work?.pageCount
           const lang = work?.language

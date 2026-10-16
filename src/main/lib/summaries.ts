@@ -6,7 +6,8 @@
 // Fetching runs through ONE shared queue (CONCURRENCY at a time) so callers
 // asking for overlapping codes never fetch twice. The cache is saved every few
 // seconds while it runs — leaving the screen or quitting keeps what arrived,
-// and resumeFavoriteSummaries() picks the rest up on the next start. Overall
+// and the start-up queueSummaries() call in main/index.ts picks the rest up
+// on the next start. Overall
 // progress goes to the activity bar via setSummaryProgressHandler.
 import { app } from 'electron'
 import { join } from 'path'

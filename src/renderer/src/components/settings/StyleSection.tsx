@@ -87,7 +87,7 @@ export default function StyleSection(): JSX.Element {
           value={String(draft.focusMode ?? 0) as '0' | '1' | '2' | '3'}
           onChange={(v) => patch({ focusMode: Number(v) as 0 | 1 | 2 | 3 })}
           options={[
-            { val: '0', label: '끔', desc: '막대를 숨기지 않습니다.' },
+            { val: '0', label: 'OFF', desc: '막대를 숨기지 않습니다.' },
             { val: '1', label: '1단계', desc: '감상창의 상단바와 하단바를 숨깁니다.' },
             { val: '2', label: '2단계', desc: '상단바·하단바와 함께 왼쪽 목록(사이드바)도 숨깁니다.' },
             { val: '3', label: '3단계', desc: '상단바·하단바·사이드바에 더해 맨 위 탭바까지 숨깁니다.' }

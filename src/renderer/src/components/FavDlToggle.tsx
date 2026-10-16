@@ -28,7 +28,7 @@ export default function FavDlToggle({
       aria-checked={checked}
       className={`toggle fav-dl ${checked ? 'on' : ''}`}
       onClick={() => onChange(!checked)}
-      title={checked ? onTitle ?? '필터 켜짐' : offTitle ?? '전체 보는 중'}
+      title={checked ? onTitle ?? '필터 사용 중' : offTitle ?? '전체 보는 중'}
     >
       <span className="fav-dl-icon">{icon ?? <DownloadIcon />}</span>
       <span className="fav-dl-all">{offLabel}</span>
@@ -97,8 +97,8 @@ export function BypassToggle({ onApplied }: { onApplied?: () => void }): JSX.Ele
       }}
       icon={<ShieldIcon />}
       offLabel="OFF"
-      onTitle="차단 우회(GreenTunnel) 켜짐"
-      offTitle="차단 우회 꺼짐 — 연결이 끊길 때 켜기"
+      onTitle="차단 우회(GreenTunnel) 사용 중"
+      offTitle="차단 우회 미사용 — 연결이 끊길 때 켜기"
     />
   )
 }

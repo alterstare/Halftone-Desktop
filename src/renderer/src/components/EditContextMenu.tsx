@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import ContextMenu from './ContextMenu'
+import { ContentCopyIcon, ContentCutIcon, ContentPasteIcon, SelectAllIcon } from './icons'
 
 type Field = HTMLInputElement | HTMLTextAreaElement
 
@@ -44,21 +45,21 @@ export default function EditContextMenu(): JSX.Element | null {
       y={menu.y}
       items={[
         {
-          label: '잘라내기',
+          label: '잘라내기', icon: <ContentCutIcon />,
           disabled: !selected || readOnly,
           onClick: () => {
             void window.api.clipboardWriteText(selected)
             replace('')
           }
         },
-        { label: '복사', disabled: !selected, onClick: () => void window.api.clipboardWriteText(selected) },
+        { label: '복사', icon: <ContentCopyIcon />, disabled: !selected, onClick: () => void window.api.clipboardWriteText(selected) },
         {
-          label: '붙여넣기',
+          label: '붙여넣기', icon: <ContentPasteIcon />,
           disabled: readOnly,
           onClick: () => void window.api.clipboardReadText().then((t) => t && replace(t))
         },
         {
-          label: '전체 선택',
+          label: '전체 선택', icon: <SelectAllIcon />,
           disabled: !el.value,
           onClick: () => {
             el.focus()

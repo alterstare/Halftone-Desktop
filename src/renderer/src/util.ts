@@ -288,13 +288,6 @@ export function seriesTitle(name: string): string {
   return s || name.trim()
 }
 
-// Concise chapter label for the chapter list ("97화"); falls back to the folder
-// name when no number is found.
-export function chapterLabel(w: Work): string {
-  const n = chapterNum(baseName(w.path)) ?? chapterNum(w.title)
-  return n != null ? `${n}화` : baseName(w.path) || w.title
-}
-
 const isNormal = (w: Work): boolean => (w.library ?? 'doujin') === 'normal'
 
 // Strip a leading index run ("0008 8 - - …" → "…") so the series name is exposed.

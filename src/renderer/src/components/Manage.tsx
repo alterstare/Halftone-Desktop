@@ -243,12 +243,12 @@ function Duplicates(): JSX.Element {
     <div className="manage-body">
       <p className="hint">
         같은 표지(첫 장) 또는 같은 제목인 작품을 중복으로 묶습니다. 페이지수는 참고용. 표지 비교는
-        먼저 “표지 해시 생성”이 필요합니다(작품당 첫 장 1회 계산, 캐시됨).
+        먼저 “표지 해시 생성”이 필요합니다(작품당 첫 장을 한 번 계산해 저장합니다).
       </p>
       <div className="manage-actions">
         <div className="flat-group">
           <button className="mini" onClick={scanHashes} disabled={prog !== null}>
-            {prog ? `표지 해시 생성… ${prog.done}/${prog.total}` : `표지 해시 생성${missing ? ` (${missing}개 남음)` : ' (완료)'}`}
+            {prog ? `표지 해시 생성… ${prog.done}/${prog.total}` : `표지 해시 생성${missing ? ` (남은 작품 ${missing}개)` : ' (완료)'}`}
           </button>
           <button className="mini danger" onClick={() => setConfirmBulk(true)} disabled={!selected.size}>
             선택 {selected.size}개 삭제
@@ -289,7 +289,6 @@ function Duplicates(): JSX.Element {
       {confirmBulk && (
         <ConfirmModal
           danger
-          icon="🗑"
           title="선택한 작품을 삭제할까요?"
           desc={<>선택한 {selected.size}개 작품 폴더를 휴지통으로 옮깁니다.</>}
           confirmLabel="삭제"
@@ -346,7 +345,7 @@ function Translations(): JSX.Element {
       <div className="manage-actions">
         <div className="flat-group">
           <button className="mini" onClick={scan} disabled={prog !== null}>
-            {prog ? `표지 해시 생성… ${prog.done}/${prog.total}` : `표지 해시 생성${missing ? ` (${missing}개 남음)` : ' (완료)'}`}
+            {prog ? `표지 해시 생성… ${prog.done}/${prog.total}` : `표지 해시 생성${missing ? ` (남은 작품 ${missing}개)` : ' (완료)'}`}
           </button>
         </div>
         <span className="hint" style={{ margin: 0 }}>
@@ -372,7 +371,6 @@ function Translations(): JSX.Element {
       {pendingDel && (
         <ConfirmModal
           danger
-          icon="🗑"
           title="작품을 삭제할까요?"
           desc={<><b>{pendingDel.title}</b> 폴더를 휴지통으로 옮깁니다.</>}
           confirmLabel="삭제"

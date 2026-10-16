@@ -9,7 +9,7 @@ import type { ComicSeriesRef } from './ComicDownloadModal'
 import ComicBackupModal from './ComicBackupModal'
 import OnlineThumb from './OnlineThumb'
 import { getOnlineImages } from '../images'
-import { SearchIcon, FavoriteIcon, DownloadIcon, CloseIcon } from './icons'
+import { CloseIcon, DownloadIcon, FavoriteIcon, SearchIcon, ContentCopyIcon, OpenInNewIcon, TabIcon } from './icons'
 import { BypassToggle, OnlineOnlyToggle, FavSortSelect } from './FavDlToggle'
 import Pager from './Pager'
 import { groupSeries, titleKey, isComicCode } from '../util'
@@ -131,7 +131,7 @@ export default function ComicBrowse(): JSX.Element {
       })
       .catch(
         (e) =>
-          alive && setError(String(e?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+          alive && setError(String(e?.message ?? e))
       )
       .finally(() => alive && setLoading(false))
     return () => {
@@ -292,7 +292,7 @@ export default function ComicBrowse(): JSX.Element {
     try {
       const chapters = await window.api.comicChapters(g.url)
       if (chapters.length === 0) {
-        alert('이 작품의 화 목록을 찾지 못했습니다. (사이트 구조가 다를 수 있음)')
+        alert('이 작품의 화 목록을 찾지 못했습니다. 사이트 구조가 바뀌었을 수 있습니다.')
         return
       }
       // Author + series title are nice-to-haves; fetch after, never block opening.
@@ -458,7 +458,7 @@ export default function ComicBrowse(): JSX.Element {
               {excludeGenres.length > 0 && (
                 <span className="genre-ex-info">
                   제외 {excludeGenres.length}개
-                  {items.length > shownItems.length && ` · 이 쪽에서 ${items.length - shownItems.length}개 숨김`}
+                  {items.length > shownItems.length && ` · 이 쪽에서 숨긴 작품 ${items.length - shownItems.length}개`}
                   <span
                     className="mini"
                     onClick={() => {
@@ -565,7 +565,7 @@ export default function ComicBrowse(): JSX.Element {
         <div className="empty">즐겨찾기한 일반 만화 온라인 작품이 없습니다.</div>
       )}
       {!loading && !error && !favMode && items.length === 0 && (
-        <div className="empty">결과가 없습니다. (사이트 구조/주소가 다를 수 있음)</div>
+        <div className="empty">결과가 없습니다. 사이트 구조나 주소가 바뀌었을 수 있습니다.</div>
       )}
 
       <div className="browse-grid">
@@ -681,9 +681,9 @@ export default function ComicBrowse(): JSX.Element {
           x={cardMenu.x}
           y={cardMenu.y}
           items={[
-            { label: '새 탭에서 열기', onClick: () => void openSeries(cardMenu.g) },
-            { label: '백그라운드에서 열기', onClick: () => void openSeries(cardMenu.g, 'background') },
-            { label: '제목 복사', onClick: () => void window.api.clipboardWriteText(cardMenu.g.title) }
+            { label: '새 탭에서 열기', icon: <OpenInNewIcon />, onClick: () => void openSeries(cardMenu.g) },
+            { label: '백그라운드에서 열기', icon: <TabIcon />, onClick: () => void openSeries(cardMenu.g, 'background') },
+            { label: '제목 복사', icon: <ContentCopyIcon />, onClick: () => void window.api.clipboardWriteText(cardMenu.g.title) }
           ]}
           onClose={() => setCardMenu(null)}
         />

@@ -4,45 +4,52 @@ import type { Api } from '../shared/ipc'
 import { createApi as createSortaApi } from '../sorta/preload/api'
 import { createApi as createEnvelopeApi } from '../envelope/preload/api'
 
+// A main-process error reaches the page as "Error invoking remote method 'x':
+// Error: …". Keep only the message, so alerts / banners show what went wrong.
+const invoke = (channel: string, ...args: unknown[]): Promise<any> =>
+  ipcRenderer.invoke(channel, ...args).catch((e: unknown) => {
+    throw new Error(String((e as Error)?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+  })
+
 const api: Api = {
-  pickFolder: () => ipcRenderer.invoke(IPC.pickFolder),
-  smbConnect: (opts) => ipcRenderer.invoke(IPC.smbConnect, opts),
-  getSettings: () => ipcRenderer.invoke(IPC.getSettings),
-  saveSettings: (s) => ipcRenderer.invoke(IPC.saveSettings, s),
-  scanLibrary: () => ipcRenderer.invoke(IPC.scanLibrary),
-  scanFolder: (root) => ipcRenderer.invoke(IPC.scanFolder, root),
-  setCollections: (collections, dirs) => ipcRenderer.invoke(IPC.setCollections, collections, dirs),
+  pickFolder: () => invoke(IPC.pickFolder),
+  smbConnect: (opts) => invoke(IPC.smbConnect, opts),
+  getSettings: () => invoke(IPC.getSettings),
+  saveSettings: (s) => invoke(IPC.saveSettings, s),
+  scanLibrary: () => invoke(IPC.scanLibrary),
+  scanFolder: (root) => invoke(IPC.scanFolder, root),
+  setCollections: (collections, dirs) => invoke(IPC.setCollections, collections, dirs),
   onScanProgress: (cb) => {
     const listener = (_e: unknown, p: any) => cb(p)
     ipcRenderer.on(IPC.scanProgress, listener)
     return () => ipcRenderer.removeListener(IPC.scanProgress, listener)
   },
-  organizeLanguages: () => ipcRenderer.invoke(IPC.organizeLanguages),
-  organizeByGenre: () => ipcRenderer.invoke(IPC.organizeByGenre),
+  organizeLanguages: () => invoke(IPC.organizeLanguages),
+  organizeByGenre: () => invoke(IPC.organizeByGenre),
   onOrganizeProgress: (cb) => {
     const listener = (_e: unknown, p: any) => cb(p)
     ipcRenderer.on(IPC.organizeProgress, listener)
     return () => ipcRenderer.removeListener(IPC.organizeProgress, listener)
   },
-  getWorks: () => ipcRenderer.invoke(IPC.getWorks),
-  getWorkImages: (id) => ipcRenderer.invoke(IPC.getWorkImages, id),
-  setFavorite: (id, fav) => ipcRenderer.invoke(IPC.setFavorite, id, fav),
-  setNormalFav: (kind, key, fav) => ipcRenderer.invoke(IPC.setNormalFav, kind, key, fav),
-  setRank: (id, rank) => ipcRenderer.invoke(IPC.setRank, id, rank),
-  setCoverHash: (id, hash, w, h) => ipcRenderer.invoke(IPC.setCoverHash, id, hash, w, h),
-  setWorkGroups: (id, groupIds) => ipcRenderer.invoke(IPC.setWorkGroups, id, groupIds),
-  deleteGroup: (groupId) => ipcRenderer.invoke(IPC.deleteGroup, groupId),
-  renameGroup: (groupId, name) => ipcRenderer.invoke(IPC.renameGroup, groupId, name),
-  doujinFindKorean: (payload) => ipcRenderer.invoke(IPC.doujinFindKorean, payload),
-  doujinFindEditions: (payload) => ipcRenderer.invoke(IPC.doujinFindEditions, payload),
-  exportFavorites: () => ipcRenderer.invoke(IPC.exportFavorites),
-  importFavorites: () => ipcRenderer.invoke(IPC.importFavorites),
-  importOnlineFavList: () => ipcRenderer.invoke(IPC.importOnlineFavList),
-  removeOnlineFavList: (name: string) => ipcRenderer.invoke(IPC.removeOnlineFavList, name),
-  doujinSummaries: (codes: string[]) => ipcRenderer.invoke(IPC.doujinSummaries, codes),
-  resetFavorites: () => ipcRenderer.invoke(IPC.resetFavorites),
-  favLanguages: (codes: string[]) => ipcRenderer.invoke(IPC.favLanguages, codes),
-  pruneDeletedFavorites: () => ipcRenderer.invoke(IPC.pruneDeletedFavorites),
+  getWorks: () => invoke(IPC.getWorks),
+  getWorkImages: (id) => invoke(IPC.getWorkImages, id),
+  setFavorite: (id, fav) => invoke(IPC.setFavorite, id, fav),
+  setNormalFav: (kind, key, fav) => invoke(IPC.setNormalFav, kind, key, fav),
+  setRank: (id, rank) => invoke(IPC.setRank, id, rank),
+  setCoverHash: (id, hash, w, h) => invoke(IPC.setCoverHash, id, hash, w, h),
+  setWorkGroups: (id, groupIds) => invoke(IPC.setWorkGroups, id, groupIds),
+  deleteGroup: (groupId) => invoke(IPC.deleteGroup, groupId),
+  renameGroup: (groupId, name) => invoke(IPC.renameGroup, groupId, name),
+  doujinFindKorean: (payload) => invoke(IPC.doujinFindKorean, payload),
+  doujinFindEditions: (payload) => invoke(IPC.doujinFindEditions, payload),
+  exportFavorites: () => invoke(IPC.exportFavorites),
+  importFavorites: () => invoke(IPC.importFavorites),
+  importOnlineFavList: () => invoke(IPC.importOnlineFavList),
+  removeOnlineFavList: (name: string) => invoke(IPC.removeOnlineFavList, name),
+  doujinSummaries: (codes: string[]) => invoke(IPC.doujinSummaries, codes),
+  resetFavorites: () => invoke(IPC.resetFavorites),
+  favLanguages: (codes: string[]) => invoke(IPC.favLanguages, codes),
+  pruneDeletedFavorites: () => invoke(IPC.pruneDeletedFavorites),
   onPruneDeletedProgress: (cb: (p: { done: number; total: number }) => void) => {
     const listener = (_e: unknown, p: any): void => cb(p)
     ipcRenderer.on(IPC.pruneDeletedProgress, listener)
@@ -58,103 +65,103 @@ const api: Api = {
     ipcRenderer.on(IPC.summarySyncProgress, listener)
     return () => ipcRenderer.removeListener(IPC.summarySyncProgress, listener)
   },
-  preloadOnlineFavLists: () => ipcRenderer.invoke(IPC.preloadOnlineFavLists),
+  preloadOnlineFavLists: () => invoke(IPC.preloadOnlineFavLists),
   onOnlineFavPreload: (cb: (p: { done: number; total: number }) => void) => {
     const listener = (_e: unknown, p: any): void => cb(p)
     ipcRenderer.on(IPC.onlineFavPreloadProgress, listener)
     return () => ipcRenderer.removeListener(IPC.onlineFavPreloadProgress, listener)
   },
-  mergeFavorites: () => ipcRenderer.invoke(IPC.mergeFavorites),
-  exportRatings: (lib) => ipcRenderer.invoke(IPC.exportRatings, lib),
-  importRatings: (lib) => ipcRenderer.invoke(IPC.importRatings, lib),
-  mergeRatings: (lib) => ipcRenderer.invoke(IPC.mergeRatings, lib),
-  getOnlineFavs: () => ipcRenderer.invoke(IPC.getOnlineFavs),
-  getReadProgress: () => ipcRenderer.invoke(IPC.getReadProgress),
-  markRead: (key) => ipcRenderer.invoke(IPC.markRead, key),
-  setOnlineFav: (code, patch, meta) => ipcRenderer.invoke(IPC.setOnlineFav, code, patch, meta),
-  setFavoriteByCode: (code, fav, meta) => ipcRenderer.invoke(IPC.setFavoriteByCode, code, fav, meta),
-  translateRegion: (imageBase64, rect, langHint, ctx) => ipcRenderer.invoke(IPC.translateRegion, imageBase64, rect, langHint, ctx),
-  transDraftMemo: (lines, langHint) => ipcRenderer.invoke(IPC.transDraftMemo, lines, langHint),
-  ocrPageTexts: (imageBase64, langHint) => ipcRenderer.invoke(IPC.ocrPageTexts, imageBase64, langHint),
+  mergeFavorites: () => invoke(IPC.mergeFavorites),
+  exportRatings: (lib) => invoke(IPC.exportRatings, lib),
+  importRatings: (lib) => invoke(IPC.importRatings, lib),
+  mergeRatings: (lib) => invoke(IPC.mergeRatings, lib),
+  getOnlineFavs: () => invoke(IPC.getOnlineFavs),
+  getReadProgress: () => invoke(IPC.getReadProgress),
+  markRead: (key) => invoke(IPC.markRead, key),
+  setOnlineFav: (code, patch, meta) => invoke(IPC.setOnlineFav, code, patch, meta),
+  setFavoriteByCode: (code, fav, meta) => invoke(IPC.setFavoriteByCode, code, fav, meta),
+  translateRegion: (imageBase64, rect, langHint, ctx) => invoke(IPC.translateRegion, imageBase64, rect, langHint, ctx),
+  transDraftMemo: (lines, langHint) => invoke(IPC.transDraftMemo, lines, langHint),
+  ocrPageTexts: (imageBase64, langHint) => invoke(IPC.ocrPageTexts, imageBase64, langHint),
   translateImage: (imageBase64, langHint, w, h, ctx) =>
-    ipcRenderer.invoke(IPC.translateImage, imageBase64, langHint, w, h, ctx),
-  translateTexts: (texts, langHint) => ipcRenderer.invoke(IPC.translateTexts, texts, langHint),
-  ocrModelsStatus: () => ipcRenderer.invoke(IPC.ocrModelsStatus),
-  ocrModelsDownload: () => ipcRenderer.invoke(IPC.ocrModelsDownload),
-  ocrModelsDelete: () => ipcRenderer.invoke(IPC.ocrModelsDelete),
+    invoke(IPC.translateImage, imageBase64, langHint, w, h, ctx),
+  translateTexts: (texts, langHint) => invoke(IPC.translateTexts, texts, langHint),
+  ocrModelsStatus: () => invoke(IPC.ocrModelsStatus),
+  ocrModelsDownload: () => invoke(IPC.ocrModelsDownload),
+  ocrModelsDelete: () => invoke(IPC.ocrModelsDelete),
   onOcrModelsProgress: (cb) => {
     const listener = (_e: unknown, p: { done: number; total: number }): void => cb(p)
     ipcRenderer.on(IPC.ocrModelsProgress, listener)
     return () => ipcRenderer.removeListener(IPC.ocrModelsProgress, listener)
   },
-  getTransEdits: () => ipcRenderer.invoke(IPC.getTransEdits),
-  saveTransEdit: (src, blocks) => ipcRenderer.invoke(IPC.saveTransEdit, src, blocks),
-  exportText: (title, content) => ipcRenderer.invoke(IPC.exportText, title, content),
-  exportImageDir: (title) => ipcRenderer.invoke(IPC.exportImageDir, title),
-  writeImageFile: (dir, name, base64) => ipcRenderer.invoke(IPC.writeImageFile, dir, name, base64),
-  addManualTag: (id, tag) => ipcRenderer.invoke(IPC.addManualTag, id, tag),
-  removeManualTag: (id, tag) => ipcRenderer.invoke(IPC.removeManualTag, id, tag),
-  incrementView: (id) => ipcRenderer.invoke(IPC.incrementView, id),
-  openInExplorer: (id) => ipcRenderer.invoke(IPC.openInExplorer, id),
-  clipboardReadText: () => ipcRenderer.invoke(IPC.clipboardReadText),
-  clipboardWriteText: (text) => ipcRenderer.invoke(IPC.clipboardWriteText, text),
-  deleteWork: (id) => ipcRenderer.invoke(IPC.deleteWork, id),
-  mergeSeries: (title, ids) => ipcRenderer.invoke(IPC.mergeSeries, title, ids),
-  renameNormalChapters: (items) => ipcRenderer.invoke(IPC.renameNormalChapters, items),
-  classifyDeleted: () => ipcRenderer.invoke(IPC.classifyDeleted),
+  getTransEdits: () => invoke(IPC.getTransEdits),
+  saveTransEdit: (src, blocks) => invoke(IPC.saveTransEdit, src, blocks),
+  exportText: (title, content) => invoke(IPC.exportText, title, content),
+  exportImageDir: (title) => invoke(IPC.exportImageDir, title),
+  writeImageFile: (dir, name, base64) => invoke(IPC.writeImageFile, dir, name, base64),
+  addManualTag: (id, tag) => invoke(IPC.addManualTag, id, tag),
+  removeManualTag: (id, tag) => invoke(IPC.removeManualTag, id, tag),
+  incrementView: (id) => invoke(IPC.incrementView, id),
+  openInExplorer: (id) => invoke(IPC.openInExplorer, id),
+  clipboardReadText: () => invoke(IPC.clipboardReadText),
+  clipboardWriteText: (text) => invoke(IPC.clipboardWriteText, text),
+  deleteWork: (id) => invoke(IPC.deleteWork, id),
+  mergeSeries: (title, ids) => invoke(IPC.mergeSeries, title, ids),
+  renameNormalChapters: (items) => invoke(IPC.renameNormalChapters, items),
+  classifyDeleted: () => invoke(IPC.classifyDeleted),
   onClassifyProgress: (cb) => {
     const listener = (_e: unknown, p: any) => cb(p)
     ipcRenderer.on(IPC.classifyProgress, listener)
     return () => ipcRenderer.removeListener(IPC.classifyProgress, listener)
   },
-  getSession: () => ipcRenderer.invoke(IPC.getSession),
-  saveSession: (s) => ipcRenderer.invoke(IPC.saveSession, s),
-  parseName: (name) => ipcRenderer.invoke(IPC.parseName, name),
-  doujinFetchMeta: (code) => ipcRenderer.invoke(IPC.doujinFetchMeta, code),
-  doujinEnrich: (id) => ipcRenderer.invoke(IPC.doujinEnrich, id),
-  doujinEnrichAll: () => ipcRenderer.invoke(IPC.doujinEnrichAll),
-  doujinCancelEnrich: () => ipcRenderer.invoke(IPC.doujinCancelEnrich),
-  doujinDownload: (input) => ipcRenderer.invoke(IPC.doujinDownload, input),
-  downloadStop: (code) => ipcRenderer.invoke(IPC.downloadStop, code),
+  getSession: () => invoke(IPC.getSession),
+  saveSession: (s) => invoke(IPC.saveSession, s),
+  parseName: (name) => invoke(IPC.parseName, name),
+  doujinFetchMeta: (code) => invoke(IPC.doujinFetchMeta, code),
+  doujinEnrich: (id) => invoke(IPC.doujinEnrich, id),
+  doujinEnrichAll: () => invoke(IPC.doujinEnrichAll),
+  doujinCancelEnrich: () => invoke(IPC.doujinCancelEnrich),
+  doujinDownload: (input) => invoke(IPC.doujinDownload, input),
+  downloadStop: (code) => invoke(IPC.downloadStop, code),
   onDoujinProgress: (cb) => {
     const listener = (_e: unknown, p: any) => cb(p)
     ipcRenderer.on(IPC.doujinProgress, listener)
     return () => ipcRenderer.removeListener(IPC.doujinProgress, listener)
   },
-  doujinList: (source, page) => ipcRenderer.invoke(IPC.doujinList, source, page),
-  doujinSuggest: (query) => ipcRenderer.invoke(IPC.doujinSuggest, query),
-  listAvifPaths: (workId) => ipcRenderer.invoke(IPC.listAvifPaths, workId),
+  doujinList: (source, page) => invoke(IPC.doujinList, source, page),
+  doujinSuggest: (query) => invoke(IPC.doujinSuggest, query),
+  listAvifPaths: (workId) => invoke(IPC.listAvifPaths, workId),
   replaceAvifWithWebp: (avifPath, webpBase64) =>
-    ipcRenderer.invoke(IPC.replaceAvifWithWebp, avifPath, webpBase64),
-  doujinReadUrls: (code) => ipcRenderer.invoke(IPC.doujinReadUrls, code),
-  doujinRegenCover: (workId, code) => ipcRenderer.invoke(IPC.doujinRegenCover, workId, code),
-  comicList: (source, page) => ipcRenderer.invoke(IPC.comicList, source, page),
-  comicChapters: (seriesUrl) => ipcRenderer.invoke(IPC.comicChapters, seriesUrl),
-  comicReadUrls: (chapterUrl, fresh, view) => ipcRenderer.invoke(IPC.comicReadUrls, chapterUrl, fresh, view),
-  comicReadCancel: (view) => ipcRenderer.invoke(IPC.comicReadCancel, view),
+    invoke(IPC.replaceAvifWithWebp, avifPath, webpBase64),
+  doujinReadUrls: (code) => invoke(IPC.doujinReadUrls, code),
+  doujinRegenCover: (workId, code) => invoke(IPC.doujinRegenCover, workId, code),
+  comicList: (source, page) => invoke(IPC.comicList, source, page),
+  comicChapters: (seriesUrl) => invoke(IPC.comicChapters, seriesUrl),
+  comicReadUrls: (chapterUrl, fresh, view) => invoke(IPC.comicReadUrls, chapterUrl, fresh, view),
+  comicReadCancel: (view) => invoke(IPC.comicReadCancel, view),
   onComicReadPartial: (cb) => {
     const listener = (_e: unknown, p: any) => cb(p)
     ipcRenderer.on(IPC.comicReadPartial, listener)
     return () => ipcRenderer.removeListener(IPC.comicReadPartial, listener)
   },
-  comicDownload: (seriesUrl, title) => ipcRenderer.invoke(IPC.comicDownload, seriesUrl, title),
+  comicDownload: (seriesUrl, title) => invoke(IPC.comicDownload, seriesUrl, title),
   comicDownloadChapters: (seriesUrl, title, chapterUrls) =>
-    ipcRenderer.invoke(IPC.comicDownloadChapters, seriesUrl, title, chapterUrls),
-  comicRegenCover: (workIds, title) => ipcRenderer.invoke(IPC.comicRegenCover, workIds, title),
-  comicSeriesAuthor: (seriesUrl) => ipcRenderer.invoke(IPC.comicSeriesAuthor, seriesUrl),
-  comicSeriesTitle: (seriesUrl) => ipcRenderer.invoke(IPC.comicSeriesTitle, seriesUrl),
-  comicFillArtist: (workIds, title) => ipcRenderer.invoke(IPC.comicFillArtist, workIds, title),
-  comicScrapeList: () => ipcRenderer.invoke(IPC.comicScrapeList),
+    invoke(IPC.comicDownloadChapters, seriesUrl, title, chapterUrls),
+  comicRegenCover: (workIds, title) => invoke(IPC.comicRegenCover, workIds, title),
+  comicSeriesAuthor: (seriesUrl) => invoke(IPC.comicSeriesAuthor, seriesUrl),
+  comicSeriesTitle: (seriesUrl) => invoke(IPC.comicSeriesTitle, seriesUrl),
+  comicFillArtist: (workIds, title) => invoke(IPC.comicFillArtist, workIds, title),
+  comicScrapeList: () => invoke(IPC.comicScrapeList),
   comicDownloadGeneric: (title, chapters, only) =>
-    ipcRenderer.invoke(IPC.comicDownloadGeneric, title, chapters, only),
-  comicOpenSite: (url) => ipcRenderer.invoke(IPC.comicOpenSite, url),
-  comicChallengeAction: (action) => ipcRenderer.invoke(IPC.comicChallengeAction, action),
-  saveThumb: (id, dataUrl) => ipcRenderer.invoke(IPC.saveThumb, id, dataUrl),
-  getThumb: (id) => ipcRenderer.invoke(IPC.getThumb, id),
-  pickImage: () => ipcRenderer.invoke(IPC.pickImage),
-  doujinPing: () => ipcRenderer.invoke(IPC.doujinPing),
-  doujinPopularRanks: (codes) => ipcRenderer.invoke(IPC.doujinPopularRanks, codes),
-  openFolder: (path) => ipcRenderer.invoke(IPC.openFolder, path),
+    invoke(IPC.comicDownloadGeneric, title, chapters, only),
+  comicOpenSite: (url) => invoke(IPC.comicOpenSite, url),
+  comicChallengeAction: (action) => invoke(IPC.comicChallengeAction, action),
+  saveThumb: (id, dataUrl) => invoke(IPC.saveThumb, id, dataUrl),
+  getThumb: (id) => invoke(IPC.getThumb, id),
+  pickImage: () => invoke(IPC.pickImage),
+  doujinPing: () => invoke(IPC.doujinPing),
+  doujinPopularRanks: (codes) => invoke(IPC.doujinPopularRanks, codes),
+  openFolder: (path) => invoke(IPC.openFolder, path),
   onRequestClose: (cb) => {
     const listener = (): void => cb()
     ipcRenderer.on(IPC.requestClose, listener)
@@ -176,7 +183,7 @@ const api: Api = {
     return () => ipcRenderer.removeListener(IPC.updateStatus, listener)
   },
   installUpdate: () => ipcRenderer.send(IPC.installUpdate),
-  resetApp: (deleteWorkFolders) => ipcRenderer.invoke(IPC.resetApp, deleteWorkFolders),
+  resetApp: (deleteWorkFolders) => invoke(IPC.resetApp, deleteWorkFolders),
   onNavBack: (cb) => {
     const listener = (): void => cb()
     ipcRenderer.on(IPC.navBack, listener)
@@ -187,8 +194,8 @@ const api: Api = {
     ipcRenderer.on(IPC.navForward, listener)
     return () => ipcRenderer.removeListener(IPC.navForward, listener)
   },
-  closeWindow: (decision, session) => ipcRenderer.invoke(IPC.closeWindow, decision, session),
-  envelopeBig: (open) => ipcRenderer.invoke(IPC.envelopeBig, open),
+  closeWindow: (decision, session) => invoke(IPC.closeWindow, decision, session),
+  envelopeBig: (open) => invoke(IPC.envelopeBig, open),
   onEnvelopeShape: (cb) => {
     const listener = (_e: unknown, s: 'panel' | 'bar' | 'close'): void => cb(s)
     ipcRenderer.on(IPC.envelopeShape, listener)

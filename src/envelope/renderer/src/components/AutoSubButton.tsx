@@ -11,7 +11,7 @@ import { SubtitlesIcon } from './icons'
 
 const ENGINE: Record<string, string> = { local: '로컬 whisper.cpp', groq: 'Groq' }
 const TRANSLATOR: Record<string, string> = { google: 'Google 번역', deepl: 'DeepL', gemini: 'Gemini', llm: 'LLM' }
-const LANG: Record<string, string> = { ja: '일본어', ko: '한국어', other: '언어 모름' }
+const LANG: Record<string, string> = { ja: '일본어', ko: '한국어', other: '언어 미확인' }
 
 export default function AutoSubButton({ w }: { w: WorkDetail }): JSX.Element {
   const s = useStore((x) => x.settings)
@@ -131,7 +131,7 @@ export default function AutoSubButton({ w }: { w: WorkDetail }): JSX.Element {
             </Check>
             <div className="hint autosub-engines">
               {method === 'script' && source
-                ? `${s?.asrEngine === 'groq' ? 'Groq' : '로컬 tiny 모델(없으면 받음, base · small은 받아 두면 다시 맞출 때 씀)'}로 위치 맞추기${source.lang !== 'ko' && translate ? ` · ${TRANSLATOR[s?.translator ?? 'google']}` : ''}`
+                ? `${s?.asrEngine === 'groq' ? 'Groq' : '로컬 tiny 모델(없으면 받기, base · small은 받아 두면 다시 맞출 때 사용)'}로 위치 맞추기${source.lang !== 'ko' && translate ? ` · ${TRANSLATOR[s?.translator ?? 'google']}` : ''}`
                 : `${transcribe ? ENGINE[s?.asrEngine ?? 'local'] : ''}${transcribe && translate ? ' · ' : ''}${translate ? TRANSLATOR[s?.translator ?? 'google'] : ''}`}
               {' — 바꾸기: 설정 › 자동 자막'}
             </div>

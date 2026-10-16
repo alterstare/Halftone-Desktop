@@ -101,14 +101,14 @@ function ProjectRow({
               '…'
             )}
             {` · 마지막 작업 ${fmt(p.updatedAt)}`}
-            {p.exportedAt ? ` · 내보냄 ${fmt(p.exportedAt)}` : ''}
+            {p.exportedAt ? ` · 내보내기 ${fmt(p.exportedAt)}` : ''}
           </div>
           <div className="work-actions" onClick={(e) => e.stopPropagation()}>
             <button className="mini" onClick={onOpen}>
               {p.lastPage > 0 ? `이어서 편집 (${p.lastPage + 1}쪽)` : '편집'}
             </button>
             <button className="mini" onClick={() => setMemoOpen(true)}>
-              {hasMemo ? '인물 메모 (작성됨)' : '인물 메모'}
+              {hasMemo ? '인물 메모 (작성 완료)' : '인물 메모'}
             </button>
             <button className="mini" onClick={() => onExport('image')}>
               이미지 내보내기
@@ -267,7 +267,7 @@ function Picker({ onClose }: { onClose: () => void }): JSX.Element {
                     {` · ${(w.library ?? 'doujin') === 'normal' ? '일반 만화' : '동인지'}`}
                   </span>
                 </span>
-                <span className="tw-pick-state">{on ? '추가됨' : '추가'}</span>
+                <span className="tw-pick-state">{on ? '추가 완료' : '추가'}</span>
               </button>
             )
           })}
@@ -383,7 +383,6 @@ export default function TransWork(): JSX.Element {
         <ConfirmModal
           title="내보낼 폴더가 없습니다"
           desc="설정에서 내보내기 폴더를 먼저 지정하세요. (텍스트·이미지 내보내기 공통)"
-          icon="📁"
           confirmLabel="설정 열기"
           cancelLabel="닫기"
           onConfirm={() => {

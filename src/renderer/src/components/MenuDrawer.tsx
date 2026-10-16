@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import type { JSX, ReactNode } from 'react'
 import { useStore } from '../store'
 import { useLock } from '../lock'
@@ -53,6 +54,17 @@ export default function MenuDrawer(): JSX.Element {
   const defaultSort = useStore((s) => s.settings.defaultSort)
 
   const close = (): void => setMenuOpen(false)
+  // Escape closes it, like every other popup
+  useEffect(() => {
+    if (!open) return undefined
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      setMenuOpen(false)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [open, setMenuOpen])
   const go = (fn: () => void): void => {
     fn()
     close()

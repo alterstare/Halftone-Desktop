@@ -41,7 +41,7 @@ export default function OnlineFavCard({ fav: entry, layout }: { fav: OnlineFav; 
   const d = useStore((s) => s.downloads.find((x) => x.code === fav.code))
   const favoriteTags = useStore((s) => s.settings.favoriteTags)
   const addSearchToken = useStore((s) => s.addSearchToken)
-  const { openTagMenu, tagMenu } = useTagMenu('online')
+  const { openTagMenu, tagMenu } = useTagMenu()
   // Artist names are links like on the local cards: click = search by that
   // artist, right-click = the usual tag menu.
   const artistLinks = (a: string): JSX.Element => (

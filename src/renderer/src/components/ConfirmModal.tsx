@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import type { JSX } from 'react'
 
 // Generic styled confirm dialog (shares the exit-modal look). Used for group
-// move (유지/옮김) and group delete (삭제/취소).
+// move (유지/옮기기) and group delete (삭제/취소).
 export default function ConfirmModal({
   title,
   desc,
@@ -17,10 +17,9 @@ export default function ConfirmModal({
 }: {
   title: string
   desc?: React.ReactNode
-  icon?: string // (ignored — popups no longer show a top icon)
   confirmLabel: string
   cancelLabel?: string
-  altLabel?: string // optional middle action (e.g. "저장 안 함")
+  altLabel?: string // optional middle action (e.g. "저장하지 않기")
   danger?: boolean
   hideCancel?: boolean // single-button info dialog
   onConfirm: () => void

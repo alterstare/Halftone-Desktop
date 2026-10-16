@@ -85,6 +85,10 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
+  /* Korean wraps between words, never inside one; an over-long run
+     (a URL, a title with no spaces) still breaks rather than overflow */
+  word-break: keep-all;
+  overflow-wrap: break-word;
   /* Kraken-Product (UI) → IBM Plex Sans / Helvetica fallbacks; Malgun Gothic for
      Korean. The proprietary Kraken fonts aren't bundled, so we ride the fallbacks. */
   font-family: 'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, 'Malgun Gothic', sans-serif;
@@ -1287,9 +1291,6 @@ select {
   height: 1px;
   background: var(--line);
 }
-.reader-options-label {
-  color: var(--muted);
-}
 .page-slider {
   flex: 1 1 140px;
   min-width: 120px;
@@ -2032,16 +2033,17 @@ body.resizing {
   max-width: 60vw;
   background: var(--bg-1);
   border-right: 1px solid var(--line);
-  box-shadow: 4px 0 18px rgba(0, 0, 0, 0.35);
   padding: 14px 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   transform: translateX(-100%);
-  transition: transform 0.2s ease;
+  /* shadow only while open: closed, it would bleed in at the window's left edge */
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .menu-root.open .menu-drawer {
   transform: translateX(0);
+  box-shadow: 4px 0 18px rgba(0, 0, 0, 0.35);
 }
 .menu-brand {
   font-size: 12px;
@@ -2840,67 +2842,6 @@ body.resizing {
   background: var(--accent-2);
   color: #fff;
 }
-.kfinder {
-  border: 1px solid var(--line);
-  border-top: none;
-  border-radius: 0 0 var(--r6) var(--r6);
-  background: var(--bg-1);
-  padding: 10px 12px;
-  margin: -6px 0 8px;
-}
-.kfinder-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.kfind-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  background: var(--bg-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r4);
-  padding: 8px;
-}
-.kfind-thumb {
-  flex: 0 0 auto;
-  width: 70px;
-  height: 94px;
-  overflow: hidden;
-  border-radius: var(--r3);
-  cursor: pointer;
-  background: var(--bg);
-  display: grid;
-  place-items: center;
-}
-.kfind-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-.kfind-info {
-  flex: 1;
-  min-width: 0;
-}
-.kfind-title {
-  font-size: 13px;
-  margin: 0 0 3px;
-}
-.kfind-meta {
-  font-size: 11px;
-  color: var(--text-dim);
-  margin-bottom: 6px;
-}
-.kfind-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-content: flex-start;
-}
-.kfind-dl {
-  flex: 0 0 auto;
-  align-self: center;
-}
 
 /* ---------- Groups (collections) ---------- */
 .grp-btn-wrap {
@@ -3603,25 +3544,6 @@ button:active,
   flex-direction: column;
   gap: 8px;
 }
-.ted-add {
-  width: 100%;
-  padding: 8px;
-  border: 1px dashed var(--line);
-  border-radius: var(--r4);
-  background: var(--bg-2);
-  color: inherit;
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-.ted-add:hover {
-  border-color: #ffcf3f;
-  color: #ffcf3f;
-}
-.ted-add:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
 .ted-row {
   border: 1px solid var(--line);
   border-radius: var(--r4);
@@ -3744,19 +3666,6 @@ button:active,
   from { opacity: 0; transform: translateY(8px) scale(0.96); }
   to { opacity: 1; transform: none; }
 }
-.exit-icon {
-  width: 52px;
-  height: 52px;
-  margin: 0 auto 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  border-radius: 50%;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border: 1px solid rgba(133, 91, 251, 0.35);
-}
 .exit-title {
   margin: 0 0 10px;
   font-size: 17px;
@@ -3822,11 +3731,6 @@ button:active,
 .exit-btn.danger:hover {
   background: #ff7882;
   border-color: #ff7882;
-}
-.exit-icon.danger {
-  color: var(--danger);
-  background: rgba(255, 93, 108, 0.12);
-  border-color: rgba(255, 93, 108, 0.35);
 }
 
 /* Tab drag: non-dragged tabs slide smoothly to make room; the grabbed tab
@@ -3970,75 +3874,86 @@ button:active,
 
 /* --- Right-click context menu --- */
 .ctx-menu {
+  /* same look as Sorta's / Envelope's menus: icon column, label, separators */
   position: fixed;
   z-index: 2000;
-  min-width: 168px;
-  background: var(--bg-2);
+  min-width: 190px;
+  background: var(--bg-1);
   border: 1px solid var(--line);
-  border-radius: var(--r5);
+  border-radius: var(--r4);
   padding: 5px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-subtle);
   display: flex;
   flex-direction: column;
 }
 .ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   text-align: left;
   background: transparent;
   border: none;
   color: var(--text);
+  font: inherit;
   font-size: 13px;
-  padding: 8px 11px;
+  padding: 7px 10px;
   border-radius: var(--r3);
   cursor: pointer;
   white-space: nowrap;
 }
-.ctx-item:hover {
-  background: var(--bg-3);
+.ctx-item:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.ctx-icon {
+  width: 16px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 15px;
+}
+.ctx-label {
+  flex: 1;
 }
 .ctx-swatch {
   display: inline-block;
   width: 10px;
   height: 10px;
   border-radius: var(--r1);
-  margin-right: 8px;
-  vertical-align: middle;
-  flex: 0 0 auto;
 }
-.ctx-item.danger {
-  color: #ff9b9b;
+.ctx-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
 }
-.ctx-item.danger:hover {
-  background: rgba(220, 70, 70, 0.18);
+.ctx-item.danger,
+.ctx-item.danger .ctx-icon {
+  color: var(--danger);
 }
 .ctx-item:disabled {
-  color: var(--text-dim);
-  opacity: 0.5;
+  color: var(--muted);
   cursor: default;
-  background: transparent;
 }
 /* submenu (flyout) */
 .ctx-item.has-sub {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
 .ctx-arrow {
-  color: var(--text-dim);
-  font-size: 14px;
+  color: var(--muted);
 }
 .ctx-submenu {
   position: absolute;
   left: 100%;
-  top: -5px;
+  top: -6px;
   margin-left: 2px;
-  min-width: 160px;
-  background: var(--bg-2);
+  min-width: 170px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--bg-1);
   border: 1px solid var(--line);
-  border-radius: var(--r5);
+  border-radius: var(--r4);
   padding: 5px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-subtle);
   display: flex;
   flex-direction: column;
 }
@@ -4131,13 +4046,6 @@ button:active,
 }
 
 /* --- general-manga online (manga-site) --- */
-.genre-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
-.genre-chips .tag,
 .comic-filter-panel .tag {
   cursor: pointer;
 }
@@ -4424,9 +4332,8 @@ select:focus {
 }
 
 /* Settings rows: keep controls content-sized so hovering the row's empty space
-   doesn't land on a stretched control (spurious highlight). row-grow opts back in. */
+   doesn't land on a stretched control (spurious highlight). */
 .settings .row > select,
-.settings .row > .dropdown:not(.row-grow),
 .settings .row > .stepper {
   flex: 0 0 auto;
   width: auto;
@@ -4515,13 +4422,6 @@ select:focus {
 }
 .toggle.on .toggle-knob {
   left: 20px;
-}
-/* Block title inside a settings box (bold, primary text color). */
-.set-blocktitle {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-  margin: 4px 0 10px;
 }
 /* 중분류 header inside a settings section. */
 .set-sub {
@@ -5085,7 +4985,6 @@ select:focus {
 
 /* Genre chips: the selected genre is outlined in purple over the page
    background instead of a filled chip. */
-.genre-chips .tag.fav-tag,
 .comic-filter-panel .tag.fav-tag {
   background: transparent;
   color: var(--accent);
@@ -5490,31 +5389,10 @@ select:focus {
 /* 일반 만화 online genre chips: flat like the toolbar row — no fill/outline,
    short dividers between; hover tints, the selected genre keeps its purple
    outline and an excluded one its red strike-through. */
-.genre-chips {
-  gap: 0;
-  row-gap: 6px;
-}
-.genre-chips > * + * {
-  position: relative;
-  margin-left: 11px;
-}
-.genre-chips > * + *::before {
-  content: '';
-  position: absolute;
-  left: -6px;
-  top: 50%;
-  width: 1px;
-  height: 12px;
-  margin-top: -6px;
-  background: var(--line);
-  pointer-events: none;
-}
-.genre-chips .tag:not(.fav-tag):not(.excluded),
 .comic-filter-panel .tag:not(.fav-tag):not(.excluded) {
   background: transparent;
   border-color: transparent;
 }
-.genre-chips .tag:not(.fav-tag):not(.excluded):hover,
 .comic-filter-panel .tag:not(.fav-tag):not(.excluded):hover {
   background: var(--accent-hover);
 }
@@ -5555,6 +5433,19 @@ select:focus {
 }
 .app > .body.mode-switching {
   animation: mode-switch 0.22s ease-out;
+}
+
+/* Screen changes (홈 · 설정 · 작업 목록 · 관리 · 번역 편집기 · 온라인) fade in
+   like Sorta's and Envelope's; the reader stays instant. */
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.app > .body > :is(.home, .settings, .download, .manage),
+.app > .body > .browse-keepalive {
+  animation: view-in 0.16s ease-out;
 }
 
 /* The app body is user-select:none (UI chrome) — text fields must stay
@@ -5915,7 +5806,6 @@ textarea {
   font-size: 14px;
 }
 
-
 /* Dropdowns left of the main search boxes (정렬 · 언어 · 제목/작가): flat like
    the toolbar row — no fill/outline until hovered, a short divider between
    neighbouring dropdowns. */
@@ -6129,13 +6019,6 @@ textarea {
 .ted-add-row {
   display: flex;
   gap: 6px;
-}
-.ted-add-row .ted-add {
-  flex: 1;
-}
-.ted-add.on {
-  border-color: #ffcf3f;
-  color: #ffcf3f;
 }
 .ted-canvas-wrap.picking {
   cursor: crosshair;
@@ -7010,9 +6893,6 @@ textarea {
 
 /* 일반 만화 온라인: each filter row (장르 / 분류 / 요일 / 플랫폼) is a
    "<row> 더보기 ▾" button opening a chip panel. */
-.comic-filters {
-  align-items: center;
-}
 .comic-filter {
   position: relative;
 }
@@ -7028,12 +6908,6 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-}
-.comic-plat-ico {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  object-fit: contain;
 }
 /* Chips inside a filter dropdown: pill buttons, the picked one filled. */
 .comic-filter-panel .tag {
@@ -7305,17 +7179,6 @@ textarea {
 
 /* 일반 만화 online "<row> 더보기" buttons: flat divider style like the toolbar
    row — no fill/outline; hover/open tints; a row with picks shows purple text. */
-.comic-filters {
-  margin: 8px 0 4px;
-}
-.comic-filters > * + * {
-  margin-left: 17px;
-}
-.comic-filters > * + *::before {
-  left: -9px;
-  height: 16px;
-  margin-top: -8px;
-}
 .comic-filter > .chip {
   background: transparent;
   border-color: transparent;
@@ -7528,7 +7391,6 @@ select:hover,
   margin-top: 12px;
 }
 
-
 /* ---------- 음성 플레이어 (Envelope) ----------
    One frame, never moved in the page (that would reload it and stop the
    sound): only its box changes — the right panel, the bar along the bottom
@@ -7536,6 +7398,7 @@ select:hover,
    hidden while its big window shows it. */
 .app {
   position: relative;
+  overflow: clip; /* sliding in / out never widens the window (no scrollbar flash) */
 }
 /* the panel stands beside Halftone: the tab bar, page and activity bar all
    end at its edge */

@@ -109,8 +109,8 @@ export default function NetworkSection(): JSX.Element {
                 value={draft.downloadImageFormat}
                 onChange={(v) => patch({ downloadImageFormat: v })}
                 options={[
-                  ['avif', 'AVIF (용량 작음)'],
-                  ['webp', 'WebP (호환성 높음)']
+                  ['avif', 'AVIF (작은 용량)'],
+                  ['webp', 'WebP (높은 호환성)']
                 ]}
               />
             </SettingRow>

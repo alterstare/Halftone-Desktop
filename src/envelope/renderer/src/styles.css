@@ -58,6 +58,10 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
+  /* Korean wraps between words, never inside one; an over-long run
+     (a URL, a title with no spaces) still breaks rather than overflow */
+  word-break: keep-all;
+  overflow-wrap: break-word;
   font-family: 'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, 'Yu Gothic UI', 'Meiryo UI', 'Malgun Gothic', sans-serif;
   font-size: 14px;
   user-select: none;
@@ -162,23 +166,6 @@ h2 {
   background: var(--line);
   pointer-events: none;
 }
-.icon-btn {
-  width: 36px;
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 20px;
-  cursor: pointer;
-}
-.icon-btn.on {
-  background: var(--accent-hover);
-  color: var(--text-hover);
-}
 
 /* ---------- hover / press: the one rule for every clickable control ----------
    1. Plain controls (flat buttons, chips, menu items, drop-down buttons and
@@ -195,17 +182,12 @@ h2 {
 :is(
     .btn:not(.primary):not(.danger),
     .mini:not(.on):not(.play-solid),
-    .icon-btn,
     .chip:not(.active),
     .menu-item:not(.on),
     .dd-btn,
     .dd-opt:not(.on),
     .search-filter:not(.on),
     .lline,
-    .select-wrap,
-    .bm-time,
-    .bm-main,
-    .mn-about-row,
     .trow,
     .trow-tool:not(.off),
     .se-row:not(.on)
@@ -226,8 +208,7 @@ h2 {
     .dd-opt.on,
     .search-go,
     .mn-play,
-    .search-filter.on,
-    .nav-tab
+    .search-filter.on
   ):hover:not(:active):not(:disabled) {
   filter: var(--hover-filter);
 }
@@ -259,9 +240,6 @@ h2 {
   font-size: 17px;
   letter-spacing: -0.5px;
   color: var(--accent);
-}
-.spacer {
-  flex: 1;
 }
 .body {
   flex: 1;
@@ -300,11 +278,6 @@ h2 {
 .locked h2 {
   color: var(--text);
   margin: 6px 0 0;
-}
-.locked-logo {
-  width: 72px;
-  height: 72px;
-  border-radius: 18px;
 }
 .hero-icon {
   font-size: 56px;

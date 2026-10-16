@@ -4,6 +4,7 @@ import type { Work } from '../../../shared/types'
 import { useStore } from '../store'
 import { invalidate } from '../images'
 import ContextMenu from './ContextMenu'
+import { CallSplitIcon, ContentCopyIcon, DeleteIcon, DownloadIcon, OpenInNewIcon, SelectIcon, TabIcon, VerticalSplitIcon } from './icons'
 import TrashConfirm from './TrashConfirm'
 import { mergedIndex, unmergeWork } from '../merge'
 import { useTagMenu } from './useTagMenu'
@@ -52,7 +53,7 @@ export function useWorkCard(work: Work): {
   const selected = useStore((s) => !!s.homeSel?.includes(work.id))
   const [adding, setAdding] = useState(false)
   const [newTag, setNewTag] = useState('')
-  const { openTagMenu, tagMenu } = useTagMenu('online')
+  const { openTagMenu, tagMenu } = useTagMenu()
 
   const cardEvents = {
     // Capture phase so Alt+click works anywhere on the card, even over children
@@ -128,16 +129,16 @@ export function useWorkCard(work: Work): {
       x={menu.x}
       y={menu.y}
       items={[
-        { label: '새 탭에서 열기', onClick: () => openTab(work.id) },
-        { label: '백그라운드에서 열기', onClick: () => openTabBackground(work.id) },
-        { label: splitOpen ? '오른쪽 뷰에서 열기' : '분할 뷰에서 열기', onClick: () => openSplit(work.id) },
+        { label: '새 탭에서 열기', icon: <OpenInNewIcon />, onClick: () => openTab(work.id) },
+        { label: '백그라운드에서 열기', icon: <TabIcon />, onClick: () => openTabBackground(work.id) },
+        { label: splitOpen ? '오른쪽 뷰에서 열기' : '분할 뷰에서 열기', icon: <VerticalSplitIcon />, onClick: () => openSplit(work.id) },
         ...(work.code && (work.library ?? 'doujin') === 'doujin'
-          ? [{ label: '다시 다운로드', onClick: () => startDownload({ kind: 'doujin' as const, input: work.code! }) }]
+          ? [{ label: '다시 다운로드', icon: <DownloadIcon />, onClick: () => startDownload({ kind: 'doujin' as const, input: work.code! }) }]
           : []),
-        { label: '제목 복사', onClick: () => void window.api.clipboardWriteText(work.title) },
-        { label: selected ? '선택 해제' : '선택', onClick: () => useStore.getState().toggleHomeSel(work.id) },
-        ...(mergedIndex(work) >= 0 ? [{ label: '통합 해제', onClick: () => unmergeWork(work) }] : []),
-        { label: '삭제', danger: true, onClick: () => setTrash(true) }
+        { label: '제목 복사', icon: <ContentCopyIcon />, onClick: () => void window.api.clipboardWriteText(work.title) },
+        { label: selected ? '선택 해제' : '선택', icon: <SelectIcon />, onClick: () => useStore.getState().toggleHomeSel(work.id) },
+        ...(mergedIndex(work) >= 0 ? [{ label: '통합 해제', icon: <CallSplitIcon />, onClick: () => unmergeWork(work) }] : []),
+        { label: '삭제', icon: <DeleteIcon />, separator: true, danger: true, onClick: () => setTrash(true) }
       ]}
       onClose={() => setMenu(null)}
     />

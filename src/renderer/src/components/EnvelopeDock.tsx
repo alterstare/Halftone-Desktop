@@ -127,7 +127,16 @@ export default function EnvelopeDock(): JSX.Element | null {
     const from = lastShape.current
     lastShape.current = shape
     if (shape !== 'hidden') lastRect.current = now
-    if (!before || from === shape) return
+    // just opened: slide in from the side it lives on
+    if (!before) {
+      if (open && shape !== 'hidden')
+        el.animate([{ opacity: 0, transform: shape === 'bar' ? 'translateY(24px)' : 'translateX(24px)' }, { opacity: 1, transform: 'none' }], {
+          duration: 260,
+          easing: 'cubic-bezier(0.2, 0.8, 0.25, 1)'
+        })
+      return
+    }
+    if (from === shape) return
     el.getAnimations().forEach((a) => a.cancel())
     el.style.visibility = ''
     const LIFT = 'translateY(-14px) scale(0.94)'
@@ -150,7 +159,33 @@ export default function EnvelopeDock(): JSX.Element | null {
     })
   }, [shape, open])
 
-  if (!open) return null
+  // closing: slide back out, then go (opened again meanwhile → it just stays,
+  // same frame, the sound never stops)
+  const [leaving, setLeaving] = useState(false)
+  const [wasOpen, setWasOpen] = useState(open)
+  if (wasOpen !== open) {
+    setWasOpen(open)
+    setLeaving(!open)
+  }
+  useEffect(() => {
+    if (!leaving) return undefined
+    const done = (): void => {
+      lastRect.current = null // the next open slides in again
+      setLeaving(false)
+    }
+    const a = dock.current?.animate(
+      [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: lastShape.current === 'bar' ? 'translateY(24px)' : 'translateX(24px)' }],
+      { duration: 200, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' }
+    )
+    if (!a) {
+      done()
+      return undefined
+    }
+    a.onfinish = done
+    return () => a.cancel()
+  }, [leaving])
+
+  if (!open && !leaving) return null
 
   // drag the panel's left edge to widen it
   const startDrag = (e: React.PointerEvent): void => {

@@ -265,7 +265,7 @@ export function googleTranslator(fetchFn: Fetch = fetch): Translator {
     }
     if (!Array.isArray(data)) {
       if ([403, 429, 503].includes(res.status) || /sorry|captcha|unusual traffic/i.test(body))
-        throw new TranslateStop('Google이 요청을 막았습니다(짧은 시간에 요청이 많음). 한동안 기다리거나 다른 번역 엔진(Gemini · DeepL · LLM)을 쓰세요.')
+        throw new TranslateStop('짧은 시간에 요청이 많아 Google이 요청을 막았습니다. 한동안 기다리거나 다른 번역 엔진(Gemini · DeepL · LLM)을 쓰세요.')
       throw new Error(`Google 번역 HTTP ${res.status}`)
     }
     const chunks = Array.isArray(data[0]) ? (data[0] as unknown[]) : []

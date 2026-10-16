@@ -237,7 +237,7 @@ function Favorites(): JSX.Element {
     // Progress shows in the activity bar's shared "즐겨찾기 정보 불러오기" row.
     try {
       const r = await window.api.preloadOnlineFavLists();
-      notify(`미리 불러오기 완료 — ${r.cached}/${r.total}개 준비됨.`);
+      notify(`미리 불러오기 완료 — ${r.cached}/${r.total}개 준비했습니다.`);
     } catch (e: any) {
       notify(`미리 불러오기 실패 — ${String(e?.message ?? e)}`);
     } finally {

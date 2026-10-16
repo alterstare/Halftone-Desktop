@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { useStore } from '../store'
-import type { SleepMode } from '../store'
 import { next, prev, seek, setRate, setSleep, setVolume, skip, toggle } from '../player'
 import { clock } from '../format'
 import {
@@ -24,17 +23,6 @@ import {
 import { Cover, FavButton, GroupButton, useNarrow, usePopover } from './ui'
 import { BookmarkButton, SeekMarks } from './Bookmarks'
 import { SubsToggle, ResumeToggle } from './NowView'
-
-export const RATES = [0.75, 0.9, 1, 1.1, 1.25, 1.5, 2]
-export const SLEEP: [string, SleepMode, number?][] = [
-  ['15분', 'time', 15],
-  ['30분', 'time', 30],
-  ['45분', 'time', 45],
-  ['60분', 'time', 60],
-  ['90분', 'time', 90],
-  ['이 트랙이 끝나면', 'track'],
-  ['작품이 끝나면', 'work']
-]
 
 export function SeekBar(): JSX.Element {
   const time = useStore((s) => s.time)
@@ -182,7 +170,7 @@ export function SleepControl(): JSX.Element {
   useStore((s) => s.time) // count down with playback
   const minutes = sleep.mode === 'time' ? sleep.minutes : 0
   const left = sleep.mode === 'time' && sleep.endsAt ? clock(Math.max(0, (sleep.endsAt - Date.now()) / 1000)) : null
-  const label = sleep.mode === 'off' ? '꺼짐' : sleep.mode === 'track' ? '이 트랙이 끝나면' : sleep.mode === 'work' ? '작품이 끝나면' : `${left} 남음`
+  const label = sleep.mode === 'off' ? 'OFF' : sleep.mode === 'track' ? '이 트랙이 끝나면' : sleep.mode === 'work' ? '작품이 끝나면' : `${left} 후 정지`
   const setMin = (m: number): void => (m <= 0 ? setSleep('off') : setSleep('time', m))
   return (
     <Dial

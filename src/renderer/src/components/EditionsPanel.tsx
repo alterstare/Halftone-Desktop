@@ -70,7 +70,7 @@ export default function EditionsPanel({
               {eds && <span className="editions-count">{eds[k].filter((g) => !g.similar).length}</span>}
             </div>
             {!eds && !error && <div className="hint">찾는 중…</div>}
-            {eds && eds[k].length === 0 && <div className="hint">없음</div>}
+            {eds && eds[k].length === 0 && <div className="hint">찾지 못했습니다.</div>}
             <div className="editions-list">
               {eds?.[k].map((g) => (
                 <div

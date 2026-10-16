@@ -132,7 +132,7 @@ export default function WorkTransEditor({
               <button key={s} className={`ted-page ${i === idx ? 'on' : ''}`} onClick={() => void go(i)}>
                 <img src={s} loading="lazy" decoding="async" alt="" />
                 <span className="ted-page-n">{i + 1}</span>
-                {edited.has(s) && <span className="ted-page-ed">편집됨</span>}
+                {edited.has(s) && <span className="ted-page-ed">편집</span>}
               </button>
             ))}
           </div>

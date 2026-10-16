@@ -6,7 +6,7 @@ import type { WorkContent, WorkDetail, WorkLang } from '../../shared/types'
 // 언어 분류 keys: nothing to read along, or a script / subtitles by language
 export type ContentKey = 'none' | 'ja-script' | 'ko-script' | 'ja-sub' | 'ko-sub'
 export const CONTENT_KEYS: [ContentKey, string][] = [
-  ['none', '자막 · 대본 없음'],
+  ['none', '자막 · 대본 없는 작품'],
   ['ja-script', '일본어 대본'],
   ['ko-script', '한국어 대본'],
   ['ja-sub', '일본어 자막'],

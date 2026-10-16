@@ -184,7 +184,7 @@ export default function ManageSection(): JSX.Element {
       setWorks(r.works)
       notify(
         `삭제된 작품 분류 완료 — ${r.checked}개 확인, ${r.moved}개 이동` +
-          (r.uncertain ? `, ${r.uncertain}개 확인 불가(네트워크)로 건너뜀` : '')
+          (r.uncertain ? `, 네트워크 문제로 확인하지 못한 ${r.uncertain}개 제외` : '')
       )
     } catch (e: any) {
       notify(String(e?.message ?? e))
@@ -443,7 +443,7 @@ export default function ManageSection(): JSX.Element {
             <div className="set-block">
               <SettingRow
                 title="온라인에서 삭제된 작품 분류"
-                desc="코드가 있는 작품 중 온라인에서 더 이상 검색되지 않는 작품을 지정 폴더로 모읍니다. (확인 불가는 건너뜀)"
+                desc="코드가 있는 작품 중 온라인에서 더 이상 검색되지 않는 작품을 지정 폴더로 모읍니다. 확인하지 못한 작품은 그대로 둡니다."
               >
                 <button
                   className="mini"
@@ -515,7 +515,6 @@ export default function ManageSection(): JSX.Element {
 
       {confirmReset && (
         <ConfirmModal
-          icon="↺"
           danger
           title="설정을 전체 초기화할까요?"
           desc="모든 설정값이 기본값으로 돌아갑니다. 폴더 설정과 작품 파일은 유지됩니다."
@@ -526,7 +525,6 @@ export default function ManageSection(): JSX.Element {
       )}
       {wipeStep === 1 && (
         <ConfirmModal
-          icon="⚠"
           danger
           title="모든 데이터를 삭제할까요? (1/2)"
           desc={
@@ -546,7 +544,6 @@ export default function ManageSection(): JSX.Element {
       )}
       {wipeStep === 2 && (
         <ConfirmModal
-          icon="🗑"
           danger
           title="마지막 확인 (2/2)"
           desc={

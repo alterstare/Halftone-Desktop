@@ -148,7 +148,7 @@ export default function ComicDownloadModal({
               onClick={() => run('continue')}
             >
               자동으로 이어서 다운로드{' '}
-              {chapters ? (nextChapters.length ? `(${nextChapters.length}화)` : '(없음)') : ''}
+              {chapters ? (nextChapters.length ? `(${nextChapters.length}화)` : '(0화)') : ''}
             </button>
             </div>
           </div>

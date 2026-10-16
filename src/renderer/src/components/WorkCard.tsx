@@ -113,7 +113,7 @@ export default function WorkCard({ work }: { work: Work }): JSX.Element {
             <>
               {' · '}
               <span className="code copyable" onClick={copyCode}>
-                [{work.code}]{copied ? ' ✓복사됨' : ''}
+                [{work.code}]{copied ? ' ✓복사 완료' : ''}
               </span>
             </>
           )}
@@ -231,7 +231,6 @@ export default function WorkCard({ work }: { work: Work }): JSX.Element {
         <ConfirmModal
           title="내보낼 폴더가 없습니다"
           desc="설정에서 내보내기 폴더를 먼저 지정하세요. (텍스트·이미지 내보내기 공통)"
-          icon="📁"
           confirmLabel="설정 열기"
           cancelLabel="닫기"
           onConfirm={() => {

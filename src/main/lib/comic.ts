@@ -1271,7 +1271,7 @@ function extOf(url: string): string {
 // Chapter folder name = "<n>화 <subtitle>" (or just "<n>화" when the chapter has
 // no title of its own). The series name lives on the parent folder only, so it's
 // stripped from the chapter title along with any chapter tokens / leading index.
-// Mirrors the renderer's analyzeSeries/chapterSubtitle output so a freshly
+// Mirrors the renderer's analyzeSeries (label + subtitle) output so a freshly
 // downloaded folder and a batch-renamed one land on the same name.
 const CH_TOKEN_G = /(\d+(?:[.\-]\d+)?)(?:화|회|권|화차|話|장)/g
 export function chapterFolderName(seriesTitle: string, chTitle: string, n: number): string {

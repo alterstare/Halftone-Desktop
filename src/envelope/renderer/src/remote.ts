@@ -57,4 +57,3 @@ export function followRemote(): () => void {
 }
 
 export const remoteRefresh = (): void => window.api.remoteCmd({ fn: 'refresh', args: [] })
-export const remoteSettings = (): void => window.api.remoteCmd({ fn: 'settings', args: [] })

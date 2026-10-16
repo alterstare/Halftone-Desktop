@@ -476,14 +476,6 @@ export function setSubOffset(db: Db, workId: number, groupKey: string, offset: n
   ).run(workId, groupKey, offset)
 }
 
-// Names to translate: the work's title and every track's (repaired) name.
-export function namesOfWork(db: Db, workId: number): { path: string; name: string }[] {
-  const w = db.prepare('SELECT path, title FROM works WHERE id = ?').get(workId) as { path: string; title: string } | undefined
-  if (!w) return []
-  const tracks = db.prepare('SELECT path, title FROM tracks WHERE work_id = ? ORDER BY sort').all(workId) as { path: string; title: string }[]
-  return [{ path: w.path, name: w.title }, ...tracks.map((t) => ({ path: t.path, name: t.title }))]
-}
-
 // ---- 북마크 ----
 
 // In the order of the work's tracks (`order` = group keys), then by time.

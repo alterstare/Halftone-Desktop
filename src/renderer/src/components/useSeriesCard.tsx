@@ -4,6 +4,7 @@ import type { Work } from '../../../shared/types'
 import { useStore, lastReadKey } from '../store'
 import { CHAP_FAV_PREFIX, isOnlineTitleFav, type SeriesGroup } from '../util'
 import ContextMenu from './ContextMenu'
+import { AddIcon, ContentCopyIcon, DeleteIcon, OpenInNewIcon, SelectIcon, TabIcon, VerticalSplitIcon } from './icons'
 import TrashConfirm from './TrashConfirm'
 import { useTagMenu } from './useTagMenu'
 
@@ -73,7 +74,7 @@ export function useSeriesCard(series: SeriesGroup): {
   const [trash, setTrash] = useState(false)
   const selected = useStore((s) => !!s.homeSel?.includes(series.key))
   const [grpName, setGrpName] = useState('')
-  const { openTagMenu, tagMenu } = useTagMenu('online')
+  const { openTagMenu, tagMenu } = useTagMenu()
 
   const chapters = series.chapters
   const rep = chapters[0]
@@ -193,14 +194,20 @@ export function useSeriesCard(series: SeriesGroup): {
           x={menu.x}
           y={menu.y}
           items={[
-            { label: '새 탭에서 열기', onClick: () => openTab(rep.id) },
-            { label: '백그라운드에서 열기', onClick: () => openTabBackground(rep.id) },
-            { label: splitOpen ? '오른쪽 뷰에서 열기' : '분할 뷰에서 열기', onClick: () => openSplit(rep.id) },
-            { label: '제목 복사', onClick: () => void window.api.clipboardWriteText(series.title) },
-            ...normalGroups.map((g) => ({ label: `그룹 · ${g.name}`, onClick: () => addToGroup(g.id) })),
-            { label: '＋ 새 그룹에 추가', onClick: () => setNewGrp(true) },
-            { label: selected ? '선택 해제' : '선택', onClick: () => useStore.getState().toggleHomeSel(series.key) },
-            { label: '삭제', danger: true, onClick: () => setTrash(true) }
+            { label: '새 탭에서 열기', icon: <OpenInNewIcon />, onClick: () => openTab(rep.id) },
+            { label: '백그라운드에서 열기', icon: <TabIcon />, onClick: () => openTabBackground(rep.id) },
+            { label: splitOpen ? '오른쪽 뷰에서 열기' : '분할 뷰에서 열기', icon: <VerticalSplitIcon />, onClick: () => openSplit(rep.id) },
+            { label: '제목 복사', icon: <ContentCopyIcon />, onClick: () => void window.api.clipboardWriteText(series.title) },
+            {
+              label: '그룹에 추가',
+              icon: <AddIcon />,
+              children: [
+                ...normalGroups.map((g) => ({ label: g.name, onClick: () => addToGroup(g.id) })),
+                { label: '새 그룹', icon: <AddIcon />, separator: normalGroups.length > 0, onClick: () => setNewGrp(true) }
+              ]
+            },
+            { label: selected ? '선택 해제' : '선택', icon: <SelectIcon />, onClick: () => useStore.getState().toggleHomeSel(series.key) },
+            { label: '삭제', icon: <DeleteIcon />, separator: true, danger: true, onClick: () => setTrash(true) }
           ]}
           onClose={() => setMenu(null)}
         />

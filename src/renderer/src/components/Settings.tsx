@@ -257,7 +257,6 @@ export default function Settings(): JSX.Element {
         {toast && <div className="settings-toast">✓ {toast}</div>}
         {notice && (
           <ConfirmModal
-            icon="✓"
             title="완료"
             desc={notice}
             confirmLabel="확인"
@@ -268,11 +267,10 @@ export default function Settings(): JSX.Element {
         )}
         {pendingNav && (
           <ConfirmModal
-            icon="💾"
             title="저장하지 않은 변경이 있습니다"
             desc="설정을 저장하고 나갈까요?"
             confirmLabel="저장"
-            altLabel="저장 안 함"
+            altLabel="저장하지 않기"
             cancelLabel="닫기"
             onConfirm={leaveSave}
             onAlt={leaveDiscard}

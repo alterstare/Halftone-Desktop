@@ -20,6 +20,7 @@ import {
 } from './icons'
 import { Dropdown, FavButton, GroupButton, Stars, TagLine, useNarrow } from './ui'
 import { contentLabels, trackLabel } from '../workInfo'
+import { useTrackMenu } from './WorkMenu'
 
 export function versionLabel(v: TrackVersion): string {
   const se = v.se === 'on' ? 'SE 포함' : v.se === 'off' ? 'SE 제외' : ''
@@ -56,8 +57,9 @@ function TrackRow({
   const v = g.versions.find((x) => x.id === (current ? nowTrack : g.chosen)) ?? g.versions[0]
   const pct = g.duration && g.position && !g.finished ? Math.min(100, (g.position / g.duration) * 100) : 0
   const hasSubs = g.versions.some((x) => x.subs.length)
+  const { trackMenu, openTrackMenu } = useTrackMenu()
   return (
-    <div className={`trow ${current ? 'current' : ''}`} onClick={() => (current ? toggle() : void play(w, g.key))} title={g.originalTitle ? `${g.title}\n${g.originalTitle}` : g.title}>
+    <div className={`trow ${current ? 'current' : ''}`} onClick={() => (current ? toggle() : void play(w, g.key))} onContextMenu={(e) => openTrackMenu(e, w, g, current)} title={g.originalTitle ? `${g.title}\n${g.originalTitle}` : g.title}>
       <span className="trow-n">
         <span className="n">{current && playing ? <GraphicEqIcon /> : n}</span>
         <span className="hover">{current && playing ? <PauseIcon /> : <PlayArrowIcon />}</span>
@@ -86,6 +88,7 @@ function TrackRow({
       </span>
       <span className="trow-icon">{hasSubs && <SubtitlesIcon />}</span>
       <span className="trow-time">{clock(g.duration)}</span>
+      {trackMenu}
     </div>
   )
 }

@@ -26,7 +26,7 @@ export default function GroupName({ id, name }: { id: string; name: string }): J
       await renameGroup(id, n)
       setEditing(false)
     } catch (err) {
-      alert(String((err as Error)?.message ?? err).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+      alert(String((err as Error)?.message ?? err))
     } finally {
       setBusy(false)
     }

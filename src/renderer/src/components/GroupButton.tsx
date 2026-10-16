@@ -8,7 +8,7 @@ import { AddIcon } from './icons'
 
 // "+" button next to the favorite heart: assign the work to a single group, or
 // create a new one. A work belongs to at most one group; switching groups asks
-// for confirmation (유지 / 옮김) because it physically moves the work folder.
+// for confirmation (유지 / 옮기기) because it physically moves the work folder.
 export default function GroupButton({ work, applyTo }: { work: Work; applyTo?: Work[] }): JSX.Element {
   const allGroups = useStore((s) => s.settings.groups)
   const libraryMode = useStore((s) => s.libraryMode)
@@ -125,14 +125,13 @@ export default function GroupButton({ work, applyTo }: { work: Work; applyTo?: W
         )}
       {moveTo && (
         <ConfirmModal
-          icon="⇄"
           title="그룹을 옮기시겠습니까?"
           desc={
             <>
               이 작품을 <b>{moveTo.name}</b> 그룹으로 옮깁니다. 폴더도 함께 이동합니다.
             </>
           }
-          confirmLabel="옮김"
+          confirmLabel="옮기기"
           cancelLabel="유지"
           onConfirm={() => {
             const g = moveTo

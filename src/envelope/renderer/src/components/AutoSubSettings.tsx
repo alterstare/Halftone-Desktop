@@ -115,7 +115,7 @@ export default function AutoSubSettings(): JSX.Element | null {
     <>
       <section>
         <h3>자동 자막 · 받아쓰기</h3>
-        <Row label="받아쓰기 엔진" hint="로컬은 이 PC에서만 처리합니다(무료, 음성이 밖으로 나가지 않음). Groq는 음성을 Groq 서버로 보냅니다.">
+        <Row label="받아쓰기 엔진" hint="로컬은 이 PC에서만 처리합니다(무료, 음성은 밖으로 나가지 않습니다). Groq는 음성을 Groq 서버로 보냅니다.">
           <Seg value={s.asrEngine} options={[['local', '로컬 (whisper.cpp)'], ['groq', 'Groq']]} onChange={(v) => set({ asrEngine: v })} />
         </Row>
         {s.asrEngine === 'local' ? (
@@ -124,7 +124,7 @@ export default function AutoSubSettings(): JSX.Element | null {
               label="엔진"
               hint={
                 eng
-                  ? `Vulkan(GPU) ${eng.vulkan ? '있음' : '없음'} · CPU ${eng.cpu ? '있음' : '없음'} — GPU 엔진이 있으면 먼저 쓰고, 안 되면 CPU로 자동 전환합니다.`
+                  ? `Vulkan(GPU) ${eng.vulkan ? '설치 완료' : '미설치'} · CPU ${eng.cpu ? '설치 완료' : '미설치'} — GPU 엔진이 있으면 먼저 쓰고, 안 되면 CPU로 자동 전환합니다.`
                   : undefined
               }
             >
@@ -177,7 +177,7 @@ export default function AutoSubSettings(): JSX.Element | null {
       </section>
       <section>
         <h3>번역</h3>
-        <Row label="번역 엔진" hint="Google은 키 없이 쓰는 비공식 번역(무료, 막힐 수 있음)입니다. LLM은 문맥과 용어집을 함께 보고 번역합니다.">
+        <Row label="번역 엔진" hint="Google은 키 없이 쓰는 비공식 번역(무료, 막힐 수 있습니다)입니다. LLM은 문맥과 용어집을 함께 보고 번역합니다.">
           <Dropdown
             kind="mini"
             title="번역 엔진"
@@ -238,7 +238,7 @@ export default function AutoSubSettings(): JSX.Element | null {
             )}
           </>
         )}
-        <Row label="글자를 밖으로 보내기" hint="켜야 번역할 수 있습니다. 자막 · 대본 · 이름 글자만 보냅니다(음성은 보내지 않음).">
+        <Row label="글자를 밖으로 보내기" hint="켜야 번역할 수 있습니다. 자막 · 대본 · 이름 글자만 보냅니다(음성은 보내지 않습니다).">
           <Seg value={s.allowTextUpload ? 1 : 0} options={[[0, '끄기'], [1, '켜기']]} onChange={(v) => set({ allowTextUpload: !!v })} />
         </Row>
         <Row label="번역 확인" hint="한 줄을 번역해서 엔진과 키가 동작하는지 봅니다.">

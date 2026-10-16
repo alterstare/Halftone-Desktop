@@ -53,7 +53,7 @@ const ABOUT: Record<ToolsMode, Record<ToolTab, string>> = {
   },
   folder: {
     rename:
-      '작품 폴더와 그 안의 폴더 · 파일 이름을 실제로 바꿉니다. 복구한 이름: 압축 해제 때 깨진 일본어 이름(뷁어)을 원래 이름으로(사라진 글자는 작품 제목 · 다른 이름 · 단어 사전으로 채움). 번역한 이름: 프로그램 내 변경 › 이름에서 번역해 둔 한국어 이름으로(자막 등 짝 파일도 같은 이름). 기록한 원래 이름: 처음 스캔했을 때 기록해 둔 일본어 이름으로(번역 · 다른 프로그램으로 바꾼 이름도). 줄마다 새 이름을 고칠 수 있고, 이어 듣기 · 북마크는 그대로 남으며, 되돌릴 수 있습니다.',
+      '작품 폴더와 그 안의 폴더 · 파일 이름을 실제로 바꿉니다. 복구한 이름: 압축 해제 때 깨진 일본어 이름(뷁어)을 원래 이름으로(사라진 글자는 작품 제목 · 다른 이름 · 단어 사전으로 채웁니다). 번역한 이름: 프로그램 내 변경 › 이름에서 번역해 둔 한국어 이름으로(자막 등 짝 파일도 같은 이름). 기록한 원래 이름: 처음 스캔했을 때 기록해 둔 일본어 이름으로(번역 · 다른 프로그램으로 바꾼 이름도). 줄마다 새 이름을 고칠 수 있고, 이어 듣기 · 북마크는 그대로 남으며, 되돌릴 수 있습니다.',
     dlsite: 'DLsite에서 가져온 표지 그림을 작품 폴더에 cover.jpg로 저장합니다(이미 있으면 cover (DLsite).jpg). 되돌릴 수 있습니다.',
     subs: '프로그램 안에 저장된 자막을 음성 파일 옆에 "이름.ja.vtt" · "이름.ko.vtt"로 저장합니다. 다른 프로그램이 만든 같은 이름의 파일은 체크해야만 바꿉니다. 되돌릴 수 있습니다.',
     cover:
@@ -108,7 +108,7 @@ function Row({ tab, it, root, onEdit }: { tab: ToolTab; it: Item; root: string; 
           <span className="tr-name">{rel(c.track, root)}</span>
           <span className="tr-sub hint">{c.image ? rel(c.image, root) : '쓸 이미지가 없습니다'}</span>
         </span>
-        <span className="tr-side">{c.hasCover && <Tag kind="warn">커버 있음 · 바꾸기</Tag>}</span>
+        <span className="tr-side">{c.hasCover && <Tag kind="warn">기존 커버 바꾸기</Tag>}</span>
       </>
     )
   }
@@ -136,7 +136,7 @@ function Row({ tab, it, root, onEdit }: { tab: ToolTab; it: Item; root: string; 
         </span>
         <span className="tr-side">
           {x.state === 'update' && <Tag>Envelope가 만든 파일 바꾸기</Tag>}
-          {x.state === 'conflict' && <Tag kind="warn">다른 프로그램의 파일 있음 · 체크하면 바꿈</Tag>}
+          {x.state === 'conflict' && <Tag kind="warn">다른 프로그램의 파일 · 체크하면 바꾸기</Tag>}
         </span>
       </>
     )
@@ -193,9 +193,9 @@ function RenameRow({ r, root, onEdit }: { r: RenameItem; root: string; onEdit?: 
       </span>
       <span className="tr-side">
         {r.translated && <Tag>번역</Tag>}
-        {r.filled > 0 && <Tag>글자 {r.filled}개 채움</Tag>}
-        {r.unfilled > 0 && <Tag kind="warn">_ {r.unfilled}개 남음</Tag>}
-        {r.problem === 'conflict' && <Tag kind="warn">같은 이름이 있어 번호 붙임</Tag>}
+        {r.filled > 0 && <Tag>채운 글자 {r.filled}</Tag>}
+        {r.unfilled > 0 && <Tag kind="warn">남은 _ {r.unfilled}</Tag>}
+        {r.problem === 'conflict' && <Tag kind="warn">같은 이름이 있어 번호 붙이기</Tag>}
         {r.problem === 'too-long' && <Tag kind="bad">경로가 너무 깁니다</Tag>}
       </span>
     </>
@@ -249,7 +249,7 @@ function JobRow({ j }: { j: ProgressEvent }): JSX.Element {
     <div className={`job-row ${j.state} ${j.paused ? 'paused' : ''}`}>
       <span className="job-main">
         <span className="job-what">
-          <Tag kind={j.state === 'failed' ? 'bad' : j.state === 'cancelled' || j.paused ? 'mute' : j.state === 'done' ? 'ok' : 'warn'}>{j.state === 'queued' && j.paused ? '중지됨' : JOB_STATE[j.state]}</Tag>
+          <Tag kind={j.state === 'failed' ? 'bad' : j.state === 'cancelled' || j.paused ? 'mute' : j.state === 'done' ? 'ok' : 'warn'}>{j.state === 'queued' && j.paused ? '중지' : JOB_STATE[j.state]}</Tag>
           <span className="job-kind">{what}</span>
           {work && <span className="job-work">{work}</span>}
         </span>
@@ -307,7 +307,7 @@ function Jobs(): JSX.Element {
     <section className="jobs">
       {live.length > 0 && (
         <div className="jobs-head">
-          <h2>{live.some((j) => j.paused) ? '중지됨' : '진행 중'} · {live.length}</h2>
+          <h2>{live.some((j) => j.paused) ? '중지' : '진행 중'} · {live.length}</h2>
           <JobControls live={live} />
         </div>
       )}
@@ -409,7 +409,7 @@ function NameTranslate({ scope, onDone }: { scope: number[] | null; onDone: () =
                     <span className="tr-name">{x.title}</span>
                   </span>
                   <span className="tr-side">
-                    {x.missing ? <Tag kind="warn">번역 안 됨 {x.missing}</Tag> : <Tag kind="ok">번역 완료</Tag>}
+                    {x.missing ? <Tag kind="warn">미번역 {x.missing}</Tag> : <Tag kind="ok">번역 완료</Tag>}
                     <span className="hint">일본어 이름 {x.total}</span>
                   </span>
                 </label>
@@ -532,7 +532,7 @@ function SubsApp({ scope }: { scope: number[] | null }): JSX.Element {
               <span className="tr-name">{w.title}</span>
             </span>
             <span className="tr-side">
-              {w.subtitled >= w.tracks ? <Tag kind="ok">자막 있음</Tag> : <Tag kind="warn">자막 없는 트랙 {w.tracks - w.subtitled}</Tag>}
+              {w.subtitled >= w.tracks ? <Tag kind="ok">모든 트랙 자막</Tag> : <Tag kind="warn">자막 없는 트랙 {w.tracks - w.subtitled}</Tag>}
             </span>
           </label>
         ))}
@@ -554,7 +554,7 @@ function SubsRestore({ scope }: { scope: number[] | null }): JSX.Element {
         <button
           className="mini"
           disabled={busy}
-          title="기록한 일본어 자막을 프로그램 안으로 되살립니다(지금 자막과 같으면 건너뜀). 기록에서 되돌릴 수 있습니다."
+          title="기록한 일본어 자막을 프로그램 안으로 되살립니다(지금 자막과 같으면 건너뜁니다). 기록에서 되돌릴 수 있습니다."
           onClick={async () => {
             setBusy(true)
             try {

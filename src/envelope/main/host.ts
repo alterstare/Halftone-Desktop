@@ -230,7 +230,7 @@ function registerIpc(): void {
     try {
       const r = await core.autoSub(workId, o).done
       const parts = [`자막 ${r.made}개를 만들었습니다`]
-      if (r.skipped.length) parts.push(`건너뜀 ${r.skipped.length}`)
+      if (r.skipped.length) parts.push(`제외 ${r.skipped.length}`)
       if (r.failed.length) parts.push(`실패 ${r.failed.length} — ${r.failed[0]}`)
       changed()
       return { ok: !r.failed.length, message: parts.join(' · ') }
@@ -302,7 +302,7 @@ function registerIpc(): void {
     try {
       const r = await core.scriptSub(id, o).done
       const parts = [`자막 ${r.made}개를 만들었습니다`]
-      if (r.skipped.length) parts.push(`건너뜀 ${r.skipped.length}`)
+      if (r.skipped.length) parts.push(`제외 ${r.skipped.length}`)
       if (r.failed.length) parts.push(`실패 ${r.failed.length} — ${r.failed[0]}`)
       changed()
       return { ok: !r.failed.length, message: parts.join(' · ') }

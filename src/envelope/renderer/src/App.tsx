@@ -85,7 +85,7 @@ function JobPill(): JSX.Element | null {
   const pct = job.total ? Math.floor((job.done / job.total) * 100) : null
   return (
     <div className={`job-pill ${paused ? 'paused' : ''}`} title={job.label}>
-      <span className="job-label">{paused ? `중지됨 · ${job.title ?? job.label}` : job.label}</span>
+      <span className="job-label">{paused ? `중지 · ${job.title ?? job.label}` : job.label}</span>
       {pct !== null && <span className="job-pct">{pct}%</span>}
       <div className="job-bar">
         <div style={{ width: pct === null ? '30%' : `${pct}%` }} className={pct === null ? 'busy' : ''} />

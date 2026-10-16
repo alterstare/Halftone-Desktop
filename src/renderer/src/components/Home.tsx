@@ -333,7 +333,7 @@ export default function Home(): JSX.Element {
           !(normal && localSeriesKeys.has(titleKey(f.title))) &&
           // The category chips apply here too, like on the local works:
           // online-only entries are coded (작품 분류), have a language
-          // (언어 분류, unknown passes) and no group (그룹 분류 → 그룹 없음).
+          // (언어 분류, unknown passes) and no group (그룹 분류 → 그룹 미지정).
           showUngrouped &&
           (normal || (showCoded && langPass(f.language ?? getFavLanguage(f.code) ?? null)))
       )
@@ -644,7 +644,7 @@ export default function Home(): JSX.Element {
             </button>
             {openPanel === 'group' && (
               <div className="cat-panel grp-panel">
-                {/* Bulk toggle: every group + "그룹 없음" on / off. */}
+                {/* Bulk toggle: every group + "그룹 미지정" on / off. */}
                 <div className="cat-panel-actions">
                   <button
                     className="mini"
@@ -693,7 +693,7 @@ export default function Home(): JSX.Element {
                     checked={showUngrouped}
                     onChange={(e) => setShowUngrouped(e.target.checked)}
                   />
-                  그룹 없음
+                  그룹 미지정
                 </label>
                 <div className="grp-create">
                   <input
@@ -803,7 +803,6 @@ export default function Home(): JSX.Element {
 
       {delGroup && (
         <ConfirmModal
-          icon="🗑"
           danger
           title={`'${delGroup.name}' 그룹을 삭제하시겠습니까?`}
           desc={

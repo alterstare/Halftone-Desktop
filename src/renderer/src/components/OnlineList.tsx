@@ -9,7 +9,7 @@ import { useTagMenu } from './useTagMenu'
 import { doujinFavCodes, doujinFavGalleries } from '../favorites'
 import Stars from './Stars'
 import Dropdown from './Dropdown'
-import { CheckIcon, PauseIcon, PlayIcon, SearchIcon, FavoriteIcon, DownloadIcon, SyncIcon } from './icons'
+import { CheckIcon, DownloadIcon, FavoriteIcon, PauseIcon, PlayIcon, SearchIcon, SyncIcon, ContentCopyIcon, OpenInBrowserIcon, OpenInNewIcon, TabIcon } from './icons'
 import OnlineThumb from './OnlineThumb'
 import { getOnlineImages } from '../images'
 import { favMeta, tagToken } from '../util'
@@ -57,7 +57,7 @@ export default function OnlineList(): JSX.Element {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; g: OnlineGallery } | null>(null)
-  const { openTagMenu, tagMenu } = useTagMenu('local')
+  const { openTagMenu, tagMenu } = useTagMenu()
   // Opened from the favorites view → show the unified favorites list (online favs
   // + locally-favorited works) instead of the latest online listing.
   const onlineListFav = useStore((s) => s.onlineListFav)
@@ -255,7 +255,7 @@ export default function OnlineList(): JSX.Element {
                           active
                             ? `다운로드 중 ${pct}% — 클릭 시 일시정지`
                             : paused
-                              ? `일시정지됨 (${pct}%) — 클릭 시 이어받기`
+                              ? `일시정지 (${pct}%) — 클릭 시 이어받기`
                               : err
                                 ? '실패 — 클릭 시 다시 시도'
                                 : done
@@ -305,15 +305,15 @@ export default function OnlineList(): JSX.Element {
           x={menu.x}
           y={menu.y}
           items={[
-            { label: '새 탭에서 열기', onClick: () => openOnline(menu.g) },
-            { label: '백그라운드에서 열기', onClick: () => openOnlineBackground(menu.g) },
+            { label: '새 탭에서 열기', icon: <OpenInNewIcon />, onClick: () => openOnline(menu.g) },
+            { label: '백그라운드에서 열기', icon: <TabIcon />, onClick: () => openOnlineBackground(menu.g) },
             {
               label: tabs.find((t) => t.id === activeTabId)?.split ? '오른쪽 뷰에서 열기' : '분할 뷰에서 열기',
               onClick: () => openSplitOnline(menu.g)
             },
-            { label: '다운로드', onClick: () => download({ code: menu.g.code, title: menu.g.title } as GallerySummary) },
-            { label: '현재 탭에서 열기', onClick: () => (activeTabId ? replaceTabOnline(activeTabId, menu.g) : openOnline(menu.g)) },
-            { label: '제목 복사', onClick: () => void window.api.clipboardWriteText(menu.g.title) }
+            { label: '다운로드', icon: <DownloadIcon />, onClick: () => download({ code: menu.g.code, title: menu.g.title } as GallerySummary) },
+            { label: '현재 탭에서 열기', icon: <OpenInBrowserIcon />, onClick: () => (activeTabId ? replaceTabOnline(activeTabId, menu.g) : openOnline(menu.g)) },
+            { label: '제목 복사', icon: <ContentCopyIcon />, onClick: () => void window.api.clipboardWriteText(menu.g.title) }
           ]}
           onClose={() => setMenu(null)}
         />

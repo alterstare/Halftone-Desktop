@@ -57,7 +57,7 @@ function LocalOcrModels(): JSX.Element {
       title="로컬 OCR 모델"
       desc={
         st?.installed
-          ? '설치됨 — 글자 위치 찾기·일본어·영어 인식 모델이 모두 준비되었습니다.'
+          ? '설치 완료 — 글자 위치 찾기·일본어·영어 인식 모델이 모두 준비되었습니다.'
           : `처음 한 번 모델 파일(약 ${st?.sizeMB ?? 225}MB)을 받아야 합니다. 받은 뒤에는 인터넷 없이 기기에서 인식합니다.`
       }
     >
@@ -183,7 +183,7 @@ export default function TranslateSection(): JSX.Element {
                 value={draft.freeTranslator}
                 onChange={(v) => patch({ freeTranslator: v })}
                 options={[
-                  ['google', 'Google 비공식 (키 없음)'],
+                  ['google', 'Google 비공식 (키 불필요)'],
                   ['deepl', 'DeepL Free (키 필요)']
                 ]}
               />
@@ -260,7 +260,7 @@ export default function TranslateSection(): JSX.Element {
               value={draft.freeTranslator}
               onChange={(v) => patch({ freeTranslator: v })}
               options={[
-                ['google', 'Google 비공식 (키 없음 · 불안정할 수 있음)'],
+                ['google', 'Google 비공식 (키 불필요 · 불안정)'],
                 ['deepl', 'DeepL Free (키 필요 · 월 50만자 무료 · 품질↑)']
               ]}
             />

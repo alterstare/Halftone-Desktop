@@ -401,7 +401,6 @@ export default function App(): JSX.Element {
       {showExit && <ExitModal onChoose={onExit} />}
       {askAddr && (
         <ConfirmModal
-          icon="🌐"
           title={libraryMode === 'normal' ? '만화 사이트 온라인 주소를 입력하세요' : '동인지 온라인 주소를 입력하세요'}
           desc={
             libraryMode === 'normal'
@@ -419,7 +418,6 @@ export default function App(): JSX.Element {
       )}
       {needDownloadDir && (
         <ConfirmModal
-          icon="📁"
           title="저장 폴더가 없습니다"
           desc={
             libraryMode === 'normal'

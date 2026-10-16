@@ -6,7 +6,7 @@ import GroupName from './GroupName'
 import Caret from './Caret'
 
 // Compact 그룹 분류 for the reader's left list: a small "그룹 ▾" button whose
-// panel toggles each group (+ 그룹 없음) with 전체 선택 / 해제. Shares the home
+// panel toggles each group (+ 그룹 미지정) with 전체 선택 / 해제. Shares the home
 // screen's group filter (store.groupFilter / showUngrouped), so both agree.
 export default function GroupFilterMenu({ groups }: { groups: WorkGroup[] }): JSX.Element {
   const groupFilter = useStore((s) => s.groupFilter)
@@ -58,7 +58,7 @@ export default function GroupFilterMenu({ groups }: { groups: WorkGroup[] }): JS
           ))}
           <label>
             <input type="checkbox" checked={showUngrouped} onChange={(e) => setShowUngrouped(e.target.checked)} />
-            그룹 없음
+            그룹 미지정
           </label>
         </div>
       )}

@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
-import type { JSX } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { JSX, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { KeyboardArrowRightIcon } from './icons'
 
 export interface MenuItem {
   label: string
+  icon?: ReactNode // Material icon in the left column (same layout as Sorta's menus)
+  separator?: boolean // draws a line above
   onClick?: () => void
   danger?: boolean
   disabled?: boolean
@@ -12,39 +14,67 @@ export interface MenuItem {
   children?: MenuItem[] // submenu (flyout)
 }
 
+// A submenu that would run past the window's bottom / right edge moves up /
+// opens to the left instead.
+function useFit(open: boolean): React.RefObject<HTMLDivElement | null> {
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!open || !el) return
+    const r = el.getBoundingClientRect()
+    if (r.bottom > window.innerHeight - 8) el.style.top = `${el.offsetTop - (r.bottom - window.innerHeight + 8)}px`
+    if (r.right > window.innerWidth - 8) {
+      el.style.left = 'auto'
+      el.style.right = '100%'
+      el.style.marginLeft = '0'
+      el.style.marginRight = '2px'
+    }
+  }, [open])
+  return ref
+}
+
 function Row({ item, onClose }: { item: MenuItem; onClose: () => void }): JSX.Element {
   const [open, setOpen] = useState(false)
+  const subRef = useFit(open)
+  const sep = item.separator ? <div className="ctx-sep" /> : null
+  // icon column: the icon, or a group's colour swatch
+  const icon = <span className="ctx-icon">{item.color ? <span className="ctx-swatch" style={{ background: item.color }} /> : item.icon}</span>
   if (item.children) {
     return (
-      <div
-        className="ctx-item has-sub"
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-      >
-        <span className="ctx-label">{item.label}</span>
-        <span className="ctx-arrow"><KeyboardArrowRightIcon /></span>
-        {open && (
-          <div className="ctx-submenu">
-            {item.children.map((c, i) => (
-              <Row key={i} item={c} onClose={onClose} />
-            ))}
-          </div>
-        )}
-      </div>
+      <>
+        {sep}
+        <div className="ctx-item has-sub" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+          {icon}
+          <span className="ctx-label">{item.label}</span>
+          <span className="ctx-arrow">
+            <KeyboardArrowRightIcon />
+          </span>
+          {open && (
+            <div className="ctx-submenu" ref={subRef}>
+              {item.children.map((c, i) => (
+                <Row key={i} item={c} onClose={onClose} />
+              ))}
+            </div>
+          )}
+        </div>
+      </>
     )
   }
   return (
-    <button
-      className={`ctx-item ${item.danger ? 'danger' : ''}`}
-      disabled={item.disabled}
-      onClick={() => {
-        onClose()
-        item.onClick?.()
-      }}
-    >
-      {item.color && <span className="ctx-swatch" style={{ background: item.color }} />}
-      {item.label}
-    </button>
+    <>
+      {sep}
+      <button
+        className={`ctx-item ${item.danger ? 'danger' : ''}`}
+        disabled={item.disabled}
+        onClick={() => {
+          onClose()
+          item.onClick?.()
+        }}
+      >
+        {icon}
+        <span className="ctx-label">{item.label}</span>
+      </button>
+    </>
   )
 }
 

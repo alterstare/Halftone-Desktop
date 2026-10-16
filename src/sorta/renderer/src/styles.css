@@ -56,6 +56,10 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
+  /* Korean wraps between words, never inside one; an over-long run
+     (a URL, a title with no spaces) still breaks rather than overflow */
+  word-break: keep-all;
+  overflow-wrap: break-word;
   font-family: 'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, 'Malgun Gothic', sans-serif;
   font-size: 14px;
   user-select: none;
@@ -230,11 +234,12 @@ button:active {
   overflow: hidden;
 }
 .page {
+  /* the scroller spans the window (scrollbar at its edge); the content is
+     centred at --page-w by the side padding */
+  --page-w: 880px;
   height: 100%;
   overflow: auto;
-  padding: 28px 32px;
-  max-width: 880px;
-  margin: 0 auto;
+  padding: 28px max(32px, calc((100% - var(--page-w)) / 2 + 32px));
 }
 
 /* ---------- library ---------- */
@@ -249,10 +254,6 @@ button:active {
   background: var(--bg-1);
   overflow: auto;
   padding: 12px;
-}
-.tree-head {
-  font-weight: 700;
-  margin-bottom: 8px;
 }
 .tree-empty {
   color: var(--muted);
@@ -286,13 +287,6 @@ button:active {
   background: var(--line);
   pointer-events: none;
 }
-.tb-label {
-  display: inline-flex;
-  align-items: center;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-}
 .grid {
   flex: 1;
   overflow: auto;
@@ -300,15 +294,6 @@ button:active {
   display: grid;
   gap: 10px;
   align-content: start;
-}
-.grid.size-s {
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-}
-.grid.size-m {
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-}
-.grid.size-l {
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 }
 .empty {
   grid-column: 1 / -1;
@@ -913,29 +898,6 @@ button:active {
 .tag-input:focus {
   border-color: var(--accent);
 }
-.row-warn {
-  margin-top: 2px;
-  color: #c97a12;
-}
-.assist-help {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
-  padding: 10px 12px;
-  border-radius: var(--r3);
-  background: var(--bg-2);
-  font-size: 12px;
-  color: var(--text-dim);
-  line-height: 1.5;
-}
-.assist-help b {
-  color: var(--text);
-}
-.assist-help .hint {
-  color: var(--accent);
-  font-weight: 700;
-}
 
 /* ---------- review ---------- */
 .review {
@@ -1459,16 +1421,6 @@ kbd {
   border-radius: var(--r4);
   background: var(--bg-2);
 }
-.learn-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  font-size: 13px;
-  color: var(--text-dim);
-}
-.learn-stats b {
-  color: var(--accent);
-}
 .learn-plan .btn.primary {
   align-self: flex-start;
 }
@@ -1725,7 +1677,7 @@ kbd {
 }
 .page.manage,
 .page.unknown {
-  max-width: 1240px;
+  --page-w: 1240px;
 }
 .manage-list .search-box {
   display: flex;
@@ -1743,7 +1695,7 @@ kbd {
 
 /* ---- 소속 조직도 ---- */
 .page.org {
-  max-width: none;
+  --page-w: 100%;
 }
 .org-bar {
   display: flex;
@@ -2615,7 +2567,7 @@ select.tag-input {
 .page.manage,
 .page.org,
 .page.learn {
-  max-width: 1240px;
+  --page-w: 1240px;
 }
 
 /* ---- 조직도: root on the left, branches to the right, siblings stacked ----

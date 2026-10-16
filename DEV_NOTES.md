@@ -56,8 +56,11 @@ Adding a channel — three files move in lockstep:
 
 1. **`src/shared/ipc.ts`** — channel string in the `IPC` map (`myThing: 'ns:myThing'`)
    and the typed method in the `Api` interface. Shared DTOs live here too.
-2. **`src/preload/index.ts`** — `myThing: (arg) => ipcRenderer.invoke(IPC.myThing, arg)`.
-   Events main→renderer use the `on...` + returned-unsubscribe pattern.
+2. **`src/preload/index.ts`** — `myThing: (arg) => invoke(IPC.myThing, arg)`.
+   `invoke` wraps `ipcRenderer.invoke` and strips Electron's "Error invoking
+   remote method '…': Error:" prefix, so a rejected call's `e.message` is the
+   main-process message as written (show it as is). Events main→renderer use
+   the `on...` + returned-unsubscribe pattern.
 3. **`src/main/ipc/<domain>.ts`** — `ipcMain.handle(IPC.myThing, (_e, arg) => ...)`
    inside that module's `register…Ipc()`. Push events with `sendToRenderer`.
 
@@ -297,6 +300,13 @@ DevTools Protocol: `./node_modules/.bin/electron . --remote-debugging-port=9333`
 single-instance lock), connect to the page target and click / call
 `window.api.*`. It uses the real userData — back up `works.json`,
 `settings.json`, `online.json` before anything that writes.
+
+To test without touching the real data, start the built main from a tiny
+ESM wrapper whose first import calls `app.setPath('appData', <scratch>)`
+(userData is picked from appData in `appPaths.ts`), plus
+`SORTA_DATA_DIR` / `ENVELOPE_DATA_DIR` for the embedded apps:
+`main.mjs` = `import './appdata.mjs'` then `import 'file:///…/out/main/index.js'`
+(static imports, so the schemes still register before app ready).
 
 ## 12. 캐릭터 분류 mode (Sorta, embedded)
 

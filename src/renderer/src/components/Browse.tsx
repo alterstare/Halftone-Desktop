@@ -15,7 +15,7 @@ import { favMeta, tagTokens, tagToken, tokenLabel, FAV_BASE } from '../util'
 import { useFavSummaries, fetchSummaries } from '../favSummaries'
 import Caret from './Caret'
 import Dropdown from './Dropdown'
-import { CheckIcon, PauseIcon, PlayIcon, SearchIcon, SyncIcon, GridIcon, MenuIcon, FavoriteIcon, DownloadIcon, CloseIcon } from './icons'
+import { CheckIcon, CloseIcon, DownloadIcon, FavoriteIcon, GridIcon, MenuIcon, PauseIcon, PlayIcon, SearchIcon, SyncIcon, ContentCopyIcon, OpenInNewIcon, TabIcon, VerticalSplitIcon } from './icons'
 import { OnlineOnlyToggle, FavSortSelect, type FavSort } from './FavDlToggle'
 import { doujinFavCodes, doujinFavGalleries } from '../favorites'
 import type { OnlineGallery } from '../store'
@@ -99,7 +99,7 @@ export default function Browse(): JSX.Element {
   const [menu, setMenu] = useState<{ x: number; y: number; g: OnlineGallery } | null>(null)
   // List view: which card's 다른 언어판 panel is open (like the local 한국어 ▾).
   const [edOpen, setEdOpen] = useState<string | null>(null)
-  const { openTagMenu, tagMenu } = useTagMenu('local')
+  const { openTagMenu, tagMenu } = useTagMenu()
 
   // Descending sort must reverse the WHOLE list, not just the visible page, so
   // page N (user-facing) maps to the mirrored source page (lastPage - N) and its
@@ -509,11 +509,11 @@ export default function Browse(): JSX.Element {
                     dlActive
                       ? `다운로드 중 ${dlPct}% — 클릭 시 일시정지`
                       : dlPaused
-                        ? `일시정지됨 (${dlPct}%) — 클릭 시 이어받기`
+                        ? `일시정지 (${dlPct}%) — 클릭 시 이어받기`
                         : dlErr
                           ? '실패 — 클릭 시 다시 시도'
                           : have
-                            ? '이미 라이브러리에 있음 (다시 받기)'
+                            ? '라이브러리에 있는 작품 (다시 받기)'
                             : '이 작품 다운로드'
                   }
                   onClick={() => {
@@ -587,11 +587,11 @@ export default function Browse(): JSX.Element {
           x={menu.x}
           y={menu.y}
           items={[
-            { label: '새 탭에서 열기', onClick: () => openOnline(menu.g) },
-            { label: '백그라운드에서 열기', onClick: () => openOnlineBackground(menu.g) },
-            { label: splitOpen ? '오른쪽 뷰에서 열기' : '분할 뷰에서 열기', onClick: () => openSplitOnline(menu.g) },
-            { label: '다운로드', onClick: () => download(menu.g.code, menu.g.title) },
-            { label: '제목 복사', onClick: () => void window.api.clipboardWriteText(menu.g.title) }
+            { label: '새 탭에서 열기', icon: <OpenInNewIcon />, onClick: () => openOnline(menu.g) },
+            { label: '백그라운드에서 열기', icon: <TabIcon />, onClick: () => openOnlineBackground(menu.g) },
+            { label: splitOpen ? '오른쪽 뷰에서 열기' : '분할 뷰에서 열기', icon: <VerticalSplitIcon />, onClick: () => openSplitOnline(menu.g) },
+            { label: '다운로드', icon: <DownloadIcon />, onClick: () => download(menu.g.code, menu.g.title) },
+            { label: '제목 복사', icon: <ContentCopyIcon />, onClick: () => void window.api.clipboardWriteText(menu.g.title) }
           ]}
           onClose={() => setMenu(null)}
         />

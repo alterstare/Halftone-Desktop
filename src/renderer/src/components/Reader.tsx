@@ -785,7 +785,7 @@ export default function Reader({
 
   if (!tab) return <div className="reader empty">탭이 없습니다.</div>
 
-  const title = online ? online.title : work?.title ?? '(삭제됨)'
+  const title = online ? online.title : work?.title ?? '(삭제된 작품)'
   const artist = online ? online.artist : work?.artist
 
   const download = async (): Promise<void> => {
@@ -1217,7 +1217,7 @@ export default function Reader({
                 label="포커스 모드"
                 state={focusMode ? `${focusMode}단계` : 'OFF'}
                 on={focusMode > 0}
-                title="감상을 시작하면 막대를 숨깁니다 (끔 → 1 → 2 → 3단계). 단계 설명은 설정 > 스타일"
+                title="감상을 시작하면 막대를 숨깁니다 (OFF → 1 → 2 → 3단계). 단계 설명은 설정 > 스타일"
                 onClick={() => patchSettings({ focusMode: ((focusMode + 1) % 4) as 0 | 1 | 2 | 3 })}
               />
             </span>

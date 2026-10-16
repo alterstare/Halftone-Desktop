@@ -164,11 +164,11 @@ export default function Download(): JSX.Element {
         {rows.map((r) => {
           const pct = rowPct(r.done, r.total)
           const phase = r.dl?.phase
-          // Download rows carry phase-specific labels (대기 중/정지됨); jobs fall
+          // Download rows carry phase-specific labels (대기 중/정지); jobs fall
           // back to the coarse running/done/error status.
           const status =
             phase === 'stopped'
-              ? { cls: 'stopped', label: '⏸ 정지됨' }
+              ? { cls: 'stopped', label: '⏸ 정지' }
               : phase === 'queued'
                 ? { cls: 'busy', label: '대기 중' }
                 : phase === 'converting'
@@ -200,7 +200,7 @@ export default function Download(): JSX.Element {
               <div className="dl-item-meta">
                 <span>
                   {phase === 'stopped'
-                    ? '정지됨'
+                    ? '정지'
                     : r.total > 0
                       ? `${r.done}/${r.total}`
                       : r.detail ?? '…'}

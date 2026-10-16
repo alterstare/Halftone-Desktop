@@ -198,7 +198,7 @@ export async function renameGroupFolders(
       throw new Error(
         msg.startsWith('같은 이름')
           ? msg
-          : `폴더 이름을 바꿀 수 없습니다 (사용 중일 수 있음): ${dir}`
+          : `폴더 이름을 바꿀 수 없습니다 (사용 중일 수 있습니다): ${dir}`
       )
     }
   }

@@ -5,7 +5,7 @@ import { selectWorks, allTags, matchesSearch, analyzeSeries, seriesOf, tagToken,
 import type { SortMode, Work } from '../../../shared/types'
 import Thumb from './Thumb'
 import Stars from './Stars'
-import { SearchIcon, AutoStoriesIcon } from './icons'
+import { AutoStoriesIcon, SearchIcon, AddIcon, ContentCopyIcon, DeleteIcon, OpenInBrowserIcon, OpenInNewIcon, RemoveIcon, TabIcon, VerticalSplitIcon, CheckMarkIcon } from './icons'
 import FavGroup from './FavGroup'
 import { ChapterRow } from './SeriesCard'
 import ContextMenu from './ContextMenu'
@@ -167,31 +167,32 @@ export default function LibraryList(): JSX.Element {
     const w = works.find((x) => x.id === id)
     const splitOpen = !!tabs.find((t) => t.id === activeTabId)?.split
     const items: MenuItem[] = [
-      { label: '새 탭에서 열기', onClick: () => openTab(id) },
-      { label: '백그라운드에서 열기', onClick: () => openTabBackground(id) },
-      { label: splitOpen ? '오른쪽 뷰에서 열기' : '분할 뷰에서 열기', onClick: () => openSplit(id) },
-      ...(w ? [{ label: '제목 복사', onClick: () => void window.api.clipboardWriteText(w.title) }] : [])
+      { label: '새 탭에서 열기', icon: <OpenInNewIcon />, onClick: () => openTab(id) },
+      { label: '백그라운드에서 열기', icon: <TabIcon />, onClick: () => openTabBackground(id) },
+      { label: splitOpen ? '오른쪽 뷰에서 열기' : '분할 뷰에서 열기', icon: <VerticalSplitIcon />, onClick: () => openSplit(id) },
+      ...(w ? [{ label: '제목 복사', icon: <ContentCopyIcon />, onClick: () => void window.api.clipboardWriteText(w.title) }] : [])
     ]
     if (w) {
       const wMode = w.library ?? 'doujin'
       const sub: MenuItem[] = groups
         .filter((g) => (g.mode ?? 'doujin') === wMode)
         .map((g) => ({
-        label: (w.groups ?? [])[0] === g.id ? `✓ ${g.name}` : g.name,
+        label: g.name,
+        icon: (w.groups ?? [])[0] === g.id ? <CheckMarkIcon /> : undefined,
         onClick: () => pickGroup(w, g.id, g.name)
       }))
       sub.push({
-        label: '＋ 새 그룹',
+        label: '새 그룹', icon: <AddIcon />, separator: true,
         onClick: async () => {
           const gid = await createGroup('새 그룹')
           if (gid) applyGroup(w.id, [gid])
         }
       })
-      items.push({ label: '그룹에 추가', children: sub })
-      if ((w.groups ?? []).length) items.push({ label: '그룹에서 제거', onClick: () => applyGroup(w.id, []) })
+      items.push({ label: '그룹에 추가', icon: <AddIcon />, children: sub })
+      if ((w.groups ?? []).length) items.push({ label: '그룹에서 제거', icon: <RemoveIcon />, onClick: () => applyGroup(w.id, []) })
     }
-    items.push({ label: '현재 탭에서 열기', onClick: () => (activeTabId ? replaceTabWork(activeTabId, 'left', id) : openTab(id)) })
-    if (w) items.push({ label: '삭제', danger: true, onClick: () => setTrash(w) })
+    items.push({ label: '현재 탭에서 열기', icon: <OpenInBrowserIcon />, onClick: () => (activeTabId ? replaceTabWork(activeTabId, 'left', id) : openTab(id)) })
+    if (w) items.push({ label: '삭제', icon: <DeleteIcon />, separator: true, danger: true, onClick: () => setTrash(w) })
     return items
   }
 
@@ -338,14 +339,13 @@ export default function LibraryList(): JSX.Element {
       {trash && <TrashConfirm works={[trash]} title={trash.title} onClose={() => setTrash(null)} />}
       {moveTo && (
         <ConfirmModal
-          icon="⇄"
           title="그룹을 옮기시겠습니까?"
           desc={
             <>
               이 작품을 <b>{moveTo.name}</b> 그룹으로 옮깁니다. 폴더도 함께 이동합니다.
             </>
           }
-          confirmLabel="옮김"
+          confirmLabel="옮기기"
           cancelLabel="유지"
           onConfirm={() => {
             applyGroup(moveTo.workId, [moveTo.gid])
