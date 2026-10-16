@@ -11,6 +11,7 @@ import {
   GraphicEqIcon,
   HistoryIcon,
   KeyboardArrowLeftIcon,
+  LibraryMusicIcon,
   PauseIcon,
   PlayArrowIcon,
   ScheduleIcon,
@@ -292,7 +293,7 @@ export default function WorkPage(): JSX.Element | null {
       <div className="workpage mwork">
         {coverUrl && <div className="mw-bg" style={{ backgroundImage: `url("${coverUrl}")` }} />}
         {top}
-        <div className="mw-cover">{coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : null}</div>
+        <div className="mw-cover">{coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : <div className="cover-box-ph"><LibraryMusicIcon /></div>}</div>
         <div className="mw-collect">
           <Stars id={w.id} rank={rank} />
           <div className="flat-group">
@@ -330,7 +331,7 @@ export default function WorkPage(): JSX.Element | null {
         {coverUrl && <div className="wp-backdrop" style={{ backgroundImage: `url("${coverUrl}")` }} />}
         {top}
         <div className="wp-main">
-          <div className="wp-cover">{coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : null}</div>
+          <div className="wp-cover">{coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : <div className="cover-box-ph"><LibraryMusicIcon /></div>}</div>
           <div className="wp-info">
             {kind && <div className="wp-kind">{kind}</div>}
             <h1 className="wp-title selectable">{w.title}</h1>

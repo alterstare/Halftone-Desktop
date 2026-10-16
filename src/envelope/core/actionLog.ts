@@ -41,6 +41,22 @@ export class ActionLog {
     return Number(r.lastInsertRowid)
   }
 
+  // Rewrite the recorded payloads of some types (e.g. when the files they
+  // name have moved), in the log and in the redo stack.
+  rewrite(types: string[], fn: (payload: any) => unknown): void { // eslint-disable-line @typescript-eslint/no-explicit-any
+    const rows = this.db
+      .prepare(`SELECT id, payload_json FROM action_log WHERE action_type IN (${types.map(() => '?').join(', ')})`)
+      .all(...types) as { id: number; payload_json: string }[]
+    const upd = this.db.prepare('UPDATE action_log SET payload_json = ? WHERE id = ?')
+    this.db.transaction(() => {
+      for (const r of rows) {
+        const next = JSON.stringify(fn(JSON.parse(r.payload_json)))
+        if (next !== r.payload_json) upd.run(next, r.id)
+      }
+    })()
+    for (const r of this.redoStack) if (types.includes(r.type)) r.payload = fn(r.payload)
+  }
+
   // Newest first, not yet undone.
   recent(limit = 50): LoggedAction[] {
     const rows = this.db

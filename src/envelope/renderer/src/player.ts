@@ -303,14 +303,30 @@ window.addEventListener('beforeunload', () => save())
 
 // ---- OS media controls ----
 
+// The OS overlay only takes http / data / blob artwork, not env-media:// —
+// the cover is fetched once and handed over as a blob URL.
+let artKey = ''
+let artUrl = ''
+async function artwork(cover: string): Promise<string> {
+  if (cover === artKey) return artUrl
+  const blob = await (await fetch(window.api.thumbUrl(cover))).blob()
+  if (artUrl) URL.revokeObjectURL(artUrl)
+  artKey = cover
+  artUrl = URL.createObjectURL(blob)
+  return artUrl
+}
+
 function updateSession(work: WorkDetail, g: TrackGroup): void {
   if (!('mediaSession' in navigator)) return
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: g.title,
-    artist: work.title,
-    album: work.code ?? '',
-    artwork: work.cover ? [{ src: window.api.thumbUrl(work.cover), sizes: '480x480', type: 'image/jpeg' }] : []
-  })
+  const meta = (art: MediaImage[]): MediaMetadata => new MediaMetadata({ title: g.title, artist: work.title, album: work.code ?? '', artwork: art })
+  navigator.mediaSession.metadata = meta([])
+  if (!work.cover) return
+  void artwork(work.cover)
+    .then((src) => {
+      // still the same track (a later call may have replaced the metadata)
+      if (navigator.mediaSession.metadata?.title === g.title) navigator.mediaSession.metadata = meta([{ src, sizes: '480x480' }])
+    })
+    .catch(() => {})
 }
 
 if ('mediaSession' in navigator) {

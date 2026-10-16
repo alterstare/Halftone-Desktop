@@ -144,6 +144,10 @@ export default function SubEditor({ sheet = false }: { sheet?: boolean }): JSX.E
   // kept in the program; into the folder only via 파일 정리 › 자막 › 폴더 변경
   const doSave = async (): Promise<void> => {
     const clean = sorted(cues.filter((c) => c.text.trim() && c.end > c.start))
+    // nothing changed, or a new subtitle without a line: saving would only
+    // mark the track as subtitled
+    if (!dirty) return showToast({ ok: true, message: '바뀐 내용이 없습니다' })
+    if (!clean.length && !subs?.[lang]) return showToast({ ok: false, message: '내용이 있는 줄이 없어 저장하지 않았습니다' })
     await window.api.saveSubtitle(now.trackId, lang, clean, false)
     ended.current = true
     draft = null

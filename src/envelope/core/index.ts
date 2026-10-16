@@ -736,6 +736,14 @@ export class EnvCore {
     // the 원래 이름 기록 follows too (the wav's name, the mp3's extension)
     const gone = new Map(pairs.filter(([from, to]) => !existsSync(from) && existsSync(to)))
     originals.moveRecords(this.db, (p) => gone.get(p) ?? p)
+    this.retargetSubLog((p) => gone.get(p) ?? p)
+  }
+
+  // 자막 저장 / 되살리기 records name the track's path: when the program's
+  // subtitles move to another file, their undo has to follow them there.
+  private retargetSubLog(map: (p: string) => string): void {
+    this.log.rewrite(['subtitle.app'], (p: { trackPath: string }) => ({ ...p, trackPath: map(p.trackPath) }))
+    this.log.rewrite(['subtitle.restore'], (p: { items: { trackPath: string }[] }) => ({ ...p, items: p.items.map((it) => ({ ...it, trackPath: map(it.trackPath) })) }))
   }
   planCover(ids: number[] | null): { id: number; done: Promise<CoverItem[]> } {
     return this.queue.add('썸네일 확인', (ctx) => tools.planCover(this.db, ids, this.settings().coverSkipExisting, ctx))
@@ -859,6 +867,7 @@ export class EnvCore {
       const q = map(r.track_path)
       if (q !== r.track_path) this.db.prepare('UPDATE OR REPLACE app_subs SET track_path = ? WHERE track_path = ? AND lang = ?').run(q, r.track_path, r.lang)
     }
+    this.retargetSubLog(map)
     // name translations move with their files; a name renamed to its
     // translation now shows what it was renamed to
     const renamed = new Map((items ?? []).filter((x) => x.translated).map((x) => [x.to, x]))
