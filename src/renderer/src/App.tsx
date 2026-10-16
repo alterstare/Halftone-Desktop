@@ -437,6 +437,9 @@ export default function App(): JSX.Element {
   )
 }
 
+// The page area keeps at least this much beside the list; below it the list folds.
+const MIN_PAGE_W = 420
+
 // Reader with an always-visible, resizable list pane on the left (noa6 layout).
 function ReaderSplit(): JSX.Element {
   const listWidth = useStore((s) => s.listWidth)
@@ -452,6 +455,31 @@ function ReaderSplit(): JSX.Element {
   const dragW = useRef(0)
   // General-manga list keeps its own (narrower) width; both stay resizable.
   const paneWidth = activeNormal ? normalListWidth : listWidth
+
+  // Too little room for the page beside the list (a small window, the voice
+  // player panel open) → the list folds by itself and comes back when there's
+  // room again. ‹ › still works: opened by hand it stays until the room returns.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [splitW, setSplitW] = useState(0)
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setSplitW(el.clientWidth))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const narrow = splitW > 0 && splitW - paneWidth < MIN_PAGE_W
+  const [keepOpen, setKeepOpen] = useState(false)
+  useEffect(() => {
+    if (!narrow) setKeepOpen(false)
+  }, [narrow])
+  const autoFolded = narrow && !keepOpen && !listCollapsed
+  const collapsed = listCollapsed || autoFolded
+  const toggleList = (): void => {
+    if (autoFolded) setKeepOpen(true)
+    else if (narrow && keepOpen && !listCollapsed) setKeepOpen(false)
+    else toggleListCollapsed()
+  }
 
   useEffect(() => {
     const activeIsNormal = (): boolean => {
@@ -488,20 +516,20 @@ function ReaderSplit(): JSX.Element {
   }, [])
 
   return (
-    <div className="reader-split">
+    <div className="reader-split" ref={rootRef}>
       {/* Kept mounted so the collapse/expand width animation can play (mirrors the
           tab open/close animation); collapsed drives width → 0 via CSS. */}
       <div
-        className={`list-pane ${listCollapsed ? 'collapsed' : ''}`}
+        className={`list-pane ${collapsed ? 'collapsed' : ''}`}
         ref={paneRef}
-        style={{ width: listCollapsed ? 0 : paneWidth }}
+        style={{ width: collapsed ? 0 : paneWidth }}
       >
         {activeComic ? <ComicChapterList /> : activeOnline ? <OnlineList /> : <LibraryList />}
       </div>
       <div
-        className={`divider ${listCollapsed ? 'collapsed' : ''}`}
+        className={`divider ${collapsed ? 'collapsed' : ''}`}
         onMouseDown={() => {
-          if (listCollapsed) return
+          if (collapsed) return
           dragging.current = true
           document.body.classList.add('resizing')
         }}
@@ -509,10 +537,10 @@ function ReaderSplit(): JSX.Element {
         <button
           className="list-toggle"
           onMouseDown={(e) => e.stopPropagation()}
-          onClick={toggleListCollapsed}
-          title={listCollapsed ? '목록 펼치기' : '목록 접기'}
+          onClick={toggleList}
+          title={collapsed ? '목록 펼치기' : '목록 접기'}
         >
-          {listCollapsed ? <KeyboardArrowRightIcon /> : <KeyboardArrowLeftIcon />}
+          {collapsed ? <KeyboardArrowRightIcon /> : <KeyboardArrowLeftIcon />}
         </button>
       </div>
       <div className="reader-pane">
