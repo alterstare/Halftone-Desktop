@@ -1,15 +1,17 @@
 // 파일 정리 (CLAUDE.md §5.6–5.8). A toggle at the top says what changes:
 //   프로그램 내 변경 — only what the program keeps (names shown, DLsite info,
 //     subtitles, the cover shown), many works at once;
-//   폴더 변경 — the library's folders and files: 확인하기 builds a plan
-//     (nothing changes) → the user unticks what to keep → 실행 asks once more →
-//     results, history, 되돌리기.
+//   폴더 변경 — the library's folders and files: 라이브러리 스캔 reads the
+//     folders and builds a plan (nothing changes) → the user unticks what to
+//     keep → 실행 asks once more → results, history, 되돌리기.
+// Every list puts the works the tab can act on first and the others last
+// (greyed), each with a button that opens the work's folder.
 // Everywhere outside this screen only the program's own data changes.
 import { useEffect, useMemo, useState } from 'react'
 import type { JSX, ReactNode } from 'react'
 import { useStore } from '../store'
 import type { ToolTab, ToolsMode } from '../store'
-import type { CoverItem, CoverSaveItem, HistoryEntry, NameStatus, ProgressEvent, RenameItem, ScriptSource, SubExportItem, ToolResult, WavItem } from '../../../shared/types'
+import type { CoverItem, CoverSaveItem, HistoryEntry, NameStatus, ProgressEvent, RenameItem, ScriptSource, SubExportItem, ToolResult, WavItem, WorkSummary } from '../../../shared/types'
 import { clock } from '../format'
 import {
   KeyboardArrowLeftIcon,
@@ -28,7 +30,6 @@ import {
   ScheduleIcon,
   SearchIcon,
   SubtitlesIcon,
-  TranslateIcon,
   UndoIcon
 } from './icons'
 import { Confirm, Dropdown } from './ui'
@@ -39,22 +40,22 @@ const TABS: [ToolTab, string, typeof ImageIcon][] = [
   ['dlsite', 'DLsite 정보', CloudDownloadIcon],
   ['subs', '자막', SubtitlesIcon],
   ['cover', '썸네일', ImageIcon],
-  ['wav', 'wav 정리', AudioFileIcon],
+  ['wav', '용량 최적화', AudioFileIcon],
   ['jobs', '작업', ScheduleIcon]
 ]
 // what each tab does in each mode
 const ABOUT: Record<ToolsMode, Record<ToolTab, string>> = {
   app: {
-    rename: '작품 · 폴더 · 파일 이름을 번역해 프로그램 안에서만 보여 줍니다(설정 › 이름 표시 › 번역한 이름). 깨진 일본어 이름(뷁어)은 언제나 복구해서 보여 줍니다. 폴더 · 파일 이름은 바뀌지 않습니다.',
+    rename: '깨진 이름 복구: 압축 해제 때 깨진 일본어 이름(뷁어)을 프로그램 안에서는 언제나 복구해서 보여 줍니다. 일본어 이름 번역: 작품 · 폴더 · 파일 이름을 번역해 프로그램 안에서만 보여 줍니다(설정 › 이름 표시 › 번역한 이름). 폴더 · 파일 이름은 바뀌지 않습니다.',
     dlsite: '작품 코드로 DLsite에서 제목 · 서클 · 성우 · 표지를 가져와 프로그램 안에 저장합니다(1초에 한 작품). 폴더에는 아무것도 쓰지 않습니다.',
-    subs: '자막을 만들거나 번역해 프로그램 안에 저장합니다. 음성 파일 옆에는 쓰지 않습니다(폴더에 넣으려면 폴더 변경 › 자막).',
+    subs: '자막을 번역하거나 만들어 프로그램 안에 저장합니다. 음성 파일 옆에는 쓰지 않습니다(폴더에 넣으려면 폴더 변경 › 자막).',
     cover: '프로그램에서 보여 줄 작품 표지를 고릅니다. mp3 파일은 바뀌지 않습니다.',
-    wav: 'wav 정리는 파일을 바꾸는 작업이라 폴더 변경에서만 할 수 있습니다.',
+    wav: '용량 최적화는 파일을 바꾸는 작업이라 폴더 변경에서만 할 수 있습니다.',
     jobs: '받아쓰기 · 대본 자막 · 번역 · 이름 번역 · 파일 정리 같은 작업의 진행 상황입니다. 작업마다 취소하거나, 모두 중지(재개하면 멈춘 곳부터 이어서) · 모두 취소할 수 있습니다.'
   },
   folder: {
     rename:
-      '작품 폴더와 그 안의 폴더 · 파일 이름을 실제로 바꿉니다. 복구한 이름: 압축 해제 때 깨진 일본어 이름(뷁어)을 원래 이름으로(사라진 글자는 작품 제목 · 다른 이름 · 단어 사전으로 채웁니다). 번역한 이름: 프로그램 내 변경 › 이름에서 번역해 둔 한국어 이름으로(자막 등 짝 파일도 같은 이름). 기록한 원래 이름: 처음 스캔했을 때 기록해 둔 일본어 이름으로(번역 · 다른 프로그램으로 바꾼 이름도). 줄마다 새 이름을 고칠 수 있고, 이어 듣기 · 북마크는 그대로 남으며, 되돌릴 수 있습니다.',
+      '작품 폴더와 그 안의 폴더 · 파일 이름을 실제로 바꿉니다. 깨진 이름 복구: 압축 해제 때 깨진 일본어 이름(뷁어)을 원래 이름으로(사라진 글자는 작품 제목 · 다른 이름 · 단어 사전으로 채웁니다). 일본어 이름 번역: 프로그램 내 변경 › 이름에서 번역해 둔 한국어 이름으로(자막 등 짝 파일도 같은 이름). 기록한 원래 이름: 처음 스캔했을 때 기록해 둔 일본어 이름으로(번역 · 다른 프로그램으로 바꾼 이름도). 줄마다 새 이름을 고칠 수 있고, 이어 듣기 · 북마크는 그대로 남으며, 되돌릴 수 있습니다.',
     dlsite: 'DLsite에서 가져온 표지 그림을 작품 폴더에 cover.jpg로 저장합니다(이미 있으면 cover (DLsite).jpg). 되돌릴 수 있습니다.',
     subs: '프로그램 안에 저장된 자막을 음성 파일 옆에 "이름.ja.vtt" · "이름.ko.vtt"로 저장합니다. 다른 프로그램이 만든 같은 이름의 파일은 체크해야만 바꿉니다. 되돌릴 수 있습니다.',
     cover:
@@ -107,7 +108,7 @@ function Row({ tab, it, root, onEdit }: { tab: ToolTab; it: Item; root: string; 
         {c.image ? <img className="tr-thumb" src={window.api.thumbUrl(c.image)} alt="" /> : <span className="tr-thumb empty" />}
         <span className="tr-main">
           <span className="tr-name">{rel(c.track, root)}</span>
-          <span className="tr-sub hint">{c.image ? rel(c.image, root) : '쓸 이미지가 없습니다'}</span>
+          <span className="tr-sub hint">{!c.image ? '쓸 이미지가 없습니다' : rel(c.image, root) === c.image ? 'DLsite 표지' : rel(c.image, root)}</span>
         </span>
         <span className="tr-side">{c.hasCover && <Tag kind="warn">기존 커버 바꾸기</Tag>}</span>
       </>
@@ -323,46 +324,228 @@ function Jobs(): JSX.Element {
   )
 }
 
-// 이름 번역 for many works at once: which works still have Japanese names
-// without a translation, then one job per picked work.
-function NameTranslate({ scope, onDone }: { scope: number[] | null; onDone: () => void }): JSX.Element {
-  const [status, setStatus] = useState<NameStatus[] | null>(null)
+
+// ---- shared pieces of the lists ----
+
+const total = (n: number, verb = ''): string => `총 ${n}개${verb ? ` ${verb}` : ''}`
+
+// The work's folder, opened as it is (to look at the files before deciding).
+function FolderButton({ path }: { path: string }): JSX.Element {
+  return (
+    <button
+      className="mini icon tr-folder"
+      title="작품 폴더 열기"
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        void window.api.openFolder(path)
+      }}
+    >
+      <FolderOpenIcon />
+    </button>
+  )
+}
+
+// 라이브러리 스캔: reads the folders again, then this tab's check.
+function ScanButton({ busy, onClick }: { busy: boolean; onClick: () => void }): JSX.Element {
+  return (
+    <button className="btn primary tools-scan" disabled={busy} onClick={onClick}>
+      <SearchIcon /> 라이브러리 스캔
+    </button>
+  )
+}
+
+interface WorkRef {
+  id: number
+  title: string
+  path: string
+}
+
+// One work in a list: tick · title · what it has · folder.
+function WorkLine({
+  w,
+  checked,
+  disabled,
+  onCheck,
+  side,
+  off
+}: {
+  w: WorkRef
+  checked?: boolean
+  disabled?: boolean
+  onCheck?: (v: boolean) => void
+  side?: ReactNode
+  off?: boolean
+}): JSX.Element {
+  return (
+    <label className={`trow-work ${off ? 'off' : ''}`}>
+      {onCheck ? <input type="checkbox" checked={!!checked && !disabled} disabled={disabled} onChange={(e) => onCheck(e.target.checked)} /> : <span />}
+      <span className="tr-main">
+        <span className="tr-name" title={w.title}>
+          {w.title}
+        </span>
+      </span>
+      {/* the controls here don't tick the row */}
+      <span className="tr-side" onClick={(e) => (e.target as HTMLElement).closest('button, .dd') && e.preventDefault()}>
+        {side}
+      </span>
+      <FolderButton path={w.path} />
+    </label>
+  )
+}
+
+// A titled block of works; `all` puts a 전체 선택 tick on its head.
+function WorkBlock({
+  title,
+  count,
+  all,
+  children
+}: {
+  title: string
+  count: number
+  all?: { checked: boolean; disabled?: boolean; onChange: (v: boolean) => void }
+  children: ReactNode
+}): JSX.Element | null {
+  if (!count) return null
+  return (
+    <section className="tgroup">
+      {all ? (
+        <label className="tgroup-head check">
+          <input type="checkbox" checked={all.checked} disabled={all.disabled} onChange={(e) => all.onChange(e.target.checked)} />
+          <span className="tgroup-title">{title}</span>
+          <span className="hint">{total(count)}</span>
+        </label>
+      ) : (
+        <div className="tgroup-head check">
+          <span className="tgroup-title">{title}</span>
+          <span className="hint">{total(count)}</span>
+        </div>
+      )}
+      {children}
+    </section>
+  )
+}
+
+// Works that this tab has nothing to do for: always last, greyed.
+function OtherWorks({ list, why, title = '대상이 아닌 작품' }: { list: WorkRef[]; why: (w: WorkRef) => string; title?: string }): JSX.Element | null {
+  return (
+    <WorkBlock title={title} count={list.length}>
+      {list.map((w) => (
+        <WorkLine key={w.id} w={w} off side={<Tag kind="mute">{why(w)}</Tag>} />
+      ))}
+    </WorkBlock>
+  )
+}
+
+// a set of ticked work ids, with helpers
+function usePicked(): [Set<number>, (s: Set<number>) => void, (ids: number[], v: boolean) => void] {
   const [picked, setPicked] = useState<Set<number>>(new Set())
+  const toggle = (ids: number[], v: boolean): void =>
+    setPicked((p) => {
+      const next = new Set(p)
+      ids.forEach((id) => (v ? next.add(id) : next.delete(id)))
+      return next
+    })
+  return [picked, setPicked, toggle]
+}
+
+// ---- 프로그램 내 변경 panels (nothing in the library folders changes) ----
+
+// 이름: 깨진 이름 복구 (뷁어) — shown repaired in the program already, so this
+// lists what was repaired; 일본어 이름 번역 — the names still in Japanese, then
+// one job per ticked work.
+function NamesApp({
+  scope,
+  kind,
+  foldersOnly,
+  tick
+}: {
+  scope: number[] | null
+  kind: 'repair' | 'translate'
+  foldersOnly: boolean
+  tick: number
+}): JSX.Element {
+  const works = useStore((s) => s.works)
+  const inScope = works.filter((w) => !scope || scope.includes(w.id))
+  const [status, setStatus] = useState<NameStatus[] | null>(null)
+  const [repairs, setRepairs] = useState<RenameItem[] | null>(null)
+  const [picked, setPicked, toggle] = usePicked()
   const [onlyMissing, setOnlyMissing] = useState(true)
-  const [busy, setBusy] = useState<'check' | 'run' | null>(null)
-  useEffect(() => setStatus(null), [scope])
+  const [busy, setBusy] = useState(false)
+  // 라이브러리 스캔 (tick) · the option · the name range → look again
   const check = async (): Promise<void> => {
-    setBusy('check')
+    setBusy(true)
     try {
-      const got = await window.api.nameStatus(scope)
-      setStatus(got)
-      setPicked(new Set(got.filter((x) => x.missing > 0).map((x) => x.workId)))
+      if (kind === 'repair') setRepairs(await window.api.planRename(scope, 'repair'))
+      else {
+        const got = await window.api.nameStatus(scope, foldersOnly)
+        setStatus(got)
+        setPicked(new Set(got.filter((x) => x.missing > 0).map((x) => x.workId)))
+      }
     } finally {
-      setBusy(null)
+      setBusy(false)
     }
   }
+  useEffect(() => {
+    setStatus(null)
+    setRepairs(null)
+    if (tick) void check()
+  }, [tick, kind, foldersOnly, String(scope)]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (busy && !status && !repairs) return <p className="hint tools-empty">이름을 읽는 중…</p>
+  if (kind === 'repair') {
+    if (!repairs) return <p className="hint tools-empty">라이브러리 스캔을 누르면 작품마다 복구한 이름을 보여 줍니다.</p>
+    const shown = repairs.filter((r) => !foldersOnly || r.work || r.dir)
+    const by = new Map<number, RenameItem[]>()
+    for (const r of shown) by.set(r.workId, [...(by.get(r.workId) ?? []), r])
+    const target = inScope.filter((w) => by.has(w.id))
+    return (
+      <section className="app-panel">
+        <div className="tools-summary">
+          <span>{shown.length ? `작품 ${target.length}개 · ${total(shown.length, '복구')}` : '깨진 이름이 없습니다.'}</span>
+        </div>
+        {shown.length > 0 && <p className="hint">프로그램 안에서는 이미 복구한 이름으로 보입니다. 폴더 · 파일 이름까지 바꾸려면 폴더 변경 › 이름.</p>}
+        {target.map((w) => (
+          <section key={w.id} className="tgroup">
+            <div className="tgroup-head check">
+              <span className="tgroup-title">{w.title}</span>
+              <span className="hint">{total(by.get(w.id)!.length, '복구')}</span>
+              <FolderButton path={w.path} />
+            </div>
+            {by.get(w.id)!.map((r) => (
+              <div key={r.id} className="trow-tool">
+                <span />
+                <Row tab="rename" it={r} root={w.path} />
+              </div>
+            ))}
+          </section>
+        ))}
+        <OtherWorks list={inScope.filter((w) => !by.has(w.id))} why={() => '깨진 이름 없음'} />
+      </section>
+    )
+  }
+
+  if (!status) return <p className="hint tools-empty">라이브러리 스캔을 누르면 작품마다 번역할 일본어 이름을 셉니다.</p>
+  const n = (x: NameStatus): number => (onlyMissing ? x.missing : x.total)
+  const byId = new Map(status.map((x) => [x.workId, x]))
+  const target = inScope.filter((w) => (byId.get(w.id) ? n(byId.get(w.id)!) > 0 : false))
+  const done = inScope.filter((w) => byId.get(w.id) && byId.get(w.id)!.total > 0 && n(byId.get(w.id)!) === 0)
+  const other = inScope.filter((w) => !target.includes(w) && !done.includes(w))
+  const ids = target.map((w) => w.id)
+  const count = ids.filter((id) => picked.has(id)).length
   const run = async (): Promise<void> => {
-    setBusy('run')
+    setBusy(true)
     try {
-      const r = await window.api.translateNamesOf([...picked], onlyMissing)
-      useStore.getState().showToast(r)
+      useStore.getState().showToast(await window.api.translateNamesOf(ids.filter((id) => picked.has(id)), onlyMissing, foldersOnly))
     } finally {
-      setBusy(null)
+      setBusy(false)
     }
     void useStore.getState().loadWorks()
-    onDone()
     await check()
   }
-  const shown = (status ?? []).filter((x) => x.total > 0)
-  const all = shown.length > 0 && shown.every((x) => picked.has(x.workId))
   return (
-    <section className="name-tr">
+    <section className="app-panel">
       <div className="tools-actions">
-        <div className="flat-group">
-          <button className="mini" disabled={!!busy} onClick={() => void check()}>
-            <TranslateIcon /> {status ? '번역 상태 다시 보기' : '번역 상태 보기'}
-          </button>
-        </div>
         <div className="flat-group" title="번역할 이름">
           <button className={`mini ${onlyMissing ? 'on' : ''}`} onClick={() => setOnlyMissing(true)}>
             번역 안 된 이름만
@@ -372,65 +555,33 @@ function NameTranslate({ scope, onDone }: { scope: number[] | null; onDone: () =
           </button>
         </div>
       </div>
-      {status && (
-        <>
-          <div className="tools-summary">
-            <span>
-              {shown.length
-                ? `일본어 이름이 있는 작품 ${shown.length}개 · 번역 안 된 이름 ${shown.reduce((n, x) => n + x.missing, 0)}개`
-                : '번역할 일본어 이름이 없습니다.'}
-            </span>
-            <span className="grow" />
-            {shown.length > 0 && (
-              <button className="btn primary" disabled={!picked.size || !!busy} onClick={() => void run()}>
-                선택한 작품 {picked.size}개 번역
-              </button>
-            )}
-          </div>
-          {shown.length > 0 && (
-            <section className="tgroup">
-              <label className="tgroup-head check">
-                <input type="checkbox" checked={all} onChange={(e) => setPicked(new Set(e.target.checked ? shown.map((x) => x.workId) : []))} />
-                <span className="tgroup-title">전체 선택</span>
-                <span className="hint">{shown.length}</span>
-              </label>
-              {shown.map((x) => (
-                <label key={x.workId} className="trow-tool">
-                  <input
-                    type="checkbox"
-                    checked={picked.has(x.workId)}
-                    onChange={(e) => {
-                      const next = new Set(picked)
-                      if (e.target.checked) next.add(x.workId)
-                      else next.delete(x.workId)
-                      setPicked(next)
-                    }}
-                  />
-                  <span className="tr-main">
-                    <span className="tr-name">{x.title}</span>
-                  </span>
-                  <span className="tr-side">
-                    {x.missing ? <Tag kind="warn">미번역 {x.missing}</Tag> : <Tag kind="ok">번역 완료</Tag>}
-                    <span className="hint">일본어 이름 {x.total}</span>
-                  </span>
-                </label>
-              ))}
-            </section>
-          )}
-          {busy === 'run' && <p className="hint">진행 상황은 작업 탭에서 작품별로 볼 수 있습니다.</p>}
-        </>
-      )}
+      <div className="tools-summary">
+        <span>{target.length ? `작품 ${count}개 선택 · ${total(target.filter((w) => picked.has(w.id)).reduce((s, w) => s + n(byId.get(w.id)!), 0), '번역')}` : '번역할 일본어 이름이 없습니다.'}</span>
+        <span className="grow" />
+        {target.length > 0 && (
+          <button className="btn primary" disabled={!count || busy} onClick={() => void run()}>
+            선택한 작품 {count}개 번역
+          </button>
+        )}
+      </div>
+      <WorkBlock title="번역할 이름이 있는 작품" count={target.length} all={{ checked: count === ids.length, onChange: (v) => toggle(ids, v) }}>
+        {target.map((w) => (
+          <WorkLine key={w.id} w={w} checked={picked.has(w.id)} onCheck={(v) => toggle([w.id], v)} side={<Tag kind="warn">{total(n(byId.get(w.id)!), '번역')}</Tag>} />
+        ))}
+      </WorkBlock>
+      <OtherWorks title="번역을 마친 작품" list={done} why={() => '번역 완료'} />
+      <OtherWorks list={other} why={() => '일본어 이름 없음'} />
+      {busy && <p className="hint">진행 상황은 작업 탭에서 작품별로 볼 수 있습니다.</p>}
     </section>
   )
 }
-
-// ---- 프로그램 내 변경 panels (nothing in the library folders changes) ----
 
 // DLsite 정보: fetch into the program, many works at once.
 function DlsiteApp({ scope }: { scope: number[] | null }): JSX.Element {
   const works = useStore((s) => s.works)
   const [busy, setBusy] = useState(false)
-  const inScope = works.filter((w) => w.code && (!scope || scope.includes(w.id)))
+  const inScope = works.filter((w) => !scope || scope.includes(w.id))
+  const coded = inScope.filter((w) => w.code)
   const run = async (ids: number[] | null): Promise<void> => {
     setBusy(true)
     try {
@@ -443,74 +594,150 @@ function DlsiteApp({ scope }: { scope: number[] | null }): JSX.Element {
   return (
     <section className="app-panel">
       <div className="tools-summary">
-        <span>작품 코드가 있는 작품 {inScope.length}개</span>
+        <span>작품 코드가 있는 작품 {coded.length}개</span>
         <span className="grow" />
         <div className="flat-group">
-          <button className="mini" disabled={busy || !inScope.length} onClick={() => void run(scope ? inScope.map((w) => w.id) : null)}>
+          <button className="mini" disabled={busy || !coded.length} onClick={() => void run(scope ? coded.map((w) => w.id) : null)}>
             <CloudDownloadIcon /> {scope ? '이 작품 가져오기' : '아직 안 가져온 작품 가져오기'}
           </button>
           {!scope && (
-            <button className="mini" disabled={busy || !inScope.length} onClick={() => void run(inScope.map((w) => w.id))}>
+            <button className="mini" disabled={busy || !coded.length} onClick={() => void run(coded.map((w) => w.id))}>
               모두 다시 가져오기
             </button>
           )}
         </div>
       </div>
       {busy && <p className="hint">진행 상황은 작업 탭에서 볼 수 있습니다.</p>}
+      <WorkBlock title="아직 가져오지 않은 작품" count={coded.filter((w) => !w.dlFetched).length}>
+        {coded
+          .filter((w) => !w.dlFetched)
+          .map((w) => (
+            <WorkLine key={w.id} w={w} side={<Tag kind="warn">{w.code}</Tag>} />
+          ))}
+      </WorkBlock>
+      <WorkBlock title="가져온 작품" count={coded.filter((w) => w.dlFetched).length}>
+        {coded
+          .filter((w) => w.dlFetched)
+          .map((w) => (
+            <WorkLine key={w.id} w={w} side={<Tag kind={w.circle ? 'ok' : 'mute'}>{w.circle ? '가져옴' : 'DLsite에 없음'}</Tag>} />
+          ))}
+      </WorkBlock>
+      <OtherWorks list={inScope.filter((w) => !w.code)} why={() => '작품 코드 없음'} />
     </section>
   )
 }
 
-// 자막: make / translate subtitles kept in the program, for many works —
-// 받아쓰기 (speech engine) or 대본 (each work's script: the one found in its
-// folder, another one found there, or any txt / pdf / docx picked by hand).
+// 자막: the subtitles kept in the program, for many works —
+//   자막 번역            Japanese subtitles → Korean
+//   자막 생성 및 번역    speech → Japanese subtitles (→ Korean)
+//   대본으로 자막 생성   Japanese script → subtitles (→ Korean); Korean script →
+//                        the Japanese speech places the script's lines
+type SubKind = 'translate' | 'make' | 'script'
 const SCRIPT_LANG: Record<string, string> = { ja: '일본어', ko: '한국어', other: '언어 미확인' }
-function SubsApp({ scope }: { scope: number[] | null }): JSX.Element {
+const SUB_ABOUT: Record<SubKind, string> = {
+  translate: '일본어 자막을 한국어로 번역해 프로그램 안에 저장합니다. 한국어 자막이 이미 있는 작품은 "다시 만들기"를 켜야 바뀝니다.',
+  make: '음성을 받아써 일본어 자막을 만듭니다. "번역까지"를 고르면 한국어 자막도 만듭니다.',
+  script:
+    '작품 폴더의 대본(txt · pdf · docx)으로 자막을 만듭니다. 일본어 대본은 대사 위치를 맞춰 일본어 자막을 만들고 한국어로 번역합니다. 한국어 대본은 일본어 음성으로 위치를 잡아 한국어 대본을 넣습니다. 대본을 찾지 못한 작품은 파일을 직접 고를 수 있습니다.'
+}
+function SubsApp({ scope, tick }: { scope: number[] | null; tick: number }): JSX.Element {
   const works = useStore((s) => s.works)
   const inScope = works.filter((w) => !scope || scope.includes(w.id))
-  const [method, setMethod] = useState<'asr' | 'script'>('asr')
-  const [picked, setPicked] = useState<Set<number>>(() => new Set(inScope.filter((w) => w.subtitled < w.tracks).map((w) => w.id)))
-  const [transcribe, setTranscribe] = useState(true)
-  const [translate, setTranslate] = useState(true)
+  const [kind, setKind] = useState<SubKind>('make')
+  const [andTranslate, setAndTranslate] = useState(true)
   const [redo, setRedo] = useState(false)
   const [busy, setBusy] = useState(false)
-  // 대본: each work's scripts (looked up once 대본 사용 is chosen) and the chosen one
+  const [picked, setPicked, toggle] = usePicked()
+  // 대본: each work's scripts (looked up once that option is chosen) and the chosen one
   const [scripts, setScripts] = useState<Map<number, ScriptSource[]> | null>(null)
   const [chosen, setChosen] = useState<Map<number, string>>(new Map())
   useEffect(() => {
-    if (method !== 'script' || scripts) return undefined
+    if (kind !== 'script') return undefined
     let alive = true
+    setScripts(null)
     void (async () => {
       const found = new Map<number, ScriptSource[]>()
       for (const w of inScope) found.set(w.id, await window.api.findScripts(w.id).catch(() => []))
-      if (!alive) return
-      setScripts(found)
-      setChosen(new Map([...found].filter(([, l]) => l.length).map(([id, l]) => [id, l[0].id])))
-      // with a script, and not every track subtitled yet
-      setPicked(new Set(inScope.filter((w) => found.get(w.id)?.length && w.subtitled < w.tracks).map((w) => w.id)))
+      if (alive) setScripts(found)
     })()
     return () => {
       alive = false
     }
-  }, [method]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [kind, tick]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hasSubs = (w: WorkSummary): boolean => w.subtitled > 0
+  const subNote = (w: WorkSummary): string => {
+    const l = [w.content.subs.ja && '일본어', w.content.subs.ko && '한국어'].filter(Boolean)
+    return l.length ? `${l.join(' · ')} 자막 있음` : '자막 있음'
+  }
+  // a work's script language: Japanese first (the script is the subtitle), then Korean
+  const scriptLang = (id: number): 'ja' | 'ko' | null => {
+    const l = scripts?.get(id) ?? []
+    if (!l.length) return null
+    return l.some((x) => x.lang !== 'ko') ? 'ja' : 'ko'
+  }
+
+  // the blocks of this option: [title, works, ticked by default, reason when greyed]
+  const blocks = useMemo((): { title: string; list: WorkSummary[]; on: boolean; other?: string }[] => {
+    if (kind === 'translate') {
+      const can = inScope.filter((w) => w.lang !== 'ko-voice' && w.content.subs.ja)
+      return [
+        { title: '한국어 자막이 없는 작품', list: can.filter((w) => !w.content.subs.ko), on: true },
+        { title: '한국어 자막도 있는 작품', list: can.filter((w) => w.content.subs.ko), on: false },
+        { title: '대상이 아닌 작품', list: inScope.filter((w) => !can.includes(w)), on: false, other: '' }
+      ]
+    }
+    if (kind === 'make') {
+      const audio = inScope.filter((w) => w.tracks > 0)
+      return [
+        { title: '자막 없는 트랙이 있는 작품', list: audio.filter((w) => w.subtitled < w.tracks), on: true },
+        { title: '모든 트랙에 자막이 있는 작품', list: audio.filter((w) => w.subtitled >= w.tracks), on: false },
+        { title: '대상이 아닌 작품', list: inScope.filter((w) => !w.tracks), on: false, other: '음성 트랙 없음' }
+      ]
+    }
+    if (!scripts) return []
+    const withScript = inScope.filter((w) => scriptLang(w.id))
+    return [
+      { title: '일본어 대본이 있는 작품', list: withScript.filter((w) => scriptLang(w.id) === 'ja' && !hasSubs(w)), on: true },
+      { title: '한국어 대본이 있는 작품', list: withScript.filter((w) => scriptLang(w.id) === 'ko' && !hasSubs(w)), on: true },
+      { title: '대본과 자막이 같이 있는 작품', list: withScript.filter((w) => hasSubs(w)), on: false },
+      { title: '대본을 찾지 못한 작품', list: inScope.filter((w) => !withScript.includes(w)), on: false }
+    ]
+  }, [kind, works, scripts, String(scope)]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // the default ticks and scripts, again for each option / scan
+  useEffect(() => {
+    setPicked(new Set(blocks.filter((b) => b.on).flatMap((b) => b.list.map((w) => w.id))))
+    if (kind === 'script' && scripts) {
+      const pick = new Map<number, string>()
+      for (const [id, l] of scripts) {
+        const lang = scriptLang(id)
+        const first = l.find((x) => (lang === 'ko' ? x.lang === 'ko' : x.lang !== 'ko')) ?? l[0]
+        if (first) pick.set(id, first.id)
+      }
+      setChosen(pick)
+    }
+  }, [blocks]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const pickFile = async (id: number): Promise<void> => {
     const f = await window.api.pickScript(id)
-    if (!f || !scripts) return
-    setScripts(new Map(scripts).set(id, [...(scripts.get(id) ?? []).filter((x) => x.id !== f.id), f]))
-    setChosen(new Map(chosen).set(id, f.id))
-    setPicked(new Set(picked).add(id))
+    if (!f) return
+    setScripts((s) => s && new Map(s).set(id, [...(s.get(id) ?? []).filter((x) => x.id !== f.id), f]))
+    setChosen((c) => new Map(c).set(id, f.id))
+    toggle([id], true)
   }
-  const usable = (id: number): boolean => method === 'asr' || !!chosen.get(id)
+  const usable = (w: WorkSummary): boolean => (kind === 'script' ? !!chosen.get(w.id) : kind === 'translate' ? w.lang !== 'ko-voice' && !!w.content.subs.ja : w.tracks > 0)
+  const ticked = inScope.filter((w) => picked.has(w.id) && usable(w))
   const run = async (): Promise<void> => {
     setBusy(true)
     let made = 0
     const failed: string[] = []
     try {
-      for (const id of [...picked].filter(usable)) {
+      for (const w of ticked) {
         const r =
-          method === 'script'
-            ? await window.api.scriptSub(id, { sourceId: chosen.get(id)!, translate, redo })
-            : await window.api.autoSub(id, { transcribe, translate, extras: false, redo })
+          kind === 'script'
+            ? await window.api.scriptSub(w.id, { sourceId: chosen.get(w.id)!, translate: true, redo })
+            : await window.api.autoSub(w.id, { transcribe: kind === 'make', translate: kind === 'translate' || andTranslate, extras: false, redo })
         if (r.ok) made++
         else failed.push(r.message)
       }
@@ -520,109 +747,101 @@ function SubsApp({ scope }: { scope: number[] | null }): JSX.Element {
     useStore.getState().showToast({ ok: !failed.length, message: failed.length ? `작품 ${made}개 끝 · ${failed.length}개 실패 — ${failed[0]}` : `작품 ${made}개의 자막을 프로그램 안에 저장했습니다` })
     void useStore.getState().loadWorks()
   }
-  const rows = method === 'script' ? inScope.filter((w) => scripts?.has(w.id)) : inScope
-  const count = [...picked].filter((id) => usable(id) && rows.some((w) => w.id === id)).length
-  const all = rows.some((w) => usable(w.id)) && rows.every((w) => picked.has(w.id) || !usable(w.id))
+
+  const side = (w: WorkSummary): ReactNode => {
+    if (kind === 'translate') return w.content.subs.ko ? <Tag kind="ok">한국어 자막 있음</Tag> : <Tag kind="warn">일본어 자막만</Tag>
+    if (kind === 'make') return w.subtitled >= w.tracks ? <Tag kind="ok">모든 트랙 자막</Tag> : <Tag kind="warn">자막 없는 트랙 {w.tracks - w.subtitled}</Tag>
+    const list = scripts?.get(w.id) ?? []
+    const sel = chosen.get(w.id)
+    return (
+      <>
+        {hasSubs(w) && <Tag kind="ok">{subNote(w)}</Tag>}
+        {list.length > 1 && sel ? (
+          <Dropdown<string>
+            kind="mini"
+            title="대본"
+            value={sel}
+            options={list.map((x) => [x.id, `${x.label} · ${SCRIPT_LANG[x.lang]}${x.kind === 'perTrack' ? ' · 트랙별' : ''}`] as const)}
+            onChange={(v) => setChosen(new Map(chosen).set(w.id, v))}
+          />
+        ) : list.length === 1 ? (
+          <Tag kind="ok">
+            <span className="ttag-text">
+              {list[0].label} · {SCRIPT_LANG[list[0].lang]}
+            </span>
+          </Tag>
+        ) : (
+          <Tag kind="mute">대본 없음</Tag>
+        )}
+        <button className="mini icon" title="파일 고르기… (txt · pdf · docx)" onClick={() => void pickFile(w.id)}>
+          <FileOpenIcon />
+        </button>
+      </>
+    )
+  }
+
   return (
     <section className="app-panel">
       <div className="tools-actions">
         <div className="flat-group">
-          <button className={`mini ${method === 'asr' ? 'on' : ''}`} onClick={() => setMethod('asr')}>
-            받아쓰기
-          </button>
-          <button className={`mini ${method === 'script' ? 'on' : ''}`} onClick={() => setMethod('script')}>
-            대본 사용
-          </button>
-        </div>
-        <div className="flat-group">
-          {method === 'asr' && (
-            <button className={`mini ${transcribe ? 'on' : ''}`} onClick={() => setTranscribe(!transcribe)}>
-              받아쓰기
+          {(
+            [
+              ['translate', '자막 번역'],
+              ['make', '자막 생성 및 번역'],
+              ['script', '대본으로 자막 생성']
+            ] as const
+          ).map(([k, l]) => (
+            <button key={k} className={`mini ${kind === k ? 'on' : ''}`} onClick={() => setKind(k)}>
+              {l}
             </button>
-          )}
-          <button className={`mini ${translate ? 'on' : ''}`} title={method === 'script' ? '일본어 대본은 한국어 자막도 만들기' : undefined} onClick={() => setTranslate(!translate)}>
-            번역
-          </button>
+          ))}
         </div>
+        {kind === 'make' && (
+          <div className="flat-group">
+            <button className={`mini ${andTranslate ? '' : 'on'}`} onClick={() => setAndTranslate(false)}>
+              자막 생성만
+            </button>
+            <button className={`mini ${andTranslate ? 'on' : ''}`} onClick={() => setAndTranslate(true)}>
+              번역까지
+            </button>
+          </div>
+        )}
         <div className="flat-group">
           <button className={`mini ${redo ? 'on' : ''}`} title="이미 있는 자막도 새로 만들기 (프로그램 안의 것만 바뀝니다)" onClick={() => setRedo(!redo)}>
             다시 만들기
           </button>
         </div>
       </div>
-      {method === 'script' && (
-        <p className="hint">
-          작품 폴더의 대본(txt · pdf · docx)으로 자막을 만듭니다. 대본은 그대로 두고, 작은 모델로 대사 위치만 맞춥니다. 대본을 찾지 못한 작품은 파일을 직접 고를 수 있습니다.
-        </p>
-      )}
+      <p className="hint">{SUB_ABOUT[kind]}</p>
       <div className="tools-summary">
-        <span>작품 {count}개 선택</span>
+        <span>작품 {ticked.length}개 선택</span>
         <span className="grow" />
-        <button className="btn primary" disabled={busy || !count || (method === 'asr' && !transcribe && !translate)} onClick={() => void run()}>
-          선택한 작품 자막 만들기
+        <button className="btn primary" disabled={busy || !ticked.length} onClick={() => void run()}>
+          {kind === 'translate' ? '선택한 작품 자막 번역' : '선택한 작품 자막 만들기'}
         </button>
       </div>
-      {method === 'script' && !scripts ? (
+      {kind === 'script' && !scripts ? (
         <p className="hint">작품마다 대본을 찾는 중…</p>
       ) : (
-        <section className="tgroup">
-          <label className="tgroup-head check">
-            <input type="checkbox" checked={all} onChange={(e) => setPicked(new Set(e.target.checked ? rows.filter((w) => usable(w.id)).map((w) => w.id) : []))} />
-            <span className="tgroup-title">전체 선택</span>
-            <span className="hint">{rows.length}</span>
-          </label>
-          {rows.map((w) => {
-            const list = scripts?.get(w.id) ?? []
-            const sel = chosen.get(w.id)
-            return (
-              <label key={w.id} className="trow-tool">
-                <input
-                  type="checkbox"
-                  checked={picked.has(w.id) && usable(w.id)}
-                  disabled={!usable(w.id)}
-                  onChange={(e) => {
-                    const next = new Set(picked)
-                    if (e.target.checked) next.add(w.id)
-                    else next.delete(w.id)
-                    setPicked(next)
-                  }}
-                />
-                <span className="tr-main">
-                  <span className="tr-name">{w.title}</span>
-                </span>
-                {/* the controls here don't tick the row */}
-                <span className="tr-side" onClick={(e) => method === 'script' && e.preventDefault()}>
-                  {method === 'script' ? (
-                    <>
-                      {list.length > 1 && sel ? (
-                        <Dropdown<string>
-                          kind="mini"
-                          title="대본"
-                          value={sel}
-                          options={list.map((x) => [x.id, `${x.label} · ${SCRIPT_LANG[x.lang]}${x.kind === 'perTrack' ? ' · 트랙별' : ''}`] as const)}
-                          onChange={(v) => setChosen(new Map(chosen).set(w.id, v))}
-                        />
-                      ) : list.length === 1 ? (
-                        <Tag kind="ok">
-                          {list[0].label} · {SCRIPT_LANG[list[0].lang]}
-                        </Tag>
-                      ) : (
-                        <Tag kind="mute">대본을 찾지 못했습니다</Tag>
-                      )}
-                      <button className="mini icon" title="파일 고르기… (txt · pdf · docx)" onClick={() => void pickFile(w.id)}>
-                        <FileOpenIcon />
-                      </button>
-                    </>
-                  ) : w.subtitled >= w.tracks ? (
-                    <Tag kind="ok">모든 트랙 자막</Tag>
-                  ) : (
-                    <Tag kind="warn">자막 없는 트랙 {w.tracks - w.subtitled}</Tag>
-                  )}
-                </span>
-              </label>
-            )
-          })}
-        </section>
+        blocks.map((b) => {
+          const ids = b.list.filter(usable).map((w) => w.id)
+          return (
+            <WorkBlock
+              key={b.title}
+              title={b.title}
+              count={b.list.length}
+              all={ids.length ? { checked: ids.every((id) => picked.has(id)), onChange: (v) => toggle(ids, v) } : undefined}
+            >
+              {b.list.map((w) =>
+                b.other !== undefined && !(kind === 'script') ? (
+                  <WorkLine key={w.id} w={w} off side={<Tag kind="mute">{b.other || (w.lang === 'ko-voice' ? '한국어 음성' : '일본어 자막 없음')}</Tag>} />
+                ) : (
+                  <WorkLine key={w.id} w={w} checked={picked.has(w.id)} disabled={!usable(w)} onCheck={(v) => toggle([w.id], v)} side={side(w)} />
+                )
+              )}
+            </WorkBlock>
+          )
+        })
       )}
       {busy && <p className="hint">진행 상황은 작업 탭에서 작품별로 볼 수 있습니다.</p>}
     </section>
@@ -658,8 +877,54 @@ function SubsRestore({ scope }: { scope: number[] | null }): JSX.Element {
   )
 }
 
-// 썸네일: which cover the program shows.
-function CoverApp(): JSX.Element {
+// 썸네일: works with both a folder picture and a DLsite cover — each one's
+// choice (shown in the program, and put into its mp3s in 폴더 변경).
+function CoverChoices({ scope, onChange }: { scope: number[] | null; onChange?: () => void }): JSX.Element | null {
+  const works = useStore((s) => s.works)
+  const settings = useStore((s) => s.settings)
+  const both = works.filter((w) => (!scope || scope.includes(w.id)) && w.covers.folder && w.covers.dlsite)
+  if (!both.length) return null
+  const set = async (id: number, pref: 'folder' | 'dlsite'): Promise<void> => {
+    await window.api.setCoverPref([id], pref)
+    await useStore.getState().loadWorks()
+    onChange?.()
+  }
+  return (
+    <WorkBlock title="폴더 표지와 DLsite 표지가 둘 다 있는 작품" count={both.length}>
+      {both.map((w) => {
+        const cur = w.covers.pref ?? settings?.coverSource ?? 'folder'
+        return (
+          <div key={w.id} className="trow-work cover-choice">
+            <span />
+            <span className="tr-main">
+              <span className="tr-name" title={w.title}>
+                {w.title}
+              </span>
+              <span className="tr-sub hint">{w.covers.pref ? '이 작품에서 고른 표지' : '설정의 기본 표지'}</span>
+            </span>
+            <span className="tr-side">
+              {(
+                [
+                  ['folder', '폴더 표지', w.covers.folder!],
+                  ['dlsite', 'DLsite 표지', w.covers.dlsite!]
+                ] as const
+              ).map(([k, l, img]) => (
+                <button key={k} className={`cover-pick ${cur === k ? 'on' : ''}`} title={`${l} 쓰기`} onClick={() => void set(w.id, k)}>
+                  <img src={window.api.thumbUrl(img)} alt="" draggable={false} />
+                  <span>{l}</span>
+                </button>
+              ))}
+            </span>
+            <FolderButton path={w.path} />
+          </div>
+        )
+      })}
+    </WorkBlock>
+  )
+}
+
+function CoverApp({ scope }: { scope: number[] | null }): JSX.Element {
+  const works = useStore((s) => s.works)
   const settings = useStore((s) => s.settings)
   const save = useStore((s) => s.saveSettings)
   return (
@@ -676,17 +941,25 @@ function CoverApp(): JSX.Element {
           </button>
         </div>
       </div>
-      <p className="hint">그림이 없는 작품은 언제나 DLsite 표지를 씁니다(DLsite 정보 탭에서 가져오기).</p>
+      <p className="hint">그림이 없는 작품은 언제나 DLsite 표지를 씁니다(DLsite 정보 탭에서 가져오기). 아래 작품은 하나씩 고를 수 있습니다.</p>
+      <CoverChoices scope={scope} />
+      <OtherWorks
+        list={works.filter((w) => (!scope || scope.includes(w.id)) && !(w.covers.folder && w.covers.dlsite))}
+        why={(w) => {
+          const c = works.find((x) => x.id === w.id)!.covers
+          return c.folder ? '폴더 표지만 있음' : c.dlsite ? 'DLsite 표지만 있음' : '표지 없음'
+        }}
+      />
     </section>
   )
 }
 
-// wav 정리 changes files: only in 폴더 변경.
+// 용량 최적화 changes files: only in 폴더 변경.
 function FolderOnly(): JSX.Element {
   return (
     <section className="app-panel">
       <div className="tools-summary">
-        <span>wav 정리는 파일을 바꾸는 작업입니다.</span>
+        <span>용량 최적화는 파일을 바꾸는 작업입니다.</span>
         <span className="grow" />
         <button className="btn" onClick={() => useStore.setState({ toolsMode: 'folder' })}>
           <FolderOpenIcon /> 폴더 변경으로 바꾸기
@@ -694,6 +967,17 @@ function FolderOnly(): JSX.Element {
       </div>
     </section>
   )
+}
+
+// per tab: what a work's count means, and why a work isn't in the list
+const COUNT_VERB: Partial<Record<ToolTab, string>> = {}
+const NOTHING: Record<ToolTab, string> = {
+  rename: '바꿀 이름 없음',
+  dlsite: '저장할 DLsite 표지 없음',
+  subs: '내보낼 자막 없음',
+  cover: '넣을 mp3 없음',
+  wav: '최적화할 파일 없음',
+  jobs: ''
 }
 
 export default function ToolsView(): JSX.Element {
@@ -708,13 +992,17 @@ export default function ToolsView(): JSX.Element {
   // old ones must not be drawn with the new tab's rows
   const [planned, setPlanned] = useState<{ tab: typeof tab; items: Item[] } | null>(null)
   const items = planned && planned.tab === tab ? planned.items : null
-  // 이름 정리: repaired names, or the translated ones (이름 번역)
-  const [renameMode, setRenameMode] = useState<'repair' | 'translate' | 'original'>('repair')
+  // 이름: 깨진 이름 복구 / 일본어 이름 번역 (/ 기록한 원래 이름, 폴더 변경), and how far
+  const [nameKind, setNameKind] = useState<'repair' | 'translate' | 'original'>('repair')
+  const [foldersOnly, setFoldersOnly] = useState(false)
   const [on, setOn] = useState<Set<string>>(new Set())
-  const [busy, setBusy] = useState<'plan' | 'run' | null>(null)
+  const [busy, setBusy] = useState<'scan' | 'plan' | 'run' | null>(null)
   const [ask, setAsk] = useState(false)
   const [history, setHistory] = useState<HistoryEntry[]>([])
+  // 라이브러리 스캔 in a 프로그램 내 변경 panel: they look again on each tick
+  const [tick, setTick] = useState(0)
   const reloadHistory = (): void => void window.api.history().then(setHistory)
+  const appNameKind = nameKind === 'original' ? 'repair' : nameKind
 
   useEffect(() => {
     setPlanned(null)
@@ -734,12 +1022,24 @@ export default function ToolsView(): JSX.Element {
               ? await window.api.planCoverSave(scope)
               : tab === 'subs'
                 ? await window.api.planSubExport(scope)
-                : await window.api.planRename(scope, renameMode)
+                : await window.api.planRename(scope, nameKind)
       setPlanned({ tab, items: got })
       setOn(new Set(got.filter((x) => defaultOn(tab, x)).map((x) => x.id)))
     } finally {
       setBusy(null)
     }
+  }
+  // the folders read again first (files changed outside the app show up), then this tab's check
+  const scanLibrary = async (): Promise<void> => {
+    setBusy('scan')
+    try {
+      await window.api.scan()
+      await useStore.getState().loadWorks()
+    } finally {
+      setBusy(null)
+    }
+    if (mode === 'folder') await plan()
+    else setTick((t) => t + 1)
   }
 
   // a new name typed in a row (same folder; forbidden characters → full-width)
@@ -750,7 +1050,12 @@ export default function ToolsView(): JSX.Element {
     setOn((o) => new Set(o).add(it.id))
   }
 
-  const chosen = useMemo(() => (items ?? []).filter((x) => on.has(x.id)), [items, on])
+  // 이름: folder names only, or every name
+  const shown = useMemo(
+    () => (items ?? []).filter((x) => tab !== 'rename' || !foldersOnly || (x as RenameItem).work || (x as RenameItem).dir),
+    [items, tab, foldersOnly]
+  )
+  const chosen = useMemo(() => shown.filter((x) => on.has(x.id)), [shown, on])
   const run = async (): Promise<void> => {
     setAsk(false)
     setBusy('run')
@@ -777,13 +1082,14 @@ export default function ToolsView(): JSX.Element {
 
   const byWork = useMemo(() => {
     const m = new Map<number, { title: string; list: Item[] }>()
-    for (const it of items ?? []) {
+    for (const it of shown) {
       const g = m.get(it.workId) ?? { title: it.workTitle, list: [] }
       g.list.push(it)
       m.set(it.workId, g)
     }
     return [...m.entries()]
-  }, [items])
+  }, [shown])
+  const inScope = works.filter((w) => !scope || scope.includes(w.id))
   const rootOf = (id: number): string => works.find((w) => w.id === id)?.path ?? ''
   const toggle = (ids: string[], v: boolean): void => {
     const next = new Set(on)
@@ -791,6 +1097,8 @@ export default function ToolsView(): JSX.Element {
     setOn(next)
   }
   const selectable = (it: Item): boolean => !(tab === 'wav' && (it as WavItem).kind === 'skip') && !(tab === 'cover' && !(it as CoverItem).image)
+  // a work's count: 총 n개 복구 / 번역 / 되돌리기, or just 총 n개
+  const verb = tab === 'rename' ? { repair: '복구', translate: '번역', original: '되돌리기' }[nameKind] : COUNT_VERB[tab]
 
   const summary = (): string => {
     if (tab === 'wav') {
@@ -806,6 +1114,21 @@ export default function ToolsView(): JSX.Element {
   }
   const scopeTitle = scope ? works.find((w) => w.id === scope[0])?.title ?? '선택한 작품' : '전체 라이브러리'
   const running = busy && job && job.state === 'running'
+  const nameOptions = (
+    [
+      ['repair', '깨진 이름 복구 (뷁어)'],
+      ['translate', '일본어 이름 번역'],
+      ...(mode === 'folder' ? ([['original', '기록한 원래 이름']] as const) : [])
+    ] as const
+  ).map(([k, l]) => (
+    <button
+      key={k}
+      className={`mini ${(mode === 'folder' ? nameKind : appNameKind) === k ? 'on' : ''}`}
+      onClick={() => (setNameKind(k), setPlanned(null))}
+    >
+      {l}
+    </button>
+  ))
 
   return (
     <div className={`home tools mode-${mode}`}>
@@ -848,61 +1171,53 @@ export default function ToolsView(): JSX.Element {
           ))}
         </div>
         <p className="hint tools-about">{ABOUT[mode][tab]}</p>
-        {/* 확인하기, then each set of options as its own group (groups wrap
-            to the next line as a whole on a narrow window) */}
-        {tab !== 'jobs' && mode === 'folder' && (
-        <div className="tools-actions">
-          <div className="flat-group">
-            <button className="mini" disabled={!!busy} onClick={() => void plan()}>
-              <SearchIcon /> {items ? '다시 확인' : '확인하기'}
-            </button>
+        {/* 라이브러리 스캔, then each set of options as its own group (groups
+            wrap to the next line as a whole on a narrow window) */}
+        {tab !== 'jobs' && !(mode === 'app' && tab === 'wav') && (
+          <div className="tools-actions">
+            <ScanButton busy={!!busy} onClick={() => void scanLibrary()} />
+            {tab === 'rename' && <div className="flat-group">{nameOptions}</div>}
+            {tab === 'rename' && (
+              <div className="flat-group" title="바꿀 이름">
+                <button className={`mini ${foldersOnly ? 'on' : ''}`} onClick={() => setFoldersOnly(true)}>
+                  폴더 이름만
+                </button>
+                <button className={`mini ${foldersOnly ? '' : 'on'}`} onClick={() => setFoldersOnly(false)}>
+                  트랙 및 모든 파일 이름
+                </button>
+              </div>
+            )}
+            {mode === 'folder' && tab === 'wav' && (
+              <div className="flat-group" title="만들 mp3의 음질">
+                {([192, 256, 320] as const).map((b) => (
+                  <button key={b} className={`mini ${settings?.mp3Bitrate === b ? 'on' : ''}`} onClick={() => void save({ mp3Bitrate: b })}>
+                    {b}kbps
+                  </button>
+                ))}
+              </div>
+            )}
+            {mode === 'folder' && tab === 'cover' && (
+              <>
+                <div className="flat-group">
+                  <button className={`mini ${settings?.coverSquare ? '' : 'on'}`} onClick={() => void save({ coverSquare: false })}>
+                    그림 전체
+                  </button>
+                  <button className={`mini ${settings?.coverSquare ? 'on' : ''}`} onClick={() => void save({ coverSquare: true })}>
+                    정사각형 자르기
+                  </button>
+                </div>
+                <div className="flat-group">
+                  <button
+                    className={`mini ${settings?.coverSkipExisting ? 'on' : ''}`}
+                    title="이미 커버가 있는 mp3는 목록에서 빼기"
+                    onClick={() => void save({ coverSkipExisting: !settings?.coverSkipExisting }).then(() => items && plan())}
+                  >
+                    커버 있는 파일 제외
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-          {tab === 'wav' && (
-            <div className="flat-group" title="만들 mp3의 음질">
-              {([192, 256, 320] as const).map((b) => (
-                <button key={b} className={`mini ${settings?.mp3Bitrate === b ? 'on' : ''}`} onClick={() => void save({ mp3Bitrate: b })}>
-                  {b}kbps
-                </button>
-              ))}
-            </div>
-          )}
-          {tab === 'rename' && (
-            <div className="flat-group" title="번역한 이름: 프로그램 내 변경 › 이름에서 번역해 둔 한국어 이름(번역이 없는 이름은 복구한 이름). 기록한 원래 이름: 처음 스캔했을 때의 일본어 이름(깨진 이름은 복구한 일본어)">
-              {(
-                [
-                  ['repair', '복구한 이름'],
-                  ['translate', '번역한 이름'],
-                  ['original', '기록한 원래 이름']
-                ] as const
-              ).map(([m, l]) => (
-                <button key={m} className={`mini ${renameMode === m ? 'on' : ''}`} onClick={() => (setRenameMode(m), setPlanned(null))}>
-                  {l}
-                </button>
-              ))}
-            </div>
-          )}
-          {tab === 'cover' && (
-            <>
-              <div className="flat-group">
-                <button className={`mini ${settings?.coverSquare ? '' : 'on'}`} onClick={() => void save({ coverSquare: false })}>
-                  그림 전체
-                </button>
-                <button className={`mini ${settings?.coverSquare ? 'on' : ''}`} onClick={() => void save({ coverSquare: true })}>
-                  정사각형 자르기
-                </button>
-              </div>
-              <div className="flat-group">
-                <button
-                  className={`mini ${settings?.coverSkipExisting ? 'on' : ''}`}
-                  title="이미 커버가 있는 mp3는 목록에서 빼기"
-                  onClick={() => void save({ coverSkipExisting: !settings?.coverSkipExisting }).then(() => items && plan())}
-                >
-                  커버 있는 파일 제외
-                </button>
-              </div>
-            </>
-          )}
-        </div>
         )}
         {running && tab !== 'jobs' && (
           <div className="scan-line">
@@ -917,18 +1232,21 @@ export default function ToolsView(): JSX.Element {
       </div>
 
       {tab === 'jobs' && <Jobs />}
-      {mode === 'app' && tab === 'rename' && <NameTranslate scope={scope} onDone={() => setPlanned(null)} />}
+      {mode === 'app' && tab === 'rename' && <NamesApp scope={scope} kind={appNameKind} foldersOnly={foldersOnly} tick={tick} />}
       {mode === 'app' && tab === 'dlsite' && <DlsiteApp scope={scope} />}
-      {mode === 'app' && tab === 'subs' && <SubsApp key={String(scope)} scope={scope} />}
+      {mode === 'app' && tab === 'subs' && <SubsApp key={String(scope)} scope={scope} tick={tick} />}
       {mode === 'app' && tab === 'subs' && <SubsRestore scope={scope} />}
-      {mode === 'app' && tab === 'cover' && <CoverApp />}
+      {mode === 'app' && tab === 'cover' && <CoverApp scope={scope} />}
       {mode === 'app' && tab === 'wav' && <FolderOnly />}
+      {mode === 'folder' && tab !== 'jobs' && !items && busy !== 'plan' && busy !== 'scan' && (
+        <p className="hint tools-empty">라이브러리 스캔을 누르면 바꿀 것을 작품별로 보여 줍니다. 아무것도 바뀌지 않습니다.</p>
+      )}
       {mode === 'folder' && items && (
         <>
           <div className="tools-summary">
-            <span>{items.length ? summary() : '바꿀 파일이 없습니다.'}</span>
+            <span>{shown.length ? summary() : '바꿀 파일이 없습니다.'}</span>
             <span className="grow" />
-            {items.length > 0 && (
+            {shown.length > 0 && (
               <button className="btn primary" disabled={!chosen.length || !!busy} onClick={() => setAsk(true)}>
                 선택한 {chosen.length}개 실행
               </button>
@@ -942,7 +1260,8 @@ export default function ToolsView(): JSX.Element {
                 <label className="tgroup-head check">
                   <input type="checkbox" checked={all} disabled={!ids.length} onChange={(e) => toggle(ids, e.target.checked)} />
                   <span className="tgroup-title">{g.title}</span>
-                  <span className="hint">{g.list.length}</span>
+                  <span className="hint">{total(g.list.length, verb)}</span>
+                  <FolderButton path={rootOf(id)} />
                 </label>
                 {g.list.map((it) => (
                   <label key={it.id} className={`trow-tool ${selectable(it) ? '' : 'off'}`}>
@@ -953,6 +1272,8 @@ export default function ToolsView(): JSX.Element {
               </section>
             )
           })}
+          {tab === 'cover' && <CoverChoices scope={scope} onChange={() => void plan()} />}
+          <OtherWorks list={inScope.filter((w) => !byWork.some(([id]) => id === w.id) && !(tab === 'cover' && w.covers.folder && w.covers.dlsite))} why={() => NOTHING[tab]} />
         </>
       )}
       {tab !== 'jobs' && <History list={history} reload={reloadHistory} />}

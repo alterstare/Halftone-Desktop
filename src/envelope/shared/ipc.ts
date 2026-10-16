@@ -47,6 +47,7 @@ export const IPC = {
   fetchDlsite: 'env:dlsite:fetch',
   libraryChanged: 'env:library:changed',
   showInFolder: 'env:file:show',
+  openFolder: 'env:file:openFolder',
   undo: 'env:log:undo',
   redo: 'env:log:redo',
   toast: 'env:app:toast',
@@ -76,6 +77,7 @@ export const IPC = {
   translateNames: 'env:translate:names',
   translateNamesOf: 'env:translate:namesOf',
   nameStatus: 'env:translate:nameStatus',
+  setCoverPref: 'env:library:coverPref',
   findScripts: 'env:script:find',
   pickScript: 'env:script:pick',
   previewScript: 'env:script:preview',
@@ -192,6 +194,7 @@ export interface Api {
   fetchDlsite: (ids: number[] | null) => Promise<JobSummary>
   onLibraryChanged: (cb: () => void) => () => void
   showInFolder: (path: string) => Promise<void>
+  openFolder: (path: string) => Promise<void> // a folder inside the library, opened itself
   mediaUrl: (path: string) => string // env-media:// for <audio>/<img>
   thumbUrl: (path: string) => string // small cached JPEG of an image
   coverColour: (path: string) => Promise<string | null> // a picture's main colour, "#rrggbb"
@@ -225,8 +228,9 @@ export interface Api {
   importVulkanEngine: () => Promise<JobSummary> // pick a whisper-cli built with Vulkan
   testTranslator: () => Promise<JobSummary>
   translateNames: (workId: number) => Promise<JobSummary> // shown when 이름 표시 = 번역한 이름
-  translateNamesOf: (workIds: number[], onlyMissing: boolean) => Promise<JobSummary> // one job per work
-  nameStatus: (workIds: number[] | null) => Promise<NameStatus[]>
+  translateNamesOf: (workIds: number[], onlyMissing: boolean, foldersOnly?: boolean) => Promise<JobSummary> // one job per work
+  nameStatus: (workIds: number[] | null, foldersOnly?: boolean) => Promise<NameStatus[]>
+  setCoverPref: (workIds: number[], pref: 'folder' | 'dlsite' | null) => Promise<void>
   // 대본 기반 자막 (Phase 6)
   findScripts: (workId: number) => Promise<ScriptSource[]>
   // 파일 고르기…: any txt / pdf / docx as the work's script (null = cancelled)

@@ -348,12 +348,12 @@ export class EnvCore {
   // 이름 번역: the work's title and every folder / file name under it, one
   // batch (one context: character names and terms stay consistent).
   // onlyMissing: just the names not translated yet.
-  translateWorkNames(workId: number, onlyMissing = false): { id: number; done: Promise<number> } {
+  translateWorkNames(workId: number, onlyMissing = false, foldersOnly = false): { id: number; done: Promise<number> } {
     const w = this.workRow(workId)
     const tr = this.translator()
     return this.queue.add(`이름 번역 · ${w.title}`, async (ctx) => {
       ctx.report(0, 0, `이름 번역 · ${w.title} · 이름 읽기`)
-      let items = await tools.nameItemsOf(w)
+      let items = await tools.nameItemsOf(w, foldersOnly)
       if (onlyMissing) {
         const have = namesMap(this.db)
         items = items.filter((x) => !have.has(x.path))
@@ -372,8 +372,8 @@ export class EnvCore {
   }
 
   // Several works, one job each (so the job list shows which one is going).
-  translateNamesOf(ids: number[], onlyMissing = true): { ids: number[]; done: Promise<{ names: number; failed: string[] }> } {
-    const jobs = ids.map((id) => ({ id, job: this.translateWorkNames(id, onlyMissing) }))
+  translateNamesOf(ids: number[], onlyMissing = true, foldersOnly = false): { ids: number[]; done: Promise<{ names: number; failed: string[] }> } {
+    const jobs = ids.map((id) => ({ id, job: this.translateWorkNames(id, onlyMissing, foldersOnly) }))
     // the engine refused (blocked / daily limit): the works still waiting
     // would only be refused too
     for (const j of jobs) j.job.done.catch((e) => e instanceof TranslateStop && jobs.forEach((o) => o !== j && this.queue.cancel(o.job.id)))
@@ -390,7 +390,7 @@ export class EnvCore {
   }
 
   // Per work: names with Japanese in them, and how many have no translation.
-  nameStatus(ids: number[] | null): { id: number; done: Promise<NameStatus[]> } {
+  nameStatus(ids: number[] | null, foldersOnly = false): { id: number; done: Promise<NameStatus[]> } {
     return this.queue.add('이름 번역 확인', async (ctx) => {
       const rows = (this.db.prepare('SELECT id FROM works ORDER BY title').all() as { id: number }[]).filter((w) => !ids || ids.includes(w.id)).map((w) => this.workRow(w.id))
       const have = namesMap(this.db)
@@ -401,7 +401,7 @@ export class EnvCore {
         const w = rows[i]
         let items: { path: string; name: string }[]
         try {
-          items = (await tools.nameItemsOf(w)).filter((x) => needsTranslation(x.name))
+          items = (await tools.nameItemsOf(w, foldersOnly)).filter((x) => needsTranslation(x.name))
         } catch {
           continue
         }
@@ -531,6 +531,11 @@ export class EnvCore {
   }
   setRank(ids: number[], rank: number): void {
     library.setRank(this.db, ids, rank)
+  }
+  // 파일 정리 › 썸네일: the folder's or DLsite's cover for these works (null = the setting)
+  setCoverPref(ids: number[], pref: 'folder' | 'dlsite' | null): void {
+    const put = this.db.prepare('UPDATE works SET cover_pref = ? WHERE id = ?')
+    this.db.transaction(() => ids.forEach((id) => put.run(pref, id)))()
   }
   groups(): Group[] {
     return library.listGroups(this.db)
@@ -701,11 +706,11 @@ export class EnvCore {
   // ids = works to look at; null = the whole library.
 
   planWav(ids: number[] | null): { id: number; done: Promise<WavItem[]> } {
-    return this.queue.add('wav 정리 확인', (ctx) => tools.planWav(this.db, ids, ctx))
+    return this.queue.add('용량 최적화 확인', (ctx) => tools.planWav(this.db, ids, ctx))
   }
   runWav(items: WavItem[], trash: TrashFn): { id: number; done: Promise<ToolResult> } {
     return this.queue.add(
-      'wav 정리',
+      '용량 최적화',
       (ctx) =>
         this.folderChange(
           items.map((x) => x.workId),

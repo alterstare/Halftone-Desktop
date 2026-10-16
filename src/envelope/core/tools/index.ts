@@ -2,7 +2,7 @@
 // running only the items the user kept. 썸네일 and 이름 복구 are undo steps;
 // wav files go to the OS recycle bin (restored from there).
 import { createHash } from 'crypto'
-import { promises as fs } from 'fs'
+import { existsSync, promises as fs } from 'fs'
 import { basename, dirname, extname, join } from 'path'
 import type { CoverItem, RenameItem, ToolResult, WavItem } from '../../shared/types'
 import type { Db } from '../db'
@@ -30,10 +30,12 @@ interface WorkRef {
   title: string
   cover_path: string | null
   images_json: string
+  dl_cover: string | null
+  cover_pref: string | null
 }
 
 function worksOf(db: Db, ids: number[] | null): WorkRef[] {
-  const all = db.prepare('SELECT id, path, title, cover_path, images_json FROM works ORDER BY title').all() as WorkRef[]
+  const all = db.prepare('SELECT id, path, title, cover_path, images_json, dl_cover, cover_pref FROM works ORDER BY title').all() as WorkRef[]
   return ids ? all.filter((w) => ids.includes(w.id)) : all
 }
 
@@ -148,7 +150,7 @@ export async function runWav(
   }
   ctx.report(todo.length, todo.length)
   const conv = done.filter((d) => d.kind === 'convert').length
-  const summary = `wav 정리 · mp3 변환 ${conv}개, wav 삭제 ${done.length}개 (휴지통)`
+  const summary = `용량 최적화 · mp3 변환 ${conv}개, wav 삭제 ${done.length}개 (휴지통)`
   if (done.length)
     db.prepare('INSERT INTO file_history (kind, summary, payload_json, created_at) VALUES (?, ?, ?, ?)').run('wav', summary, JSON.stringify(done), Date.now())
   return { ok: !failed.length, message: `${summary}${failed.length ? `, ${failed.length}개 실패` : ''}`, done: done.length, failed }
@@ -180,7 +182,9 @@ export async function planCover(db: Db, ids: number[] | null, skipExisting: bool
     }[]
     for (const t of tracks) {
       const n = trackNumber(t.title)
-      const image = (n !== null && numbered.size > 1 ? numbered.get(n) : undefined) ?? w.cover_path
+      // the work chose DLsite's cover (파일 정리 › 썸네일): that one for every track
+      const dl = w.cover_pref === 'dlsite' && w.dl_cover && existsSync(w.dl_cover) ? w.dl_cover : null
+      const image = dl ?? (n !== null && numbered.size > 1 ? numbered.get(n) : undefined) ?? w.cover_path ?? (w.cover_pref !== 'folder' ? w.dl_cover : null)
       const has = await hasCover(t.path).catch(() => false)
       if (has && skipExisting) continue
       out.push({ id: itemId(t.path), workId: w.id, workTitle: w.title, track: t.path, image, hasCover: has })
@@ -310,9 +314,10 @@ export function splitSuffix(name: string, dir: boolean): { stem: string; suffix:
 
 // Names to translate for a work: its title (shown in the library) and every
 // folder / file stem under it.
-export async function nameItemsOf(w: { path: string; title: string }): Promise<{ path: string; name: string }[]> {
+// foldersOnly: the work folder and the folders in it (no file names).
+export async function nameItemsOf(w: { path: string; title: string }, foldersOnly = false): Promise<{ path: string; name: string }[]> {
   const out = [{ path: w.path, name: w.title }]
-  for (const e of await workEntries(w)) if (e.depth >= 0) out.push({ path: e.path, name: splitSuffix(e.fixed, e.dir).stem })
+  for (const e of await workEntries(w)) if (e.depth >= 0 && (!foldersOnly || e.dir)) out.push({ path: e.path, name: splitSuffix(e.fixed, e.dir).stem })
   return out
 }
 

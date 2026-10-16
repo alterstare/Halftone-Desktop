@@ -117,9 +117,13 @@ export function shownTitle(w: { title: string; code: string | null; dl_title: st
   return w.title
 }
 
+// Which cover a work uses: its own choice (파일 정리 › 썸네일), else the setting.
+export const coverSourceOf = (w: { cover_pref?: string | null }, s: Settings): 'folder' | 'dlsite' =>
+  w.cover_pref === 'dlsite' || w.cover_pref === 'folder' ? w.cover_pref : s.coverSource
+
 // The cover shown: DLsite's when chosen (or when the folder has no picture).
-export function shownCover(w: { cover_path: string | null; dl_cover: string | null }, s: Settings): string | null {
-  return (s.coverSource === 'dlsite' && w.dl_cover) || w.cover_path || w.dl_cover
+export function shownCover(w: { cover_path: string | null; dl_cover: string | null; cover_pref?: string | null }, s: Settings): string | null {
+  return (coverSourceOf(w, s) === 'dlsite' && w.dl_cover) || w.cover_path || w.dl_cover
 }
 
 // ---- reading ----
@@ -167,6 +171,8 @@ interface WorkRow {
   content_json: string | null
   dl_age: string | null
   dl_cover: string | null
+  cover_pref: string | null
+  dl_at: number | null
 }
 
 // Subtitles kept in the program are listed as "envsub:<lang>:<audio path>",
@@ -378,7 +384,13 @@ export function listWorks(db: Db, s: Settings): WorkSummary[] {
       voices: w.dl_voices ? (JSON.parse(w.dl_voices) as string[]) : [],
       tags: w.dl_tags ? (JSON.parse(w.dl_tags) as { ko: string; ja: string }[]) : [],
       content: contentOf(w, appLangs.get(w.id)),
-      age: ageOf(w)
+      age: ageOf(w),
+      dlFetched: w.dl_at !== null,
+      covers: {
+        folder: w.cover_path,
+        dlsite: w.dl_cover,
+        pref: w.cover_pref === 'folder' || w.cover_pref === 'dlsite' ? w.cover_pref : null
+      }
     }
   })
   // ascending; 내림차순 reverses
@@ -399,7 +411,7 @@ export function listWorks(db: Db, s: Settings): WorkSummary[] {
 function imagesOf(w: WorkRow, s: Settings): string[] {
   const own = JSON.parse(w.images_json) as string[]
   if (!w.dl_cover) return own
-  return s.coverSource === 'dlsite' || !own.length ? [w.dl_cover, ...own] : own
+  return coverSourceOf(w, s) === 'dlsite' || !own.length ? [w.dl_cover, ...own] : own
 }
 
 export function workDetail(db: Db, id: number, s: Settings): WorkDetail | null {

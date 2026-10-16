@@ -206,6 +206,9 @@ function registerIpc(): void {
   ipcMain.handle(IPC.showInFolder, (_e, p: string) => {
     if (core.settings().libraryDirs.some((r) => isInside(p, r))) shell.showItemInFolder(p)
   })
+  ipcMain.handle(IPC.openFolder, async (_e, p: string) => {
+    if (core.settings().libraryDirs.some((r) => isInside(p, r))) await shell.openPath(p)
+  })
   ipcMain.handle(IPC.appInfo, () => ({
     version: opts.appVersion,
     embedded: !!opts.embedded,
@@ -284,9 +287,9 @@ function registerIpc(): void {
       return { ok: false, message: String((e as Error)?.message ?? e) }
     }
   })
-  ipcMain.handle(IPC.translateNamesOf, async (_e, ids: number[], onlyMissing: boolean): Promise<JobSummary> => {
+  ipcMain.handle(IPC.translateNamesOf, async (_e, ids: number[], onlyMissing: boolean, foldersOnly?: boolean): Promise<JobSummary> => {
     try {
-      const r = await core.translateNamesOf(ids, onlyMissing).done
+      const r = await core.translateNamesOf(ids, onlyMissing, !!foldersOnly).done
       changed()
       const parts = [r.names ? `이름 ${r.names}개를 번역했습니다` : '번역할 일본어 이름이 없습니다']
       if (r.failed.length) parts.push(`실패 ${r.failed.length} — ${r.failed[0]}`)
@@ -295,7 +298,8 @@ function registerIpc(): void {
       return { ok: false, message: String((e as Error)?.message ?? e) }
     }
   })
-  ipcMain.handle(IPC.nameStatus, (_e, ids: number[] | null) => core.nameStatus(ids).done)
+  ipcMain.handle(IPC.nameStatus, (_e, ids: number[] | null, foldersOnly?: boolean) => core.nameStatus(ids, !!foldersOnly).done)
+  ipcMain.handle(IPC.setCoverPref, (_e, ids: number[], pref: 'folder' | 'dlsite' | null) => (core.setCoverPref(ids, pref), changed()))
   ipcMain.handle(IPC.findScripts, (_e, id: number) => core.findScripts(id))
   ipcMain.handle(IPC.pickScript, async (_e, id: number) => {
     const r = await dlgOpen({

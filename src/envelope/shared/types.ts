@@ -133,6 +133,9 @@ export interface WorkSummary {
   tags: { ko: string; ja: string }[] // DLsite 장르 (shown in Korean, searched in both)
   content: WorkContent
   age: WorkAge
+  dlFetched: boolean // DLsite was asked (found or not)
+  // the folder's cover and DLsite's, and the work's own choice (null = the setting)
+  covers: { folder: string | null; dlsite: string | null; pref: 'folder' | 'dlsite' | null }
 }
 
 export interface Group {

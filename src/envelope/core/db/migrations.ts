@@ -188,6 +188,10 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE works ADD COLUMN content_json TEXT;
   ALTER TABLE works ADD COLUMN dl_age TEXT;
+  `,
+  // v14: a work's own cover choice ('folder' | 'dlsite'; NULL = the setting)
+  `
+  ALTER TABLE works ADD COLUMN cover_pref TEXT;
   `
 ]
 
