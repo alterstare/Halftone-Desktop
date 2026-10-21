@@ -101,6 +101,14 @@ export interface Settings {
   // location — see the favorites model in main/lib/favoriteSync.ts.
   favoritesDir: string | null
   favoriteMoveToFolder: boolean
+  // Adding a work to a group moves its folder into <base>/<group name>/ (and
+  // out again on removal). Off: membership is stored only, folders stay put,
+  // and a rescan keeps the stored groups instead of reading them from folders.
+  groupMoveToFolder: boolean
+  // 감시 다운로드: artist / tag search tokens whose new galleries are downloaded
+  // automatically on app start (main/lib/watch.ts), limited to these languages.
+  watchTokens: string[]
+  watchLanguages: WatchLanguage[]
   // Drop favorites whose gallery was deleted from the site (404) — only when
   // no downloaded copy exists. Checked when fetching its summary fails.
   pruneDeletedFavorites: boolean
@@ -289,8 +297,10 @@ export interface Settings {
   // setting dropped (main/lib/favoriteSync.ts migrateFavorites).
   favoritesUnified: boolean
   // User-defined doujin folder-name patterns for locating the gallery id. Tokens:
-  //   -id-     gallery id (digits) — REQUIRED; a pattern without it is ignored
+  //   -id-     gallery id (digits)
   //   -title-  work title   -artist- artist   -group- circle/group
+  // A pattern without -id- never yields a code: it only splits an uncoded
+  // folder name into title / artist / group (artist + group become tags).
   // A folder is a doujin work only if it matches one of these AND the -id- slot
   // holds digits — so an incidental 7-digit number in the title no longer looks
   // like a code. Patterns are tried in order (first match wins). Empty = defaults.
@@ -374,16 +384,23 @@ export interface ScanProgress {
   done: boolean
 }
 
+export type WatchLanguage = 'korean' | 'english' | 'japanese' | 'other'
+
 export interface ParsedName {
   artist: string | null
   code: string | null
   title: string
+  // Circle / group from an id-less pattern match (uncoded works only).
+  group?: string | null
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   libraryRoots: [],
   favoritesDir: null,
   favoriteMoveToFolder: true,
+  groupMoveToFolder: true,
+  watchTokens: [],
+  watchLanguages: ['korean'],
   pruneDeletedFavorites: false,
   downloadDir: null,
   downloadImageFormat: 'avif',

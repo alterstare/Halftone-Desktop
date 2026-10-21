@@ -26,6 +26,7 @@ import { suggestTokens, recordSeen } from '../lib/suggest'
 import { encodeWeb, thumbFile } from '../lib/media'
 import { runDownload, stopDownload } from '../downloads'
 import { placeIfFavorite } from '../lib/favoriteSync'
+import { checkWatch } from '../lib/watch'
 
 // Summary with its thumb wrapped for our image protocol.
 const withWebThumb = (s: GallerySummary): GallerySummary => ({
@@ -232,6 +233,8 @@ export function registerDoujinIpc(): void {
       return { ok: false, error: String(e?.message ?? e) }
     }
   })
+
+  ipcMain.handle(IPC.watchCheck, () => checkWatch())
 
   // Download a gallery (code or url) into the download dir, then register it.
   ipcMain.handle(IPC.doujinDownload, async (_e, input: string) => {

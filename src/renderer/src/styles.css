@@ -7448,3 +7448,18 @@ select:hover,
 .envelope-dock.dragging .envelope-frame {
   pointer-events: none;
 }
+
+/* 감시 다운로드: language checkboxes above the watched-token input */
+.watch-langs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin-bottom: 10px;
+}
+.watch-langs label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}

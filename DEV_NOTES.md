@@ -134,10 +134,14 @@ type DownloadSpec =
   `parseName(folderName, patterns)`):
   - User patterns in `settings.doujinNamePatterns` (shared setting), tokens
     `-id-` `-title-` `-artist-` `-group-` `-language-`. `-id-` compiles to `(\d{4,})`
-    and is **required** — a folder is a doujin work only if a pattern matches AND the
+    and is **required for a code** — a folder gets a code only if a pattern matches AND the
     id slot has digits. Prevents incidental 7-digit numbers in titles being read as
     codes.
   - `DEFAULT_DOUJIN_PATTERNS` is the fallback list. Patterns tried in order.
+  - Patterns WITHOUT `-id-` (must contain `-title-`) are tried only after every id
+    pattern failed: they never give a code (work stays 번호 없는 작품) but split the
+    name into title / artist / group; `makeWork` sets title + artist and adds
+    `artist:<a>` / `group:<g>` tags (uncoded works only).
   - Only applied when `library === 'doujin'`; normal mode never parses an id.
 - Shared pattern util `src/shared/pattern.ts`: `fillNamePattern(pattern, fields)`
   (used for download folder naming + the settings live preview), `langCode(lang)`
@@ -268,6 +272,21 @@ in-progress, `✓`/`✗`/`■`/`▶`/`⏸`/`⬇` glyph prefixes for status/actio
 - `settings.favoriteMoveToFolder` (default on): heart moves the folder into
   `favoritesDir` (remembers `homePath`), unheart moves it back. A scan only
   ADDS a heart for a work newly found inside `favoritesDir`; it never removes one.
+- `settings.groupMoveToFolder` (default on): adding to a group moves the folder
+  into `<base>/<group name>/` (`setGroupFolder`), and favorites nest under the
+  group folder. Off: membership only, no folder moves, and `Store.reconcile`
+  keeps the stored groups instead of reading them from folders.
+- 감시 다운로드: `settings.watchTokens` (search tokens, plain names resolve
+  like the search box) + `watchLanguages` (korean/english/japanese/other).
+  `main/lib/watch.ts` `checkWatch` (IPC `watch:check`): per token
+  `fetchTokenIds(tok,'all')`, ids above the stored baseline (`userData/watch.json`
+  `seen[token]` = newest id) and not in the library → language from
+  `fetchRawGallery` → hits. First check of a token only sets the baseline
+  (newest id + `since[token]` = now); later hits must also have an upload
+  `date` ≥ since − 1h, and `got` (codes already queued by the watch) is never
+  queued again — so deleted works never come back. Removed tokens are pruned. Renderer `watch.ts` `runWatchCheck` queues hits via
+  `store.startDownload`; runs once per app start (App init, sessionStorage
+  guard vs F5) and from the settings 「지금 확인」 button.
 - Favorite lists = `settings.onlineFavLists` ({name, codes}); one favorites
   file format (Pupil-compatible `{favorites, favorite_tags, ranks}`).
 

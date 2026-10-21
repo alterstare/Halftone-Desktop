@@ -741,7 +741,7 @@ function basesForToken(token: string): string[] {
 // Full id list for one search token (language-agnostic; language is filtered
 // once at the end). A namespaced token (tag:/artist:/female:/…) resolves via its
 // nozomi index; a plain word uses the full-text search index (title + tags).
-async function fetchTokenIds(token: string, _lang: string): Promise<number[]> {
+export async function fetchTokenIds(token: string, _lang: string): Promise<number[]> {
   const q = token.toLowerCase().trim()
   if (q.includes(':')) {
     for (const base of basesForToken(q)) {

@@ -318,7 +318,11 @@ async function makeWork(
 
   // Sidecar (meta.doujin.json) carries doujin metadata so it survives rescans.
   const meta = await readSidecar(dir)
-  const tags = [...new Set([...applyGenreRules(dir, settings), ...(meta?.tags ?? [])])]
+  // Uncoded names split by an id-less pattern tag their artist and group.
+  const nameTags = parsed.code
+    ? []
+    : [parsed.artist && `artist:${parsed.artist}`, parsed.group && `group:${parsed.group}`].filter((t): t is string => !!t)
+  const tags = [...new Set([...applyGenreRules(dir, settings), ...(meta?.tags ?? []), ...nameTags])]
 
   return {
     id,

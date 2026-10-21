@@ -92,11 +92,13 @@ export async function moveToFavorites(
 export async function setGroupFolder(
   work: Work,
   newGroupIds: string[],
-  groups: WorkGroup[]
+  groups: WorkGroup[],
+  move = true
 ): Promise<Partial<Work>> {
   const oldId = (work.groups ?? [])[0] ?? null
   const newId = newGroupIds[0] ?? null
-  if (oldId === newId) return { groups: newId ? [newId] : [] }
+  // A merged work (sources) has no folder of its own to move.
+  if (oldId === newId || !move || work.sources?.length) return { groups: newId ? [newId] : [] }
 
   const oldFolder = dirname(work.path) // may be the old group folder
   // Base = the parent without any current group nesting.

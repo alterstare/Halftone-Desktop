@@ -165,7 +165,8 @@ export class Store {
     const favorite = this.favoriteRule ? this.favoriteRule(w, prev, inFavDir) : (prev?.favorite ?? inFavDir)
     const favoritedAt = favorite ? (prev?.favoritedAt ?? Date.now()) : prev?.favoritedAt
     if (!prev) return { ...w, favorite, favoritedAt }
-    const locAuth = (w.library ?? 'doujin') === 'doujin' && !!this.settings.favoritesDir
+    const locAuth =
+      (w.library ?? 'doujin') === 'doujin' && !!this.settings.favoritesDir && this.settings.groupMoveToFolder !== false
     return {
       ...w,
       tags: w.tags,

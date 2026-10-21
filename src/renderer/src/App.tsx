@@ -30,6 +30,7 @@ import LockPrompt from './components/LockPrompt'
 import EnvelopeDock from './components/EnvelopeDock'
 import { softReload, restoreSoftReload } from './softReload'
 import { startTranslationWatch } from './translate'
+import { runWatchCheck } from './watch'
 import { KeyboardArrowLeftIcon, KeyboardArrowRightIcon } from './components/icons'
 
 export default function App(): JSX.Element {
@@ -141,6 +142,16 @@ export default function App(): JSX.Element {
       markLockReady()
       useStore.getState().setOnlineFavs(onlineFavs)
       useStore.getState().setReadProgressAll(progress)
+      // 감시 다운로드: new works of the watched artists / tags, once per app start
+      // (an F5 reload keeps sessionStorage, so it doesn't check again).
+      let checked = false
+      try {
+        checked = sessionStorage.getItem('watchChecked') === '1'
+        sessionStorage.setItem('watchChecked', '1')
+      } catch {
+        /* storage unavailable — check anyway */
+      }
+      if (!checked) void runWatchCheck()
     })()
   }, [setWorks, setSettings, restoreSession])
 

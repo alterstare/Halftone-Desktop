@@ -135,6 +135,7 @@ export const IPC = {
   doujinEnrichAll: 'doujin:enrichAll',
   doujinCancelEnrich: 'doujin:cancelEnrich',
   doujinDownload: 'doujin:download',
+  watchCheck: 'watch:check', // 감시 다운로드: new galleries for the watched tokens
   doujinProgress: 'doujin:progress', // main -> renderer event
   downloadStop: 'download:stop', // abort a running/queued download by code
   doujinList: 'doujin:list',
@@ -215,6 +216,11 @@ export interface TransResult {
   blocks: TransBlock[]
   panelText?: string // used when the engine returns text without per-box coords
   error?: string
+}
+
+export interface WatchHit {
+  code: string
+  title: string
 }
 
 export interface DoujinProgress {
@@ -397,6 +403,9 @@ export interface Api {
   doujinEnrichAll: () => Promise<Work[]>
   doujinCancelEnrich: () => Promise<void>
   doujinDownload: (input: string) => Promise<Work> // input = code or doujin url
+  // 감시 다운로드: galleries uploaded since the last check for settings.watchTokens
+  // (language-filtered, not yet in the library). The caller queues the downloads.
+  watchCheck: () => Promise<WatchHit[]>
   // Abort a running/queued download by its progress code (doujin code, manga-site
   // seriesUrl, or "backup:<title>"). No-op if that code isn't downloading.
   downloadStop: (code: string) => Promise<boolean>

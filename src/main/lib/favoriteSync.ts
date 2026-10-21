@@ -41,7 +41,7 @@ async function applyToWork(w: Work, fav: boolean): Promise<Work> {
   // parent of its folders — so the heart never moves anything.
   if ((w.library ?? 'doujin') === 'doujin' && !w.sources?.length && s.favoriteMoveToFolder !== false && s.favoritesDir) {
     try {
-      if (fav && !isUnder(w.path, s.favoritesDir)) patch = await moveToFavorites(w, s.favoritesDir, s.groups)
+      if (fav && !isUnder(w.path, s.favoritesDir)) patch = await moveToFavorites(w, s.favoritesDir, s.groupMoveToFolder !== false ? s.groups : [])
       else if (!fav && w.homePath) patch = await moveFromFavorites(w)
     } catch {
       /* folder busy/missing — the heart still changes, the folder stays put */

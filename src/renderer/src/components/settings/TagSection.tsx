@@ -4,8 +4,10 @@
 import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import type { GenreRule } from "../../../../shared/types";
+import type { WatchLanguage } from "../../../../shared/types";
 import { useStore } from "../../store";
-import { tagToken } from "../../util";
+import { runWatchCheck } from "../../watch";
+import { tagToken, tagTokens } from "../../util";
 import SettingRow from "../SettingRow";
 import Stepper from "../Stepper";
 import Toggle from "../Toggle";
@@ -14,6 +16,88 @@ import TagSearchInput from "../TagSearchInput";
 import { useSettings } from "./context";
 import { ChipList, FolderRow } from "./parts";
 import ConfirmModal from "../ConfirmModal";
+
+const WATCH_LANGS: [WatchLanguage, string][] = [
+  ["korean", "한국어"],
+  ["english", "영어"],
+  ["japanese", "일본어"],
+  ["other", "기타"],
+];
+
+// 감시 다운로드: watched artists / tags (search tokens) whose new works download
+// automatically on app start, and which languages to take.
+function WatchDownload(): JSX.Element {
+  const { draft, patch, notify, works } = useSettings();
+  // Library tags as search tokens (artist:/female:/…) for autocomplete.
+  const tokens = useMemo(() => tagTokens(works), [works]);
+  const saved = useStore((s) => s.settings);
+  const [input, setInput] = useState("");
+  const [checking, setChecking] = useState(false);
+  const list = draft.watchTokens ?? [];
+  const langs = draft.watchLanguages ?? ["korean"];
+  const unsaved =
+    JSON.stringify(saved.watchTokens ?? []) !== JSON.stringify(list) ||
+    JSON.stringify(saved.watchLanguages ?? []) !== JSON.stringify(langs);
+  return (
+    <div className="set-block">
+      <SettingRow
+        title="감시 다운로드"
+        desc="등록한 작가·태그에 새 작품이 올라오면 앱을 켤 때 자동으로 다운로드합니다. 처음 확인할 때는 기준만 잡고, 그 뒤에 올라온 작품부터 받습니다. 작가는 artist:이름, 태그는 female:태그처럼 입력 후 Enter."
+      >
+        <button
+          className="mini"
+          disabled={checking || !list.length || unsaved}
+          title={unsaved ? "설정을 저장한 뒤 확인할 수 있습니다" : undefined}
+          onClick={async () => {
+            setChecking(true);
+            const n = await runWatchCheck();
+            setChecking(false);
+            notify(n ? `새 작품 ${n}개를 다운로드합니다.` : "새 작품이 없습니다.");
+          }}
+        >
+          {checking ? "확인 중…" : "지금 확인"}
+        </button>
+      </SettingRow>
+      <div className="watch-langs">
+        <span className="set-desc">받을 언어</span>
+        {WATCH_LANGS.map(([k, label]) => (
+          <label key={k}>
+            <input
+              type="checkbox"
+              checked={langs.includes(k)}
+              onChange={(e) =>
+                patch({
+                  watchLanguages: e.target.checked
+                    ? [...langs, k]
+                    : langs.filter((x) => x !== k),
+                })
+              }
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+      <TagPickInput
+        value={input}
+        onChange={setInput}
+        tokens={tokens}
+        className="field-input"
+        placeholder="작가 또는 태그 입력 후 Enter"
+        onEnter={() => {
+          const t = input.trim().toLowerCase().replace(/\s+/g, "_");
+          if (!t) return;
+          if (!list.includes(t)) patch({ watchTokens: [...list, t] });
+          setInput("");
+        }}
+      />
+      <ChipList
+        items={list}
+        chipClass="tag"
+        onRemove={(t) => patch({ watchTokens: list.filter((x) => x !== t) })}
+      />
+    </div>
+  );
+}
 
 // Last path segment, for compact folder buttons.
 const shortPath = (p: string): string =>
@@ -262,6 +346,15 @@ function Favorites(): JSX.Element {
         <Toggle
           checked={draft.favoriteMoveToFolder !== false}
           onChange={(v) => patch({ favoriteMoveToFolder: v })}
+        />
+      </SettingRow>
+      <SettingRow
+        title="그룹에 추가하면 폴더로 이동"
+        desc="그룹에 추가하면 작품 폴더를 그룹 이름의 폴더로 옮기고, 빼면 원래 위치로 되돌립니다. 끄면 폴더는 그대로 두고 그룹만 바뀝니다."
+      >
+        <Toggle
+          checked={draft.groupMoveToFolder !== false}
+          onChange={(v) => patch({ groupMoveToFolder: v })}
         />
       </SettingRow>
 
@@ -546,6 +639,7 @@ export default function TagSection(): JSX.Element {
             }
           />
         </div>
+        {isDoujin && <WatchDownload />}
         <div className="set-block">
           <SettingRow
             title="검색 기록 사용"

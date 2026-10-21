@@ -122,6 +122,7 @@ const api: Api = {
   doujinEnrichAll: () => invoke(IPC.doujinEnrichAll),
   doujinCancelEnrich: () => invoke(IPC.doujinCancelEnrich),
   doujinDownload: (input) => invoke(IPC.doujinDownload, input),
+  watchCheck: () => invoke(IPC.watchCheck),
   downloadStop: (code) => invoke(IPC.downloadStop, code),
   onDoujinProgress: (cb) => {
     const listener = (_e: unknown, p: any) => cb(p)
