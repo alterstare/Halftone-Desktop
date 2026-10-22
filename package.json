@@ -1,6 +1,6 @@
 {
   "name": "manga-manager",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "Halftone",
   "main": "./out/main/index.js",
   "author": "noth2",
