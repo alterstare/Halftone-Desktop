@@ -6,7 +6,7 @@ import { useLock } from '../lock'
 import { workLanguage } from '../util'
 import { langCategory } from '../../../shared/lang'
 import { getImages } from '../images'
-import { editedSrcs } from '../translate'
+import { editedSrcs, resetWorkEdits } from '../translate'
 import Thumb from './Thumb'
 import Dropdown from './Dropdown'
 import Caret from './Caret'
@@ -46,18 +46,22 @@ function ProjectRow({
   work,
   token,
   onOpen,
-  onExport
+  onExport,
+  onReset
 }: {
   p: TransProject
   work: Work | undefined
   token: number
   onOpen: () => void
   onExport: (kind: 'image' | 'text') => void
+  onReset: () => void
 }): JSX.Element {
   const update = useStore((s) => s.updateTransProject)
   const remove = useStore((s) => s.removeTransProject)
   const prog = useProgress(p.workId, token)
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const [memoOpen, setMemoOpen] = useState(false)
   const hasMemo = useStore((s) => !!s.settings.transMemos?.[p.workId])
 
@@ -119,6 +123,9 @@ function ProjectRow({
             <button className="mini" onClick={() => update(p.workId, { done: !p.done })}>
               {p.done ? '작업 중으로 표시' : '완료로 표시'}
             </button>
+            <button className="mini danger" onClick={() => setConfirmReset(true)} disabled={resetting}>
+              {resetting ? '초기화 중…' : '초기화'}
+            </button>
             <button className="mini danger" onClick={() => setConfirmRemove(true)}>
               목록에서 제거
             </button>
@@ -126,6 +133,27 @@ function ProjectRow({
         </div>
       </div>
       {memoOpen && <CharacterMemo work={work} onClose={() => setMemoOpen(false)} />}
+      {confirmReset && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ConfirmModal
+            title="작업 내용을 초기화할까요?"
+            desc="이 작품의 모든 페이지에서 편집한 번역·말풍선·인페인팅·서식이 지워지고 자동 번역 상태로 돌아갑니다. 되돌릴 수 없습니다. 인물 메모와 작품은 그대로 남습니다."
+            confirmLabel="초기화"
+            cancelLabel="취소"
+            onConfirm={() => {
+              setConfirmReset(false)
+              setResetting(true)
+              void resetWorkEdits(p.workId)
+                .then(() => update(p.workId, { lastPage: 0, done: false, updatedAt: Date.now() }))
+                .finally(() => {
+                  setResetting(false)
+                  onReset()
+                })
+            }}
+            onCancel={() => setConfirmReset(false)}
+          />
+        </div>
+      )}
       {confirmRemove && (
         <div onClick={(e) => e.stopPropagation()}>
           <ConfirmModal
@@ -362,6 +390,7 @@ export default function TransWork(): JSX.Element {
                 token={token}
                 onOpen={() => w && setEditing(w)}
                 onExport={(kind) => w && exportWork(w, kind)}
+                onReset={() => setToken((t) => t + 1)}
               />
             )
           })}

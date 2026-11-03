@@ -168,6 +168,8 @@ export const CheckMarkIcon = mkIcon('m9.55 18l-5.7-5.7l1.425-1.425L9.55 15.15l9.
 export const UndoIcon = mkIcon('M7 19v-2h7.1q1.575 0 2.738-1T18 13.5T16.838 11T14.1 10H7.8l2.6 2.6L9 14L4 9l5-5l1.4 1.4L7.8 8h6.3q2.425 0 4.163 1.575T20 13.5t-1.737 3.925T14.1 19z')
 export const RedoIcon = mkIcon('M9.9 19q-2.425 0-4.163-1.575T4 13.5t1.738-3.925T9.9 8h6.3l-2.6-2.6L15 4l5 5l-5 5l-1.4-1.4l2.6-2.6H9.9q-1.575 0-2.738 1T6 13.5T7.163 16T9.9 17H17v2z')
 export const RestartIcon = mkIcon('M11 20.95q-3.025-.375-5.012-2.637T4 13q0-1.65.65-3.162T6.5 7.2l1.425 1.425q-.95.85-1.437 1.975T6 13q0 2.2 1.4 3.888T11 18.95zm2 0v-2q2.175-.4 3.588-2.075T18 13q0-2.5-1.75-4.25T12 7h-.075l1.1 1.1l-1.4 1.4l-3.5-3.5l3.5-3.5l1.4 1.4l-1.1 1.1H12q3.35 0 5.675 2.325T20 13q0 3.025-1.987 5.288T13 20.95')
+export const DeleteSweepIcon = mkIcon('M15 18v-2h4v2zm0-8V8h7v2zm0 4v-2h6v2zM3 8H2V6h4V4.5h4V6h4v2h-1v9q0 .825-.587 1.413T11 19H5q-.825 0-1.412-.587T3 17z')
+export const GradientIcon = mkIcon('M5 21q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h14q.825 0 1.413.588T21 5v14q0 .825-.587 1.413T19 21zm6-10v2h2v-2zm-4 0v2h2v-2zm2 2v2h2v-2zm4 0v2h2v-2zm-8 0v2h2v-2zm10-2v2h2v2h2v-2h-2v-2zm-8 4v2H5v2h2v-2h2v2h2v-2h2v2h2v-2h2v2h2v-2h-2v-2h-2v2h-2v-2h-2v2H9v-2zm12-4v2zm0 4v2z')
 export const SelectIcon = mkIcon('M5 19v2q-.825 0-1.412-.587T3 19zm-2-2v-2h2v2zm0-4v-2h2v2zm0-4V7h2v2zm2-4H3q0-.825.588-1.412T5 3zm2 16v-2h2v2zM7 5V3h2v2zm4 16v-2h2v2zm0-16V3h2v2zm4 16v-2h2v2zm0-16V3h2v2zm4 14h2q0 .825-.587 1.413T19 21zm0-2v-2h2v2zm0-4v-2h2v2zm0-4V7h2v2zm0-4V3q.825 0 1.413.588T21 5z') // Select
 export const ArrowUpIcon = mkIcon('m12 10.8l-4.6 4.6L6 14l6-6l6 6l-1.4 1.4z') // Keyboard Arrow Up
 export const ArrowDownIcon = mkIcon('m12 15.4l-6-6L7.4 8l4.6 4.6L16.6 8L18 9.4z') // Keyboard Arrow Down
@@ -194,6 +196,18 @@ export const RightPanelCloseIcon = mkIcon('M7.5 8v8l4-4zM5 21q-.825 0-1.412-.587
 export const StarIcon = mkIcon('m5.825 21l1.625-7.025L2 9.25l7.2-.625L12 2l2.8 6.625l7.2.625l-5.45 4.725L18.175 21L12 17.275z')
 export const BlockIcon = mkIcon('M8.1 21.213q-1.825-.788-3.175-2.138T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22t-3.9-.788m8.825-2.887q.4-.3.75-.65t.65-.75L7.075 5.675q-.4.3-.75.65t-.65.75z')
 export const CloseIcon = mkIcon('M6.4 19L5 17.6l5.6-5.6L5 6.4L6.4 5l5.6 5.6L17.6 5L19 6.4L13.4 12l5.6 5.6l-1.4 1.4l-5.6-5.6z')
+
+// Translation editor's inpaint tools (Material Symbols).
+export const ColorizeIcon = mkIcon('M3 21v-4.75l8.95-8.95l-1.45-1.4l1.45-1.4l1.9 1.9l3.1-3.1q.125-.125.313-.2t.387-.075t.375.075t.325.2l2.35 2.35q.125.15.2.325t.075.375t-.075.387t-.2.313l-3.075 3.075l1.9 1.95L18.1 13.5l-1.4-1.45L7.75 21zm2-2h1.95l8.3-8.35l-1.9-1.9L5 17.05z')
+export const FormatColorFillIcon = mkIcon('M6.175 1.4L7.6 0l8.575 8.575q.575.575.575 1.425t-.575 1.425l-4.75 4.75q-.575.575-1.425.575t-1.425-.575l-4.75-4.75Q3.25 10.85 3.25 10t.575-1.425L8.575 3.8zM10 5.225L5.225 10h9.55zm7.588 11.188Q17 15.825 17 15q0-.525.313-1.125T18 12.75q.225-.3.475-.625T19 11.5q.275.3.525.625t.475.625q.375.525.688 1.125T21 15q0 .825-.587 1.413T19 17t-1.412-.587M2 24v-4h20v4z')
+export const BrushIcon = mkIcon('M6 21q-1.125 0-2.225-.55T2 19q.65 0 1.325-.513T4 17q0-1.25.875-2.125T7 14t2.125.875T10 17q0 1.65-1.175 2.825T6 21m5.75-6L9 12.25l8.95-8.95q.275-.275.688-.288t.712.288l1.35 1.35q.3.3.3.7t-.3.7z')
+export const InkEraserIcon = mkIcon('M17.25 18H22v2h-6.75zm-12.5 2l-2.125-2.125q-.575-.575-.587-1.425T2.6 15l11-11.4q.575-.6 1.413-.6t1.412.575L21.4 8.55q.575.575.575 1.425T21.4 11.4L13 20z')
+export const HealingIcon = mkIcon('M5.45 21.4L2.6 18.55q-.575-.575-.575-1.4t.575-1.4L15.75 2.6q.575-.575 1.4-.575t1.4.575l2.85 2.85q.575.575.575 1.4t-.575 1.4L8.25 21.4q-.575.575-1.4.575t-1.4-.575m7.25-3.05l5.65-5.65l3.05 3.05q.575.575.575 1.4t-.575 1.4l-2.85 2.85q-.575.575-1.4.575t-1.4-.575zm.013-3.637Q13 14.425 13 14t-.288-.712T12 13t-.712.288T11 14t.288.713T12 15t.713-.288M10 13q.425 0 .713-.288T11 12t-.288-.712T10 11t-.712.288T9 12t.288.713T10 13m4 0q.425 0 .713-.288T15 12t-.288-.712T14 11t-.712.288T13 12t.288.713T14 13m-8.375-1.725L2.6 8.25q-.575-.575-.575-1.4t.575-1.4L5.45 2.6q.575-.575 1.4-.575t1.4.575l3.05 3.05zm7.088-.562Q13 10.425 13 10t-.288-.712T12 9t-.712.288T11 10t.288.713T12 11t.713-.288')
+export const LassoSelectIcon = mkIcon('m4.025 11.1l-2-.2q.15-1.15.513-2.237T3.525 6.6l1.7 1.05q-.5.775-.787 1.65t-.413 1.8m.9 7.9Q4.1 18.2 3.5 17.237T2.525 15.2l1.9-.65q.3.875.775 1.638T6.325 17.6zm2.75-13.8l-1.05-1.7q.975-.625 2.063-.988T10.925 2l.2 2q-.925.125-1.8.413t-1.65.787m4.3 16.75q-.875 0-1.737-.137t-1.663-.463l.65-1.9q.675.225 1.35.363t1.4.137zm5.65-15.65q-.65-.65-1.412-1.125T14.574 4.4l.65-1.9q1.075.375 2.038.975T19.025 4.9zm2.15 14.85l-2.8-2.8v2.6h-2v-6h6v2h-2.6l2.8 2.8zm.2-9.2q0-.725-.138-1.4t-.362-1.35l1.9-.65q.325.8.463 1.663t.137 1.737z')
+export const PolylineIcon = mkIcon('M15 22v-2.5L8 16H3v-6h4.3L10 6.9V2h6v6h-4.3L9 11.1v3.15l6 3V16h6v6z')
+export const FormatColorTextIcon = mkIcon('M2 24v-4h20v4zm3.5-7l5.25-14h2.5l5.25 14h-2.4l-1.25-3.6H9.2L7.9 17zm4.4-5.6h4.2l-2.05-5.8h-.1z')
+export const ArrowSelectorIcon = mkIcon('m13.775 22l-3.625-7.8L6 20V2l14 11h-7.1l3.6 7.725z')
+export const DeselectIcon = mkIcon('m19.775 22.6l-5.6-5.6H7V9.825l-5.6-5.6L2.8 2.8l18.4 18.4zM9 15h3.175L9 11.825zm8-.825l-2-2V9h-3.175l-2-2H17zM5 19v2q-.825 0-1.412-.587T3 19zm-2-2v-2h2v2zm0-4v-2h2v2zm0-4V7h2v2zm4 12v-2h2v2zM7 5V3h2v2zm4 16v-2h2v2zm0-16V3h2v2zm4 16v-2h2v2zm0-16V3h2v2zm4 12v-2h2v2zm0-4v-2h2v2zm0-4V7h2v2zm0-4V3q.825 0 1.413.588T21 5z')
 
 const FAV_FILLED =
   'm12 21l-1.45-1.3q-2.525-2.275-4.175-3.925T3.75 12.812T2.388 10.4T2 8.15Q2 5.8 3.575 4.225T7.5 2.65q1.3 0 2.475.55T12 4.75q.85-1 2.025-1.55t2.475-.55q2.35 0 3.925 1.575T22 8.15q0 1.15-.387 2.25t-1.363 2.412t-2.625 2.963T13.45 19.7z'
@@ -263,3 +277,22 @@ export function FocusLevelIcon({ level, className }: IconProps & { level: number
     </svg>
   )
 }
+// Translation editor: layers, text format, stages.
+export const LayersIcon = mkIcon('m12 21.05l-9-7l1.65-1.25L12 18.5l7.35-5.7L21 14.05zM12 16L3 9l9-7l9 7z') // layers
+export const VisibilityIcon = mkIcon('M15.188 14.688Q16.5 13.375 16.5 11.5t-1.312-3.187T12 7T8.813 8.313T7.5 11.5t1.313 3.188T12 16t3.188-1.312m-5.1-1.276Q9.3 12.625 9.3 11.5t.788-1.912T12 8.8t1.913.788t.787 1.912t-.787 1.913T12 14.2t-1.912-.787m-4.738 3.55Q2.35 14.925 1 11.5q1.35-3.425 4.35-5.462T12 4t6.65 2.038T23 11.5q-1.35 3.425-4.35 5.463T12 19t-6.65-2.037') // visibility
+export const VisibilityOffIcon = mkIcon('m19.8 22.6l-4.2-4.15q-.875.275-1.762.413T12 19q-3.775 0-6.725-2.087T1 11.5q.525-1.325 1.325-2.463T4.15 7L1.4 4.2l1.4-1.4l18.4 18.4zM12 16q.275 0 .513-.025t.512-.1l-5.4-5.4q-.075.275-.1.513T7.5 11.5q0 1.875 1.313 3.188T12 16m7.3.45l-3.175-3.15q.175-.425.275-.862t.1-.938q0-1.875-1.312-3.187T12 7q-.5 0-.937.1t-.863.3L7.65 4.85q1.025-.425 2.1-.637T12 4q3.775 0 6.725 2.088T23 11.5q-.575 1.475-1.513 2.738T19.3 16.45m-4.625-4.6l-3-3q.7-.125 1.288.113t1.012.687t.613 1.038t.087 1.162') // visibility-off
+export const FormatBoldIcon = mkIcon('M6.8 19V5h5.525q1.625 0 3 1T16.7 8.775q0 1.275-.575 1.963t-1.075.987q.625.275 1.388 1.025T17.2 15q0 2.225-1.625 3.113t-3.05.887zm3.025-2.8h2.6q1.2 0 1.463-.612t.262-.888t-.262-.887t-1.538-.613H9.825zm0-5.7h2.325q.825 0 1.2-.425t.375-.95q0-.6-.425-.975t-1.1-.375H9.825z') // format-bold
+export const FormatItalicIcon = mkIcon('M5 19v-2.5h4l3-9H8V5h10v2.5h-3.5l-3 9H15V19z') // format-italic
+export const FormatUnderlinedIcon = mkIcon('M5 21v-2h14v2zm3.075-5.575q-1.4-1.575-1.4-4.175V3H9.25v8.4q0 1.4.7 2.275t2.05.875t2.05-.875t.7-2.275V3h2.575v8.25q0 2.6-1.4 4.175T12 17t-3.925-1.575') // format-underlined
+export const FormatStrikethroughIcon = mkIcon('M2 14v-2h20v2zm8.5-4V7H5V4h14v3h-5.5v3zm0 10v-4h3v4z') // format-strikethrough
+export const FormatAlignLeftIcon = mkIcon('M3 21v-2h18v2zm0-4v-2h12v2zm0-4v-2h18v2zm0-4V7h12v2zm0-4V3h18v2z') // format-align-left
+export const FormatAlignCenterIcon = mkIcon('M3 21v-2h18v2zm4-4v-2h10v2zm-4-4v-2h18v2zm4-4V7h10v2zM3 5V3h18v2z') // format-align-center
+export const FormatAlignRightIcon = mkIcon('M3 5V3h18v2zm6 4V7h12v2zm-6 4v-2h18v2zm6 4v-2h12v2zm-6 4v-2h18v2z') // format-align-right
+export const FormatAlignJustifyIcon = mkIcon('M3 21v-2h18v2zm0-4v-2h18v2zm0-4v-2h18v2zm0-4V7h18v2zm0-4V3h18v2z') // format-align-justify
+export const AutoAwesomeIcon = mkIcon('m19 9l-1.25-2.75L15 5l2.75-1.25L19 1l1.25 2.75L23 5l-2.75 1.25L19 9Zm0 14l-1.25-2.75L15 19l2.75-1.25L19 15l1.25 2.75L23 19l-2.75 1.25L19 23ZM9 20l-2.5-5.5L1 12l5.5-2.5L9 4l2.5 5.5L17 12l-5.5 2.5L9 20Z') // auto-awesome
+export const ArrowDownwardIcon = mkIcon('M11 4v12.175l-5.6-5.6L4 12l8 8l8-8l-1.4-1.425l-5.6 5.6V4z') // arrow-downward
+export const EllipseSelectIcon = mkIcon('M12 22q-2.075 0-3.9-.788t-3.175-2.137T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22m0-2q3.35 0 5.675-2.325T20 12t-2.325-5.675T12 4T6.325 6.325T4 12t2.325 5.675T12 20') // radio-button-unchecked
+export const ChatBubbleIcon = mkIcon('M2 22V4q0-.825.588-1.412T4 2h16q.825 0 1.413.588T22 4v12q0 .825-.587 1.413T20 18H6z') // chat-bubble
+export const InvertColorsIcon = mkIcon('M12 21q-3.325 0-5.663-2.3T4 13.125q0-1.65.625-3.062T6.35 7.55L12 2l5.65 5.55q1.1 1.1 1.725 2.513T20 13.125q0 3.275-2.337 5.575T12 21m0-2V4.8L7.75 9q-.875.825-1.312 1.875T6 13.125q0 2.425 1.75 4.15T12 19') // invert-colors
+export const TextFieldsIcon = mkIcon('M7 20V7H2V4h13v3h-5v13zm9 0v-8h-3V9h9v3h-3v8z') // text-fields
+export const StarOutlineIcon = mkIcon('m8.85 16.825l3.15-1.9l3.15 1.925l-.825-3.6l2.775-2.4l-3.65-.325l-1.45-3.4l-1.45 3.375l-3.65.325l2.775 2.425zM5.825 21l1.625-7.025L2 9.25l7.2-.625L12 2l2.8 6.625l7.2.625l-5.45 4.725L18.175 21L12 17.275zM12 12.25') // star-outline

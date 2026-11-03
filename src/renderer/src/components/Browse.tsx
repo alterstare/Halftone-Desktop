@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { useLibraryCodes, useStore } from '../store'
-import type { GallerySummary, OnlineSort, SearchSort } from '../../../shared/ipc'
+import type { DoujinListResult, GallerySummary, OnlineSort, SearchSort } from '../../../shared/ipc'
+import { cachedPage, dropPages, loadPage, prefetchPages } from '../pageCache'
 import Pager from './Pager'
 import TagSearchInput from './TagSearchInput'
 import OnlineThumb from './OnlineThumb'
@@ -113,24 +114,45 @@ export default function Browse(): JSX.Element {
 
   // The browse view is kept mounted (hidden) once first opened, so this effect
   // only re-runs on an actual source/page change or a forced reload (🌐 double-
-  // press / reloadKey) — returning to the view does NOT refetch.
+  // press / reloadKey) — returning to the view does NOT refetch. The source
+  // pages either side are loaded ahead (pageCache), so paging shows them at once.
+  const seenReload = useRef(reloadKey)
   useEffect(() => {
+    const src = `doujin:${JSON.stringify(activeSource)}:`
+    if (seenReload.current !== reloadKey) {
+      seenReload.current = reloadKey
+      dropPages(src)
+    }
+    const load = (p: number) => () => window.api.doujinList(activeSource, p)
+    const ahead = (r: DoujinListResult): void => {
+      const last = Math.max(0, Math.ceil(r.total / pageSize) - 1)
+      prefetchPages([fetchPage + 1, fetchPage - 1].filter((p) => p >= 0 && p <= last).map((p) => [src + p, load(p)]))
+    }
+    setError(null)
+    const hit = cachedPage<DoujinListResult>(src + fetchPage)
+    if (hit) {
+      setItems(hit.items)
+      setTotal(hit.total)
+      setLoading(false)
+      ahead(hit)
+      return
+    }
     let alive = true
     setLoading(true)
-    setError(null)
     setItems([]) // drop the previous page so it doesn't linger under the loader
-    window.api
-      .doujinList(activeSource, fetchPage)
+    loadPage(src + fetchPage, load(fetchPage))
       .then((r) => {
         if (!alive) return
         setItems(r.items)
         setTotal(r.total)
+        ahead(r)
       })
       .catch((e) => alive && setError(String(e?.message ?? e)))
       .finally(() => alive && setLoading(false))
     return () => {
       alive = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSource, fetchPage, reloadKey])
 
   // Comma-separated tokens so multi-word tags (e.g. "female:sole female") survive.

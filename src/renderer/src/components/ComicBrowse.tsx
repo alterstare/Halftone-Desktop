@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { useStore, useSeriesRoots, lastReadKey } from '../store'
-import type { ComicListSource, ComicSummary, ComicSort, ComicType, ComicFilterRow } from '../../../shared/ipc'
+import type { ComicListResult, ComicListSource, ComicSummary, ComicSort, ComicType, ComicFilterRow } from '../../../shared/ipc'
+import { cachedPage, dropPages, loadPage, prefetchPages } from '../pageCache'
 import type { OnlineFav } from '../../../shared/types'
 import Stars from './Stars'
 import ComicDownloadModal from './ComicDownloadModal'
@@ -105,29 +106,48 @@ export default function ComicBrowse(): JSX.Element {
   // Set when a typed jump overshoots the last page: the site lands on its last
   // page, we sync `page` to it — that state change must not refetch.
   const skipFetch = useRef(false)
+  // The pages either side are loaded ahead (pageCache) — one scrape at a time
+  // (the scraper's queue), after the page shown, the next one first.
+  const seenReload = useRef(reloadKey)
   useEffect(() => {
     if (favMode) return
     if (skipFetch.current) {
       skipFetch.current = false
       return
     }
+    const src = `comic:${comicBaseUrl}:${JSON.stringify(source)}:`
+    if (seenReload.current !== reloadKey) {
+      seenReload.current = reloadKey
+      dropPages(src)
+    }
+    const load = (p: number) => () => window.api.comicList(source, p)
+    const show = (r: ComicListResult): void => {
+      setItems(r.items)
+      setHasNext(r.hasNext)
+      if (r.page !== page) {
+        skipFetch.current = true
+        setPage(r.page)
+      }
+      // Use the genre chips the live page actually offers (per type).
+      if (r.genres && r.genres.length) setGenres(['전체', ...r.genres.filter((g) => g !== '전체')])
+      if (r.rows && r.rows.length) setRows(r.rows)
+      const at = r.page
+      prefetchPages([...(r.hasNext ? [at + 1] : []), ...(at > 0 ? [at - 1] : [])].map((p) => [src + p, load(p)]))
+    }
+    setError(null)
+    const hit = cachedPage<ComicListResult>(src + page)
+    if (hit) {
+      setLoading(false)
+      show(hit)
+      return
+    }
     let alive = true
     setLoading(true)
-    setError(null)
     setItems([]) // drop the previous page so it doesn't linger under the loader
-    window.api
-      .comicList(source, page)
+    loadPage(src + page, load(page))
       .then((r) => {
         if (!alive) return
-        setItems(r.items)
-        setHasNext(r.hasNext)
-        if (r.page !== page) {
-          skipFetch.current = true
-          setPage(r.page)
-        }
-        // Use the genre chips the live page actually offers (per type).
-        if (r.genres && r.genres.length) setGenres(['전체', ...r.genres.filter((g) => g !== '전체')])
-        if (r.rows && r.rows.length) setRows(r.rows)
+        show(r)
       })
       .catch(
         (e) =>
@@ -137,6 +157,7 @@ export default function ComicBrowse(): JSX.Element {
     return () => {
       alive = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, page, favMode, comicBaseUrl, reloadKey])
 
   useEffect(() => {

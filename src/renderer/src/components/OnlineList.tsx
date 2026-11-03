@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { JSX } from 'react'
 import { useLibraryCodes, useStore } from '../store'
-import type { GallerySummary, DoujinListSource, OnlineSort } from '../../../shared/ipc'
+import type { GallerySummary, DoujinListResult, DoujinListSource, OnlineSort } from '../../../shared/ipc'
+import { cachedPage, loadPage, prefetchPages } from '../pageCache'
 import Pager from './Pager'
 import CopyCode from './CopyCode'
 import ContextMenu from './ContextMenu'
@@ -75,21 +76,37 @@ export default function OnlineList(): JSX.Element {
 
   useEffect(() => {
     if (onlineListFav) return // favorites are computed locally; no fetch
+    // Shared with the browse view's cache; the pages either side load ahead.
+    const src = `doujin:${JSON.stringify(source)}:`
+    const load = (p: number) => () => window.api.doujinList(source, p)
+    const ahead = (r: DoujinListResult): void => {
+      const last = Math.max(0, Math.ceil(r.total / pageSize) - 1)
+      prefetchPages([page + 1, page - 1].filter((p) => p >= 0 && p <= last).map((p) => [src + p, load(p)]))
+    }
+    setError(null)
+    const hit = cachedPage<DoujinListResult>(src + page)
+    if (hit) {
+      setItems(hit.items)
+      setTotal(hit.total)
+      setLoading(false)
+      ahead(hit)
+      return
+    }
     let alive = true
     setLoading(true)
-    setError(null)
-    window.api
-      .doujinList(source, page)
+    loadPage(src + page, load(page))
       .then((r) => {
         if (!alive) return
         setItems(r.items)
         setTotal(r.total)
+        ahead(r)
       })
       .catch((e) => alive && setError(String(e?.message ?? e)))
       .finally(() => alive && setLoading(false))
     return () => {
       alive = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, page, onlineListFav])
 
   const lang = source.language

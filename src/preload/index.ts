@@ -86,6 +86,7 @@ const api: Api = {
   translateImage: (imageBase64, langHint, w, h, ctx) =>
     invoke(IPC.translateImage, imageBase64, langHint, w, h, ctx),
   translateTexts: (texts, langHint) => invoke(IPC.translateTexts, texts, langHint),
+  translateLines: (texts, langHint, ctx) => invoke(IPC.translateLines, texts, langHint, ctx),
   ocrModelsStatus: () => invoke(IPC.ocrModelsStatus),
   ocrModelsDownload: () => invoke(IPC.ocrModelsDownload),
   ocrModelsDelete: () => invoke(IPC.ocrModelsDelete),
@@ -94,8 +95,23 @@ const api: Api = {
     ipcRenderer.on(IPC.ocrModelsProgress, listener)
     return () => ipcRenderer.removeListener(IPC.ocrModelsProgress, listener)
   },
+  lamaStatus: () => invoke(IPC.lamaStatus),
+  lamaDownload: () => invoke(IPC.lamaDownload),
+  lamaDelete: () => invoke(IPC.lamaDelete),
+  onLamaProgress: (cb) => {
+    const listener = (_e: unknown, p: { done: number; total: number }): void => cb(p)
+    ipcRenderer.on(IPC.lamaProgress, listener)
+    return () => ipcRenderer.removeListener(IPC.lamaProgress, listener)
+  },
+  lamaPatch: (rgb, mask) => invoke(IPC.lamaPatch, rgb, mask),
   getTransEdits: () => invoke(IPC.getTransEdits),
   saveTransEdit: (src, blocks) => invoke(IPC.saveTransEdit, src, blocks),
+  getTransPaint: (src) => invoke(IPC.getTransPaint, src),
+  saveTransPaint: (src, dataUrl) => invoke(IPC.saveTransPaint, src, dataUrl),
+  getTransMask: (src) => invoke(IPC.getTransMask, src),
+  getTransDoc: (src) => invoke(IPC.getTransDoc, src),
+  saveTransDoc: (src, doc, images) => invoke(IPC.saveTransDoc, src, doc, images),
+  saveTransMask: (src, mask) => invoke(IPC.saveTransMask, src, mask),
   exportText: (title, content) => invoke(IPC.exportText, title, content),
   exportImageDir: (title) => invoke(IPC.exportImageDir, title),
   writeImageFile: (dir, name, base64) => invoke(IPC.writeImageFile, dir, name, base64),

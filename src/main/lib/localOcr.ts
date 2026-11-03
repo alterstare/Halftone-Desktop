@@ -11,11 +11,11 @@ import { app, nativeImage, net, type NativeImage } from 'electron'
 import { promises as fs, createWriteStream } from 'fs'
 import { join } from 'path'
 import type * as OrtNs from 'onnxruntime-node'
-import type { TransBlock } from '../../shared/ipc'
+import type { TransBlock, TextMask } from '../../shared/ipc'
 
 // onnxruntime-node is a native addon — loaded on first use only.
 let ortMod: typeof OrtNs | null = null
-async function ort(): Promise<typeof OrtNs> {
+export async function ort(): Promise<typeof OrtNs> {
   if (!ortMod) ortMod = (await import('onnxruntime-node')) as typeof OrtNs
   return ortMod
 }
@@ -68,27 +68,35 @@ export function downloadOcrModels(onProgress: (done: number, total: number) => v
       } catch {
         /* not there yet */
       }
-      const res = await net.fetch(m.url)
-      if (!res.ok || !res.body) throw new Error(`모델 다운로드 실패 (${m.file}: HTTP ${res.status})`)
-      const part = dest + '.part'
-      const out = createWriteStream(part)
-      const reader = res.body.getReader()
-      for (;;) {
-        const { done: end, value } = await reader.read()
-        if (end) break
-        out.write(Buffer.from(value))
-        done += value.byteLength
+      await fetchFile(m.url, dest, (n) => {
+        done += n
         if (done > total) total = done
         onProgress(done, total)
-      }
-      await new Promise<void>((r, j) => out.end((e?: Error | null) => (e ? j(e) : r())))
-      await fs.rename(part, dest)
+      })
     }
     onProgress(total, total)
   })().finally(() => {
     downloading = null
   })
   return downloading
+}
+
+// One file into `dest`, through a ".part" file so a broken download never looks
+// finished; `onBytes` gets each chunk's size.
+export async function fetchFile(url: string, dest: string, onBytes: (n: number) => void): Promise<void> {
+  const res = await net.fetch(url)
+  if (!res.ok || !res.body) throw new Error(`모델 다운로드 실패 (${url.slice(url.lastIndexOf('/') + 1)}: HTTP ${res.status})`)
+  const part = dest + '.part'
+  const out = createWriteStream(part)
+  const reader = res.body.getReader()
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    out.write(Buffer.from(value))
+    onBytes(value.byteLength)
+  }
+  await new Promise<void>((r, j) => out.end((e?: Error | null) => (e ? j(e) : r())))
+  await fs.rename(part, dest)
 }
 
 export async function deleteOcrModels(): Promise<void> {
@@ -147,7 +155,7 @@ interface Box {
 }
 
 // 1. text blocks on the page (letterboxed to 1024, YOLO-style output + NMS)
-async function detectBlocks(img: NativeImage): Promise<{ blocks: Box[]; lines: Line[] }> {
+async function detectBlocks(img: NativeImage): Promise<{ blocks: Box[]; lines: Line[]; mask?: TextMask }> {
   const s = await loadSessions()
   const o = await ort()
   const S = 1024
@@ -246,6 +254,26 @@ async function detectBlocks(img: NativeImage): Promise<{ blocks: Box[]; lines: L
     }, 0)
     if (others.length >= 2 && cov >= 0.6 * area(b)) keep = keep.filter((q) => q !== b)
   }
+  // Near-identical boxes can still survive the cuts above (the same column found
+  // twice, slightly shifted) → the line would be read and drawn twice. Merge them.
+  for (let merged = true; merged; ) {
+    merged = false
+    for (let a = 0; a < keep.length && !merged; a++)
+      for (let c = a + 1; c < keep.length && !merged; c++) {
+        const A = keep[a]
+        const C = keep[c]
+        if (inside(A, C) < 0.8 || Math.max(area(A), area(C)) > 1.3 * Math.min(area(A), area(C))) continue
+        keep[a] = {
+          x1: Math.min(A.x1, C.x1),
+          y1: Math.min(A.y1, C.y1),
+          x2: Math.max(A.x2, C.x2),
+          y2: Math.max(A.y2, C.y2),
+          conf: Math.max(A.conf, C.conf)
+        }
+        keep.splice(c, 1)
+        merged = true
+      }
+  }
 
   // Text lines from the detector's own DB line map (output `det`, channel 0).
   // Used twice: lines no block covers become extra blocks (free text the block
@@ -299,7 +327,32 @@ async function detectBlocks(img: NativeImage): Promise<{ blocks: Box[]; lines: L
       return a + ix * iy
     }, 0) >=
     0.5 * (l.x2 - l.x1) * (l.y2 - l.y1)
-  const groups: Line[] = lines.filter((l) => !covered(l)).map((l) => ({ ...l }))
+  for (const g of groupLines(lines.filter((l) => !covered(l)))) keep.push({ ...g, conf: 0 })
+
+  // reading order: top-to-bottom, right-to-left within a row band
+  keep.sort((a, b) => (Math.abs(a.y1 - b.y1) < 40 ? b.x1 - a.x1 : a.y1 - b.y1))
+  return { blocks: keep, lines, mask: textMask(out.seg?.data as Float32Array | undefined, S, nw, nh, scale) }
+}
+
+// The detector's text-pixel segmentation (output `seg`) over the page's part of
+// the letterboxed input, bit-packed — the renderer erases exactly these pixels.
+const SEG_MIN = 0.3
+function textMask(seg: Float32Array | undefined, S: number, w: number, h: number, scale: number): TextMask | undefined {
+  if (!seg || seg.length < S * S) return undefined
+  const bits = new Uint8Array(Math.ceil((w * h) / 8))
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      if (seg[y * S + x] < SEG_MIN) continue
+      const i = y * w + x
+      bits[i >> 3] |= 1 << (i & 7)
+    }
+  return { w, h, scale, bits }
+}
+
+// Lines grouped into blocks: neighbours of the same direction (within 0.6 × the
+// thinner one's thickness) join; specks under 8 px dropped.
+function groupLines(lines: Line[]): Line[] {
+  const groups: Line[] = lines.map((l) => ({ ...l }))
   for (let merged = true; merged; ) {
     merged = false
     for (let a = 0; a < groups.length && !merged; a++)
@@ -320,12 +373,10 @@ async function detectBlocks(img: NativeImage): Promise<{ blocks: Box[]; lines: L
         merged = true
       }
   }
-  for (const g of groups) if (g.x2 - g.x1 >= 8 && g.y2 - g.y1 >= 8) keep.push({ ...g, conf: 0 })
-
-  // reading order: top-to-bottom, right-to-left within a row band
-  keep.sort((a, b) => (Math.abs(a.y1 - b.y1) < 40 ? b.x1 - a.x1 : a.y1 - b.y1))
-  return { blocks: keep, lines }
+  return groups.filter((g) => g.x2 - g.x1 >= 8 && g.y2 - g.y1 >= 8)
 }
+
+const area = (b: { x1: number; y1: number; x2: number; y2: number }): number => (b.x2 - b.x1) * (b.y2 - b.y1)
 
 const holds = (b: Box, l: Line): boolean => {
   const cx = (l.x1 + l.x2) / 2
@@ -527,21 +578,117 @@ async function readBlock(img: NativeImage, b: Box, lines: Line[], english: boole
   }
 }
 
+// A block's text lines grouped into paragraphs: neighbouring lines (columns /
+// rows) whose centres are within PARA_PITCH × the line thickness belong together;
+// a wider step is another paragraph — usually another balloon of a joined chain
+// that the detector boxed as one block. Only reported when there are several;
+// [x, y, w, h] each.
+const PARA_PITCH = 1.5
+function paragraphs(b: Box, lines: Line[]): number[][] | undefined {
+  const ls = lines.filter((l) => holds(b, l))
+  if (ls.length < 2) return undefined
+  const ts = ls.map((l) => l.t).sort((p, q) => p - q)
+  const step = ts[ts.length >> 1] * PARA_PITCH
+  const parent = ls.map((_, i) => i)
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])))
+  for (let i = 0; i < ls.length; i++)
+    for (let j = i + 1; j < ls.length; j++) {
+      const A = ls[i]
+      const B = ls[j]
+      if (A.vert !== B.vert) continue
+      // across = centre distance between the lines; along = do they overlap.
+      const across = A.vert ? Math.abs(A.x1 + A.x2 - B.x1 - B.x2) / 2 : Math.abs(A.y1 + A.y2 - B.y1 - B.y2) / 2
+      const along = A.vert ? Math.min(A.y2, B.y2) - Math.max(A.y1, B.y1) : Math.min(A.x2, B.x2) - Math.max(A.x1, B.x1)
+      if (across <= step && along > 0) parent[find(i)] = find(j)
+    }
+  const groups = new Map<number, Line[]>()
+  ls.forEach((l, i) => groups.set(find(i), [...(groups.get(find(i)) ?? []), l]))
+  if (groups.size < 2) return undefined
+  return [...groups.values()].map((g) => {
+    const x1 = Math.max(b.x1, Math.min(...g.map((l) => l.x1)))
+    const y1 = Math.max(b.y1, Math.min(...g.map((l) => l.y1)))
+    const x2 = Math.min(b.x2, Math.max(...g.map((l) => l.x2)))
+    const y2 = Math.min(b.y2, Math.max(...g.map((l) => l.y2)))
+    return [x1, y1, x2 - x1, y2 - y1]
+  })
+}
+
+// A block's glyph size: its character pitch — the length of its text lines
+// (each less the half thickness the detector's box was grown by at its ends)
+// over the characters read in them, counted as set: an ellipsis glyph ("…", or
+// its "..." reading) or a run of !/? takes one em. Glyphs are set solid, so
+// the pitch is the em.
+// (Not the lines' thickness: the detector's map is shrunk text, guessed back
+// ×2, and close columns come back as one thick line.)
+function blockSize(b: Box, lines: Line[], text: string): number | undefined {
+  const ls = lines.filter((l) => holds(b, l))
+  const chars = [...text.replace(/\s/g, '').replace(/[.．・。]{2,3}/g, '…').replace(/[!?！？]{2,}/g, '!')].length
+  if (!ls.length || !chars) return undefined
+  const along = ls.reduce((a, l) => a + (l.vert ? l.y2 - l.y1 : l.x2 - l.x1) - l.t / 2, 0)
+  return along > 0 ? Math.round(along / chars) : undefined
+}
+
+// A block's text lines clipped to it, [x, y, w, h] each (the whole box when none).
+function columns(b: Box, lines: Line[]): number[][] {
+  const ls = lines.filter((l) => holds(b, l))
+  if (!ls.length) return [[b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1]]
+  return ls.map((l) => {
+    const x1 = Math.max(b.x1, l.x1)
+    const y1 = Math.max(b.y1, l.y1)
+    return [x1, y1, Math.min(b.x2, l.x2) - x1, Math.min(b.y2, l.y2) - y1]
+  })
+}
+
 // Whole page → blocks with recognized text (tr filled in later by translation).
 // langHint 'english' → PaddleOCR, anything else → manga-ocr.
-export async function ocrPage(jpeg: Buffer, langHint?: string): Promise<{ w: number; h: number; blocks: TransBlock[] }> {
+export async function ocrPage(
+  jpeg: Buffer,
+  langHint?: string
+): Promise<{ w: number; h: number; blocks: TransBlock[]; mask?: TextMask }> {
   const img = nativeImage.createFromBuffer(jpeg)
   const { width: w, height: h } = img.getSize()
   if (!w || !h) throw new Error('이미지를 읽지 못했습니다')
   const english = (langHint ?? '').toLowerCase().startsWith('en')
   const blocks: TransBlock[] = []
   const det = await detectBlocks(img)
-  for (const b of det.blocks) {
+  const add = async (b: Box): Promise<boolean> => {
     const { text, conf } = await readBlock(img, b, det.lines, english)
-    if (isJunk(text, conf, english)) continue
-    blocks.push({ x: b.x1, y: b.y1, w: b.x2 - b.x1, h: b.y2 - b.y1, text, tr: '' })
+    if (isJunk(text, conf, english)) return false
+    const paras = paragraphs(b, det.lines)
+    const size = blockSize(b, det.lines, text)
+    const cols = columns(b, det.lines)
+    blocks.push({ x: b.x1, y: b.y1, w: b.x2 - b.x1, h: b.y2 - b.y1, text, tr: '', ...(paras && { paras }), ...(size && { size }), cols })
+    return true
   }
-  return { w, h, blocks }
+  for (const b of det.blocks) {
+    if (await add(b)) continue
+    // Read as junk: the detector may have boxed dialogue together with a sound
+    // effect next to it. Its own text lines, regrouped, are read on their own;
+    // still junk → line by line, the lines that read cleanly regrouped, their
+    // texts joined in reading order (what stays junk, the effect, drops).
+    const own = det.lines.filter((l) => holds(b, l))
+    const parts = groupLines(own)
+    let found = false
+    if (parts.length > 1 || (parts.length === 1 && area(parts[0]) < 0.7 * area(b)))
+      for (const g of parts) found = (await add({ ...g, conf: 0 })) || found
+    if (found || own.length < 2) continue
+    const clean: { l: Line; text: string }[] = []
+    for (const l of own) {
+      const r = await readBlock(img, { ...l, conf: 0 }, det.lines, english)
+      if (!isJunk(r.text, r.conf, english)) clean.push({ l, text: r.text })
+    }
+    for (const g of groupLines(clean.map((c) => c.l))) {
+      const text = clean
+        .filter((c) => holds({ ...g, conf: 0 }, c.l))
+        .sort((p, q) => (g.vert ? q.l.x1 - p.l.x1 : p.l.y1 - q.l.y1))
+        .map((c) => c.text)
+        .join('')
+      const size = blockSize({ ...g, conf: 0 }, det.lines, text)
+      const cols = columns({ ...g, conf: 0 }, clean.map((c) => c.l))
+      blocks.push({ x: g.x1, y: g.y1, w: g.x2 - g.x1, h: g.y2 - g.y1, text, tr: '', ...(size && { size }), cols })
+    }
+  }
+  return { w, h, blocks, mask: det.mask }
 }
 
 // User-picked region (translation editor's 영역 번역) → its text. No junk

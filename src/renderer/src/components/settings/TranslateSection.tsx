@@ -40,27 +40,35 @@ function Field({
   )
 }
 
-// 로컬 OCR models: status + one-shot download (all models together) / delete.
-function LocalOcrModels(): JSX.Element {
+// A downloadable model: status + one-shot download / delete.
+function ModelRow({
+  title,
+  done,
+  todo,
+  api
+}: {
+  title: string
+  done: string
+  todo: (sizeMB: number | undefined) => string
+  api: {
+    status: () => Promise<{ installed: boolean; sizeMB: number }>
+    download: () => Promise<{ ok: boolean; error?: string }>
+    remove: () => Promise<void>
+    onProgress: (cb: (p: { done: number; total: number }) => void) => () => void
+  }
+}): JSX.Element {
   const [st, setSt] = useState<{ installed: boolean; sizeMB: number } | null>(null)
   const [prog, setProg] = useState<{ done: number; total: number } | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const refresh = (): void => void window.api.ocrModelsStatus().then(setSt)
+  const refresh = (): void => void api.status().then(setSt)
   useEffect(() => {
     refresh()
-    return window.api.onOcrModelsProgress(setProg)
+    return api.onProgress(setProg)
   }, [])
   const busy = !!prog && prog.done < prog.total
   const mb = (b: number): string => (b / 1024 / 1024).toFixed(0)
   return (
-    <SettingRow
-      title="로컬 OCR 모델"
-      desc={
-        st?.installed
-          ? '설치 완료 — 글자 위치 찾기·일본어·영어 인식 모델이 모두 준비되었습니다.'
-          : `처음 한 번 모델 파일(약 ${st?.sizeMB ?? 225}MB)을 받아야 합니다. 받은 뒤에는 인터넷 없이 기기에서 인식합니다.`
-      }
-    >
+    <SettingRow title={title} desc={st?.installed ? done : todo(st?.sizeMB)}>
       {err && <span className="warn err">{err}</span>}
       {busy && (
         <span className="hint">
@@ -71,7 +79,7 @@ function LocalOcrModels(): JSX.Element {
         <button
           className="mini danger"
           onClick={async () => {
-            await window.api.ocrModelsDelete()
+            await api.remove()
             refresh()
           }}
         >
@@ -83,7 +91,7 @@ function LocalOcrModels(): JSX.Element {
           disabled={busy}
           onClick={async () => {
             setErr(null)
-            const r = await window.api.ocrModelsDownload()
+            const r = await api.download()
             if (!r.ok) setErr(r.error ?? '다운로드 실패')
             setProg(null)
             refresh()
@@ -93,6 +101,42 @@ function LocalOcrModels(): JSX.Element {
         </button>
       )}
     </SettingRow>
+  )
+}
+
+// 로컬 OCR models (all downloaded together).
+function LocalOcrModels(): JSX.Element {
+  return (
+    <ModelRow
+      title="로컬 OCR 모델"
+      done="설치 완료 — 글자 위치 찾기·일본어·영어 인식 모델이 모두 준비되었습니다."
+      todo={(mb) => `처음 한 번 모델 파일(약 ${mb ?? 225}MB)을 받아야 합니다. 받은 뒤에는 인터넷 없이 기기에서 인식합니다.`}
+      api={{
+        status: window.api.ocrModelsStatus,
+        download: window.api.ocrModelsDownload,
+        remove: window.api.ocrModelsDelete,
+        onProgress: window.api.onOcrModelsProgress
+      }}
+    />
+  )
+}
+
+// 인페인팅 모델 (optional LaMa): used for erasing text on the art once downloaded.
+function LamaModel(): JSX.Element {
+  return (
+    <ModelRow
+      title="인페인팅 모델 (선택)"
+      done="설치 완료 — 그림 위 원문을 지운 자리를 LaMa 모델이 주변 그림을 이어 복원합니다."
+      todo={(mb) =>
+        `받으면 말풍선 밖 그림 위 원문을 지운 자리를 LaMa 모델(약 ${mb ?? 199}MB · Apache-2.0)이 선과 톤을 이어 복원합니다. 받지 않으면 내장 방식으로 채웁니다.`
+      }
+      api={{
+        status: window.api.lamaStatus,
+        download: window.api.lamaDownload,
+        remove: window.api.lamaDelete,
+        onProgress: window.api.onLamaProgress
+      }}
+    />
   )
 }
 
@@ -129,6 +173,7 @@ export default function TranslateSection(): JSX.Element {
             인식된 대사만 페이지 단위로 한 번에 번역합니다. 이미지는 외부로 보내지 않습니다.
           </p>
           <LocalOcrModels />
+          <LamaModel />
           <SettingRow
             title="번역기"
             desc="자동: Gemini 키가 있으면 Gemini, 없으면 아래 LLM, 둘 다 없으면 무료 번역기. 번역이 실패해도 무료 번역기로 이어서 처리합니다."

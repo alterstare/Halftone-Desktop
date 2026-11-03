@@ -586,7 +586,7 @@ async function localTranslate(buf: Buffer, settings: Settings, langHint?: string
   if (!r.ok) return { ok: false, w: page.w, h: page.h, blocks: page.blocks, error: r.error ?? '번역 실패' }
   const tr = r.texts
   const blocks = page.blocks.map((b, i) => ({ ...b, tr: tr[i] || '' })).filter((b) => !romanized(b.text, b.tr))
-  return { ok: true, w: page.w, h: page.h, blocks }
+  return { ok: true, w: page.w, h: page.h, blocks, mask: page.mask }
 }
 
 // Translation editor's 영역 번역: OCR just the region the user dragged, then
@@ -603,6 +603,31 @@ export async function translateRegion(
   if (!text.trim()) return { ok: false, text: '', tr: '', error: '글자를 찾지 못했습니다' }
   const r = await localLines([text], settings, langHint, ctx)
   return r.ok ? { ok: true, text, tr: r.texts[0] ?? '' } : { ok: false, text, tr: '', error: r.error ?? '번역 실패' }
+}
+
+// Translation editor's 다시 번역 (selected lines): the source lines again through
+// the page engine's translator — Gemini / the LLM in text mode for those
+// engines, the local chain for 'local', else the free translator (Papago has
+// no text API here).
+export async function translateLines(
+  texts: string[],
+  settings: Settings,
+  langHint?: string,
+  ctx?: TransContext
+): Promise<{ ok: boolean; texts: string[]; error?: string }> {
+  if (!texts.length) return { ok: true, texts: [] }
+  const extra = contextBlock(settings, ctx)
+  try {
+    let tr: string[] | null = null
+    if (settings.translateEngine === 'gemini') tr = await geminiTextTranslate(texts, settings, langHint, extra)
+    else if (settings.translateEngine === 'llm') tr = await llmTextTranslate(texts, settings, langHint, extra)
+    else if (settings.translateEngine === 'local') return await localLines(texts, settings, langHint, ctx)
+    else return await translateTexts(texts, settings, langHint)
+    if (tr.length !== texts.length) return { ok: false, texts: [], error: '번역 결과의 줄 수가 맞지 않습니다' }
+    return { ok: true, texts: tr }
+  } catch (err: any) {
+    return { ok: false, texts: [], error: String(err?.message ?? err) }
+  }
 }
 
 // AI draft of a work's character notes: who appears, how each one talks

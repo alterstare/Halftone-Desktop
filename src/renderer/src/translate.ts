@@ -1,4 +1,5 @@
-import type { TransResult, TransBlock, TransContext } from '../../shared/ipc'
+import type { TransResult, TransBlock, TransContext, TransDoc } from '../../shared/ipc'
+import type { Settings } from '../../shared/types'
 import { getImages, pageOf } from './images'
 import { useStore } from './store'
 import { loadImage } from './inpaint'
@@ -79,6 +80,36 @@ export function translateRegion(
   return toJpegInfo(src).then(({ b64 }) => window.api.translateRegion(b64, rect, langHint, pageContext(src)))
 }
 
+// Translation editor's 다시 번역: source lines through the page engine's translator.
+export function translateLines(src: string, texts: string[], langHint?: string): Promise<{ ok: boolean; texts: string[]; error?: string }> {
+  return window.api.translateLines(texts, langHint, pageContext(src))
+}
+
+// The model the current settings translate with, as the editor shows it.
+export function transModelLabel(st: Settings): string {
+  const gemini = st.geminiModel || 'gemini-2.5-flash'
+  const free = st.freeTranslator === 'deepl' ? 'DeepL' : 'Google 번역'
+  switch (st.translateEngine) {
+    case 'papago':
+      return st.translateProvider === 'localServer' ? '로컬 서버' : 'Papago'
+    case 'free':
+      return `Tesseract · ${free}`
+    case 'gemini':
+      return gemini
+    case 'llm':
+      return st.llmModel || 'LLM'
+    case 'local': {
+      // Same choice as main's localLines.
+      const want = st.localTranslator ?? 'auto'
+      const useGemini = want === 'gemini' || (want === 'auto' && !!st.geminiApiKey)
+      const useLlm =
+        !useGemini && (want === 'llm' || (want === 'auto' && (!!st.llmApiKey || st.llmProvider === 'ollama') && !!st.llmModel && !!st.llmBaseUrl))
+      return `로컬 OCR · ${useGemini ? gemini : useLlm ? st.llmModel : free}`
+    }
+  }
+  return st.translateEngine
+}
+
 // Free engine: OCR locally (Tesseract), translate the strings via main
 // (Google unofficial / DeepL), then assemble the same box+translation shape.
 async function freeTranslate(src: string, langHint?: string): Promise<TransResult> {
@@ -106,8 +137,9 @@ export function getTranslation(src: string, langHint?: string): Promise<TransRes
   if (!p) {
     p = (async () => {
       const edits = await ensureEdits()
-      // A saved manual edit wins — no OCR/API call, just replay the edited blocks.
-      if (edits[src]) return { ok: true, w: 0, h: 0, blocks: edits[src] }
+      // A saved manual edit wins — no OCR/API call, just replay the edited blocks
+      // (with the OCR's text mask kept at save, so it erases as it did before).
+      if (edits[src]) return { ok: true, w: 0, h: 0, blocks: edits[src], mask: (await window.api.getTransMask(src).catch(() => null)) ?? undefined }
       const engine = useStore.getState().settings?.translateEngine ?? 'papago'
       return engine === 'free' ? freeTranslate(src, langHint) : imageTranslate(src, langHint)
     })()
@@ -121,15 +153,107 @@ export function getTranslation(src: string, langHint?: string): Promise<TransRes
   return p
 }
 
+// The translation editor's 전체 다시 번역: the page through the engine again,
+// past any saved edit. Becomes the page's cached run (its mask goes with the
+// edit when the editor saves).
+export async function retranslatePage(src: string, langHint?: string): Promise<TransResult> {
+  const engine = useStore.getState().settings?.translateEngine ?? 'papago'
+  const r = await (engine === 'free' ? freeTranslate(src, langHint) : imageTranslate(src, langHint))
+  if (r.ok) {
+    cache.set(src, Promise.resolve(r))
+    resolved.set(src, r)
+  }
+  return r
+}
+
 // Persist a page's manually edited blocks and make them the live translation so the
-// viewer/export pick them up immediately. Empty list clears the override.
-export async function saveTranslationEdit(src: string, blocks: TransBlock[]): Promise<void> {
+// viewer/export pick them up immediately. Empty list clears the override (and the
+// painted layer). `paint`: the editor's painted layer (data URL; null = none;
+// left out = unchanged).
+export async function saveTranslationEdit(src: string, blocks: TransBlock[], paint?: string | null): Promise<void> {
   const edits = await ensureEdits()
+  // The page's text mask (the OCR run this edit replaces): kept with the edit.
+  const mask = blocks.length ? (await cache.get(src)?.catch(() => null))?.mask : undefined
   if (blocks.length) edits[src] = blocks
   else delete edits[src]
   cache.delete(src) // force re-resolve (override if present, else fresh translation)
-  resolved.set(src, { ok: true, w: 0, h: 0, blocks }) // edited lines are the best context
+  resolved.set(src, { ok: true, w: 0, h: 0, blocks, mask }) // edited lines are the best context
+  if (!blocks.length || mask) await window.api.saveTransMask(src, mask ?? null)
+  if (!blocks.length) paint = null
+  if (paint !== undefined) {
+    paints.set(src, Promise.resolve(paint ? await loadImage(paint) : null))
+    await window.api.saveTransPaint(src, paint)
+  }
   await window.api.saveTransEdit(src, blocks)
+}
+
+// A page's painted layer (the editor's inpaint tools), loaded once per page.
+const paints = new Map<string, Promise<HTMLImageElement | null>>()
+export function getTransPaint(src: string): Promise<HTMLImageElement | null> {
+  let p = paints.get(src)
+  if (!p) {
+    p = window.api
+      .getTransPaint(src)
+      .then((url) => (url ? loadImage(url) : null))
+      .catch(() => null)
+    paints.set(src, p)
+  }
+  return p
+}
+
+// A page's editor document (layers + text styles), loaded once per page: what
+// the viewer and export draw for a page edited in the layered editor.
+export interface LoadedDoc {
+  doc: TransDoc
+  images: Map<string, HTMLImageElement>
+}
+const docs = new Map<string, Promise<LoadedDoc | null>>()
+export function getTransDoc(src: string): Promise<LoadedDoc | null> {
+  let p = docs.get(src)
+  if (!p) {
+    p = window.api
+      .getTransDoc(src)
+      .then(async (r) => {
+        if (!r) return null
+        const images = new Map<string, HTMLImageElement>()
+        for (const [id, url] of Object.entries(r.images)) images.set(id, await loadImage(url))
+        return { doc: r.doc, images }
+      })
+      .catch(() => null)
+    docs.set(src, p)
+  }
+  return p
+}
+// Save a page's editor document (null = back to the auto translation: the doc,
+// the edit, the painted layer and the kept mask all go). `images`: changed layers'
+// PNGs (null = emptied).
+export async function saveTransDoc(src: string, doc: TransDoc | null, images: Record<string, string | null>): Promise<void> {
+  if (!doc) {
+    docs.set(src, Promise.resolve(null))
+    await window.api.saveTransDoc(src, null, {})
+    await saveTranslationEdit(src, [], null)
+    return
+  }
+  const prev = await getTransDoc(src)
+  const next = new Map(prev?.images ?? [])
+  for (const [id, url] of Object.entries(images)) {
+    if (url) next.set(id, await loadImage(url))
+    else next.delete(id)
+  }
+  for (const id of [...next.keys()]) if (!doc.layers.some((l) => l.id === id)) next.delete(id)
+  docs.set(src, Promise.resolve({ doc, images: next }))
+  await window.api.saveTransDoc(src, doc, images)
+  // The blocks as the page's edit too (the 편집 marks, the next page's context).
+  await saveTranslationEdit(src, doc.blocks)
+}
+
+// 번역 편집기 목록's 초기화: every page of the work back to the auto translation
+// (documents, edits, painted layers, kept masks all go; pages re-translate).
+export async function resetWorkEdits(workId: string): Promise<void> {
+  for (const src of await getImages(workId)) {
+    await saveTransDoc(src, null, {})
+    clearTranslation(src)
+  }
 }
 
 // Pages (image src) that carry a saved manual edit.

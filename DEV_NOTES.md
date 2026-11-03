@@ -183,6 +183,9 @@ type DownloadSpec =
   `--r3`=8 `--r4`/`--r5`=12 `--r6`=16. **Buttons cap at 12px radius — no pills.** Exception: icon-only
   buttons (`.mini.icon`) are circles (`aspect-ratio: 1; border-radius: 50%`).
 
+Scrollbars: thumb = `--scroll-thumb` (translucent black in light, white in
+dark), track transparent — a solid token thumb vanished on same-colour panes.
+
 ### Shared UI components (reuse — do NOT hand-roll native controls)
 In `src/renderer/src/components/`:
 - **`Dropdown<T extends string>`** — styled select. `value`, `options: [val,label][]`,
@@ -232,6 +235,19 @@ in-progress, `✓`/`✗`/`■`/`▶`/`⏸`/`⬇` glyph prefixes for status/actio
 - Online list pagination: clear items (`setItems([])`) before fetching the next page
   so the previous page doesn't linger under the loader (Browse.tsx, ComicBrowse.tsx,
   OnlineList.tsx).
+- Online list pages go through `pageCache.ts` (`loadPage` / `cachedPage` /
+  `prefetchPages`, 5 min, 40 pages): after a page shows, the pages either side
+  are fetched ahead, so paging to them shows the list at once (no loader). Keys
+  `doujin:<source json>:<page>` (Browse + OnlineList share them) and
+  `comic:<base>:<source json>:<page>`; a reload (🌐 pressed again) drops that
+  source's pages. Manga-site prefetches go through the scraper's one queue
+  (next page first), so a click right after a page shows can wait behind them.
+- 폴더 분류 (Home, beside 그룹 분류): the mode's library folders
+  (`util.libraryFolders` — doujin: libraryRoots + 작가 폴더 (flattenRoots) + favorites / download /
+  language folders; normal: normalRoots + its download folder) with counts;
+  a work's folder = the deepest root it is under (`workFolder`, a merged work
+  by its first source), '' = 그 밖의 폴더. State `store.folderFilter`
+  (folder → shown); online-only favorites show only with every folder on.
 - Electron main is CJS at runtime; shared/renderer are ESM. Keep imports path-correct
   (`../../shared/...`).
 
@@ -326,6 +342,343 @@ ESM wrapper whose first import calls `app.setPath('appData', <scratch>)`
 `SORTA_DATA_DIR` / `ENVELOPE_DATA_DIR` for the embedded apps:
 `main.mjs` = `import './appdata.mjs'` then `import 'file:///…/out/main/index.js'`
 (static imports, so the schemes still register before app ready).
+
+In-place translation drawing (`src/renderer/src/inpaint.ts`) has its own
+debugger: `node scripts/inpaint-debug.mjs <image> [outDir] [--tr "줄1|줄2"] [--nomask]`
+runs the real local OCR (models from `%APPDATA%/Halftone/ocr-models`) and the
+real `drawTranslation` in a hidden Electron window exactly as the app does
+(any format Chromium decodes, webp too; OCR'd from the canvas-downscaled JPEG,
+drawn on the page itself; `--nomask` = without the OCR text mask, as saved
+edits from before 2026-11-02 draw), and writes `result.png`,
+`debug.png` (OCR boxes, the page's bubbles striped per lobe, the parts each
+block owns tinted, the editor's boxes dashed purple) and `debug.json` (bubbles;
+per block: glyph size, target font, parts, laid-out sizes; `boxes` = the
+editor's boxes) to `.inpaint-debug/` (git-ignored). Use the
+ORIGINAL page file the app opens (`.inpaint-debug/orig/`: the works' avif files —
+a JPEG conversion gives OCR other pixels and other blocks), not a translated screenshot; a small crop changes the SFX size
+rule and the OCR.
+
+How `inpaint.ts` places text (keep it this way — per-block box heuristics made
+the same balloon come out differently on every page):
+1. **Bubbles are found once per page, from the text, never from OCR boxes**
+   (`findBubbles`): each group of glyphs (text-mask components) seeds a flood
+   of the colour around it, closed by its outline (gap-tolerant, widened when
+   it leaks, rejected past 15% of the page), then extended over light pixels
+   up to the outline for see-through balloons — lum ≥ α·255 − 10 with α the
+   balloons' measured opacity (`measureAlpha`: fill F vs the flat background
+   just past a dark outline, α = (F − B)/(255 − B), white balloons only; pooled
+   per work = page URL's folder, `pageOpacity`), else / when that leaks
+   lum > 150 (some outlines are grey ~120 in the original); confined to the block's box ± 60% (touching that
+   limit = leaked into the art → no extension); the text mask next to
+   the fill counts as inside (else a gradient balloon's glyph columns wall it
+   into strips); two finds of one balloon (text on different shades) are
+   merged, as are parts touching with no outline between (a see-through part
+   over dark art next to the plain fill); split into lobes by necks, inkless
+   lobes (tails) dropped. Erase in a bubble = mask glyphs + fill-enclosed
+   holes near text + pixels in each block's glyph colour inside its box (the
+   mask misses …… / ♡), all grown so the rebuild doesn't smear colour back.
+   **Each balloon is classified first (`Bubble.kind`), each kind found its own
+   way** — don't fold kinds back into one path with shared exceptions:
+   see-through (own α measured, the work's α on a light not-white fill, or an
+   outlined find whose extension grows it > 10%) → fill + extension above;
+   outlined → fill flood only; plain (opaque, no outline, e.g. white on light
+   grey) → `castRays`: 48 rays from the block's box over the fill (glyphs and
+   their halos skipped; the fill = ring 3–8 px around the box, followed along
+   gradients but capped at half the edge contrast, `drift`) to where they leave
+   it; more steps than dark outlines = plain; region = fill colour (± drift)
+   within the traced outline. Joined plain balloons (no outline between) each
+   trace their own and the shared pixels go to whichever outline they're
+   deeper in (`carve`); merged only when each holds the other's text.
+   `Bubble.note` / debug.json `note` = kind, ray counts, extension verdict;
+   the debugger draws a plain bubble's traced outline in magenta. A fill flood
+   > 1.6× the rays' traced area spilled onto a close background → plain.
+   **Font size beats the outline** (user's call): layouts shrink only to 85%
+   of the OCR glyph size (`minFont`), past that keep the size and run over
+   the outline (`overflowAt`, kept on the page) — unless the size is
+   implausible (source chars × size² > its lobes' area → misread, fit down to
+   9 as before). **Text areas never overlap** (user's rule): overflow
+   (`claim`) grows the lobe step by step (¼…2 × fs) only over pixels no other
+   block's parts or placed text hold — it moves aside; no room → shrinks into
+   its lobe (`shrinkInto`). Joined plain balloons split their shared pixels
+   by the nearer block's glyphs (`carve`; not the OCR box, which can run far
+   past the text, nor the traced outlines, which run into each other) and
+   stay one bubble with a lobe each (`joinLobes`). **One lobe, one speech**:
+   blocks whose text is all in one lobe and of one colour (`sameInk`) are
+   laid out as one text — the first in reading order (`boxOrder`) draws them
+   joined (`Job.unit`), the rest `into` it; another colour = another speaker,
+   they share the lobe as before.
+   A block's home bubble = the one holding most of its text if ≥ 25% (the
+   OCR can box dialogue with a sound effect beside the balloon); its erase is
+   its box clipped to the bubble's rect (the effect stays).
+   Text left as it is (SFX-skipped) still holds its part of a lobe (a rival
+   in the split) and its pixels in the bubble erase (`kept`).
+   **Erase must survive a weaker text mask** (the app's GPU-downscaled JPEG
+   gives a slightly different mask than a software one — a 1 px thinner mask
+   left a white glow in a black balloon that the rebuild then spread): the
+   text's colours = every common colour of its masked glyphs clearly off the
+   fill (`textColours` — fill, outline, glow); in its boxes any pixel nearer
+   one of them than the fill is erased, and anywhere around it is never a
+   source for `fillIn` (`avoid`; on the art via `textColoured`, only over a
+   flat ground). **Opaque balloons only** — a see-through balloon (and the art)
+   shows art under the text, so the mask's colours are the art's too (that
+   erased Neon p1's art): there, per box, the strokes' colour (`glyphColour`,
+   not the mask's commonest, which can be an art shadow) is erased, the art
+   stays a source.
+   **Background colour** (`sampleBg`, also the editor's default swatch) = the
+   colour in both the box and the ring around it, not the box majority (bold /
+   glowing text can be most of the box). Check with
+   `IP_ERODE=1` / `2` (debugger env: mask shrunk n cells).   **Korean word cuts** (`cutAt`, a word wider than its
+   line): at a grammar boundary if one fits — before a particle (오빠/한테),
+   an auxiliary verb after its connector (먹고/싶다), after a connective
+   ending (`koreanCut`; word lists, no analyser) — else as far as fits but
+   not onto an ending's vowel (달라/붙어서); never a lone syllable either side
+   (a layout needing that is rejected; overflow / box fallbacks are `loose`).
+   Trailing punctuation (, . ! ? 」 …) never starts a line:
+   `wrap` glues a lone punctuation token to the word before and hangs it past
+   the line's edge (widths measured without it, `bodyWidth`; lines centred
+   on their body) — ellipses ("...", "……") excepted, they may stand alone.
+   Whole words may shrink to 80% of the word-broken size
+   (below minFont) — a broken word reads worse. Line margin = 0.08 fs (the
+   glyphs' side bearing + halo are the rest). Lobes take back a 6 px rim of
+   their bubble (`RIM`): the distance-map split can hand the thin rim to a
+   neighbouring lobe that wraps round to it. Overflow keeps the lobe's width (words broken) and runs
+   past top/bottom — widening drifted text off narrow balloons. Per-block
+   sizes are still a little noisy, so
+   `layoutAll` groups a page's sizes within 1.3× (`pageSizes`) and lays each
+   block out at its group's median (≤ 1.1× its own); not fitting → its own
+   size; fitting nowhere → over the outline at the median size the rest of
+   its group fitted at, if smaller. **Text keeps the source colour** (`glyphColour`: dominant of
+   the farthest-from-fill 15% of mask pixels; speakers are told apart by
+   colour) for blocks in a bubble; on the art `textPaint` (below). **One
+   colour of text = one colour throughout the work** (`settleInks`): every
+   page's inks/halos pooled per work (page URL folder, like `pageOpacity`),
+   grouped within `SAME_INK`, each drawn as its group's per-channel median —
+   a glyph's blended edges pulled the measure toward whatever was under it,
+   so the same pink changed shade with the background. Halo = the text's
+   own outline colour when it has one; else on the art the opposite shade of
+   the ink (never the art's colour), in a balloon the fill colour when the
+   text contrasts with it.
+   **Text on the art (no balloon)** — first, false balloons are rejected per
+   kind: a plain find needs a paper fill (chroma ≤ `PLAIN_CHROMA` — skin /
+   sheets are coloured); a see-through find needs a light fill (≥ DARK and
+   ≥ α·255) and must be closed one way or the other (extension not leaked,
+   or rays outline ≥ 2 × step; real see-through balloons with few outline
+   rays all stop their extension, those that leak all have outline-majority
+   rays). Then `artRooms`: a block's room = its OCR lines (`TransBlock.cols`,
+   local OCR's text lines clipped to the block; else the box) + the gaps
+   between them; blocks side by side (lines within `ROOM_GAP` = 2 ems,
+   overlapping ≥ 30%) share one room; the first in reading order lays out all
+   their texts horizontally across it, one paragraph per block (another
+   speaker → another line), each paragraph in its block's colours
+   (`Job.paints`, `lineParas`). Rooms shrink only to `minFont` (whole words
+   too), then `claim` the least room past them. `textPaint` (ink / halo / rim
+   off the glyphs alone): masked pixels' two commonest colours; outer = the
+   one clearly more present in the ring 1–2 outline-widths out (a ground),
+   else the shallower one in the mask (outline round the ink); halo only when
+   that outer colour doesn't go on past (own outline). `eraseOnArt` pads the
+   box by an outline width (0.25 em) and also takes pixels in the ink / rim
+   colour within that of the mask (outline remnants). Erase in bubbles pads
+   boxes the same. Verified at `IP_ERODE` 0/1/2 on a synthetic page
+   (`.scratch/noballoon/neon1.png`, built by `mk.cjs` from a json of columns).
+   `fillIn` averages, so erasing over line art leaves a smooth patch; the
+   optional **인페인팅 모델** (설정 › 번역, below 로컬 OCR 모델) fixes that:
+   LaMa (Carve/LaMa-ONNX `lama_fp32.onnx`, Apache-2.0, ~199MB, input image
+   0‥1 + mask, output 0‥255, fixed 512²) in `src/main/lib/lama.ts`, stored in
+   userData/inpaint-models (not ocr-models: deleting the OCR models wipes that
+   dir), run one patch at a time (~1s CPU) via `lamaPatch` ipc. Renderer:
+   `healPage(img, res)` re-runs the erase pass with `erasing` recording every
+   `eraseOnArt` mask, cuts square patches (≥512, merged when overlapping) round
+   them, sends them scaled to 512², and returns a `Healed` page (cached per
+   page+blocks); `drawTranslation(…, heal)` pastes it over its own fill where
+   both masks agree. Balloons keep their flat fill. Not downloaded → null →
+   built-in fill. The viewer draws at once, then redraws when healPage
+   resolves; export awaits it; the editor too (asked again 300 ms after the
+   blocks settle). Debugger:
+   `IP_LAMA=<path to onnx>`.
+   Follow-up from the user's pages (vertical text on a grey wall, 2026-11-02):
+   a plain balloon's fill must also be paper (`PLAIN_LIGHT` ≥200 or
+   `PLAIN_DARK` ≤60 luminance) — a grey wall's bright patch was swallowing the
+   blocks; a room's size is always trusted (`sizeTrusted`), else minFont fell
+   to 9px (ant-sized text); `ROOM_GAP` 2.5 em; `maskReach` grows an art
+   block's erase box along text-mask runs (gaps ≤0.6 em, ≤4 em past the box,
+   not into other boxes) — the detector box can stop short of a column's end.
+   Debugger writes `mask.txt` (the OCR mask as '#'/'.'). A plain balloon must
+   also hold `PLAIN_HOLDS` (0.8) of its text's box — a white window behind a
+   column took it (the editor, drawing without the mask, didn't, so the two
+   differed). LaMa holes are grown by half an outline reach per erase plus
+   `HEAL_EDGE` px over the page (glow remnants), and the healed page is pasted
+   once in `eraseAll` after the art erases.
+2. **Blocks are only assigned** (`planJobs`): a block takes the lobes holding
+   ≥15% of its text; a lobe shared by several blocks is cut between them
+   (voronoi), a part holding several of a block's paragraphs is cut per
+   paragraph — only when ≥2 of them have several lines (widely spaced columns
+   come back from OCR as one paragraph per column). A lone block in a lone bubble is just laid out in it.
+3. **Font size = the source glyph size** (`TransBlock.size`, local OCR's
+   character pitch: its lines' length ÷ the characters read, an ellipsis or a
+   !/? run one em — `blockSize`; else an estimate from box/char count), smaller
+   only when it doesn't fit. Not the lines' thickness (detector map ×2: close
+   columns come back as one thick line → 1.5–2× too big) nor glyph pixels
+   (outlined/glowing text fuses into column blobs) — both were tried.
+4. **A junk read isn't dropped whole** (`ocrPage`): the detector can box a
+   balloon's columns together with a sound effect beside it, and manga-ocr
+   reads the lot as junk. Its own text lines are regrouped (`groupLines`) and
+   read; still junk → read line by line, the clean lines regrouped and their
+   texts joined in reading order (the effect stays junk and drops).
+5. **Ellipsis in wrapping**: an ellipsis written onto a word ("직장이라…활용하기")
+   is a break point after it (`AFTER_DOTS`, the two halves joined without a
+   space on one line), and a cut never lands before / inside an ellipsis glued
+   to its word (`cutAt`) — else the word was cut by character (활/용하기) and the
+   dots went down a line on their own.
+6. **Odd balloons** (focus-line burst, spiky, cloud; synthetic test
+   `.scratch/burst/odd.png` from `mk.cjs`): a fill leaking out between the
+   focus lines round a burst balloon is cut by an opening in `splitBubble`
+   (`opened`: k = `OPEN_EM` 0.3 em, ≥ `OPEN` 4 px; the parts holding text kept)
+   — before, the leak ran to the page edge and merged the burst with the
+   balloon beside it. The detector's mask can mark outlines / focus lines as
+   text: `fillPart` adds mask text to the fill only within an em of its block's
+   box, and `eraseBubble` erases mask strokes past the inside or on its rim
+   (`RIM_DEPTH` 6) only near the boxes' own text — else a spiky balloon's
+   outline got erased.
+7. **Editor inpaint tools** (`TransEditor.tsx`, pixel work in `paintTools.ts`):
+   the editor stacks three canvases — the erased page (`drawTranslation`'s
+   canvas), a painted layer, and the text (`DrawOpts.text`) — so painting never
+   re-runs drawTranslation. Tools: 색상 추출 (Shift: selected block's text
+   colour), 채우기 (`floodRegion` on erased page + layer, tolerance), 브러시 /
+   지우개 (canvas strokes, clipped to the selection), 복구 브러시 (Alt+click
+   source; clones a disc per stamp, then `healStroke` spreads the edge's
+   dst−src difference over the stroke — membrane blend), 선택: 사각형 · 다각형
+   올가미 · 자석 올가미 (`livewire` = Dijkstra on `edgeCost`; keep its dist
+   Float64 + settled flags — float32 rounding looped forever). Undo steps hold
+   the layer's changed rect before/after (`Step.patch`), sharing the blocks
+   array with the previous step. The layer is saved per page
+   (`saveTransPaint` → userData/trans-paint/<sha1(src)>.png; `getTransPaint`
+   in translate.ts) and drawn by the viewer/export via `DrawOpts.paint`; 자동으로
+   되돌리기 clears it. `TransBlock.ink` = manual text colour (wins over the
+   read/settled ink; halo then by the usual rule). Colour swatches commit on
+   the native `change` event (React's onChange fires per input → one history
+   step + full repaint per colour dragged over = the lag). Harness for the
+   editor alone: `.scratch/edh` (esbuild entry + electron main + t1.js;
+   t3.js = real OCR blocks + mask of 484-002, b484.json / m484.json).
+8. **Editor = viewer** (user's rule: the editor opens on the page exactly as
+   the viewer shows it): it draws with the same `TransResult` (blocks + OCR
+   text `mask`, prop `mask`) and the same `healPage`. A saved edit replaces
+   the OCR run, so the mask is kept with it (`saveTransMask` →
+   userData/trans-mask/<sha1(src)>.bin: w, h u32, scale f64, bits) and
+   `getTranslation` returns it with the override. The boxes shown are where
+   each translation was drawn (`drawTranslation` returns `Drawn`: `inks`,
+   `boxes` = its lobes ∪ text, a joined block `null` + `lead`, SFX-skipped
+   `skip`) — not the OCR box, which can hold a sound effect beside the
+   balloon. Touching a block never switches it to the manual path:
+   text / ink edits set `TransBlock.edited` (text final, empty = erase, no
+   SFX skip; erase + layout as auto), a moved / resized box sets
+   `TransBlock.room` (layout there at its glyph size, the source still erased
+   at x/y/w/h; a joined speech takes any member's room). `bg` (flat bubble
+   fill) only from the 배경 swatch or 말풍선 추가; edits saved before this have
+   `bg` stamped on every touched block and keep the old look.
+9. **Layered, staged editor** (2026-11-03, user's spec) — `TransEditor.tsx`
+   edits a per-page **`TransDoc`** (shared/ipc.ts): `blocks` (+ `id`, `style`,
+   `runs` = rich text over `tr`, `look` = the auto pass's ink/halo/fill/art),
+   `regions` (bubble regions: rect + bit-packed mask, `blocks` = ids whose text
+   goes in it — several = one joined speech, `layer`), `layers` (top first:
+   `bubbles` = guide only, `pixels` = PNG, `text`; the page under all; `auto`
+   = written by an auto step, re-running replaces only that layer).
+   Saved by `saveTransDoc` → userData/trans-doc/<sha1(src)>/doc.json +
+   <layer>.png; translate.ts `getTransDoc` caches it; **the viewer and export
+   draw an edited page with `renderDoc`** (page + pixel layers + `drawDocText`
+   in layer order), never re-running the auto pass. The blocks also go to
+   translationEdits (편집 marks, next-page context). 자동으로 되돌리기 = doc null.
+   A page without a doc opens with `autoPage` (planJobs + eraseAll once:
+   regions = each job's parts, erase = changed pixels) as 자동 말풍선 /
+   자동 인페인팅 layers — `drawDocText` over them reproduces drawTranslation
+   (debugger `doc.png`, `docDiff` ≈ 0 on all test pages; keep it that way:
+   `docJobs` mirrors planJobs' joins, `renderDoc` must use a
+   willReadFrequently canvas or the GPU downscale differs).
+   **Lag fix**: moving a box / a colour palette used to re-run the whole
+   drawTranslation (0.4–1.2 s) per mousemove/input; now only `drawDocText`
+   (1–2 ms). Fonts: layouts carry a `Face` (`fontAt`, set per job in
+   layoutAll from the block's style); runs only affect drawing (`drawRich`:
+   pieces per style, align left/center/right/justify, underline/strike).
+   Stages: 1 list only (영역 번역), 2 regions (selection → Enter → region on
+   사용자 말풍선, which sits above 자동 말풍선 so it wins for its block; 자동
+   선택), 3 painting (mask = selection else regions, 안/밖; 자동 인페인팅 into
+   the mask; healing brush aligned: offset kept across strokes, the source
+   mark follows the cursor), 4 text (boxes = `room`; format bar applies to
+   the textarea's selected range, else the block). Keys (Photoshop-like,
+   hard-coded in TransEditor): V I M Shift+M L Shift+L G B J E, [ ], 1–4
+   stages, Ctrl+D, Ctrl+Shift+I, Ctrl+Shift+N, Ctrl+S, Ctrl+0/=/-, Ctrl+B/I/U,
+   Ctrl+Shift+/ (strike), Ctrl+Shift+L/C/R/J, Ctrl+Shift+>/<, Alt+wheel =
+   brush size, Delete = whatever is selected (active region › selection ›
+   block). Harness: `.scratch/edh` t4.js (all stages), t5.js (UI shot per
+   stage), t6.js (font picker, regions, Delete, Alt+wheel).
+   Selections (`sels`, polygons) are kept until the user removes them (user's
+   rule): a new one adds (mask = union), a click / Esc never clears them;
+   Delete = the last one, Ctrl+D / 선택 해제 = all; Enter in stage 2 turns the
+   union into one region. Harness t10.js. A click on a selection (move
+   tool, or a no-drag click with 사각형/원형) picks it (`activeSel`, drawn
+   dark purple): the mask is then that one alone; a click on nothing picks
+   nothing (mask = all selections). Mask order: picked selection › picked
+   region › all selections › all regions. Delete removes the picked one only.
+   자동 인페인팅 with selections as the mask fills them whole (`fillSelection`:
+   LaMa patches via `lamaInto`, else fillIn) — sound effects, which the auto
+   erase skips; outside the mask the layer keeps its pixels (it used to be
+   wiped). Harness t11.js.
+   **Gradients / opacity / rotation** (2026-11-03): `TextStyle.opacity`
+   (fill alpha) and `gradient` (`TextGradient`: angle, 0 = left→right, 90 =
+   top→bottom; stops pos/colour/alpha) — drawRich fills with `gradientFill`
+   across the whole job's text area. 그라데이션 인식 = tool `grad` (stage 3,
+   Shift+I): drag round a lettering or click a selection → `readGradient`
+   (gradient.ts: ground = border colours, letters = pixels off them (only the
+   coloured ones when most are), angle = least within-band spread over 16
+   bands, stops added where a straight blend misses a band by > 20) → saved
+   in localStorage `halftone.transGradient`, shown as a bar under the tool.
+   Stage 4 `GradientButton` (split: main = saved gradient on / off, arrow =
+   stops bar, colour, opacity, position, angle). `ColorButton` (split: main
+   applies, arrow = colour + 투명도) for 글자색 (a pen colour, Word-like) and
+   브러시 색 (main = fill the mask; brush strokes at an opacity are built
+   full-strength on their own canvas, laid on at it). Popups share
+   `usePopover`; their mousedown preventDefault (keeps the textarea's
+   selection) skips inputs — on a range it stopped the drag.
+   외곽선 button: on = `outline !== false` (the auto halo counts as on);
+   off = `outline: false` = no stroke at all, on again = the set width.
+   Gradient menu's 투명도 = the text's `opacity` (whole gradient), no per-stop
+   alpha / position sliders (stops move on the bar). 인물 메모 sits on the
+   stage-1 options row (`transExtra`), not the header.
+   Selections stay interactive in every stage: in stages 1 / 4 (no
+   selection tools) the move tool picks one by clicking its polygon
+   (`.ted-ants.pickable`), a click elsewhere unpicks; the picked selection
+   (or stage 2–3 region) has a × button (`.ted-sel-del`) beside the rotate
+   handle, and Delete removes a picked selection in any stage. Harness t17.js.
+   Harness `main4.cjs` = main3 plus real mouse drags: the page logs
+   `DRAG x0 y0 x1 y1` and main sends them with sendInputEvent (t18: popup
+   sliders). Its drags often stop part-way even on a plain range — check that
+   inputs fire and the value commits, not the distance travelled. `TransBlock.rot`: drawDocText turns the text round its
+   drawn box's centre; the stage-4 box is CSS-rotated with a PowerPoint-like
+   handle (`.ted-rot`, Shift = 15°), corner drags work in the box's frame.
+   Stages 2–3: the picked selection (`rotatePts`) or region (`rotateRegion`,
+   mask resampled from the original each move, one undo step) has the same
+   handle. Harness t14.js; `main3.cjs` = the harness in an off-screen visible
+   window (hidden windows capture stale frames — use it for UI shots).
+   Regions show in stages 2–3 until deleted (light purple; the clicked one
+   dark purple + outline = active; stage 3 mask = selection › active region ›
+   all regions). `FontPicker.tsx` (not Dropdown: the editor stops mousedown
+   bubbling, so Dropdown's outside-click never fired; FontPicker listens in
+   the capture phase, fixed-positioned list): favourites pinned
+   (localStorage `halftone.transFontFavs`), recents per work (module map,
+   this run), hover previews on the text and reverts. Colour buttons are
+   round (`ColorInput look="text"` = A over a colour bar, `"swatch"` = dot).
+   The options row never wraps (the hint ellipses) — it used to change height
+   with the tool hint.
+   Stage 1 also has 전체 다시 번역 (`retranslatePage`: the engine again past
+   any saved edit, cached as the page's run; the doc is rebuilt from it with
+   its new mask) and 선택 영역 다시 번역 (`translateLines` ipc: the selected
+   block's source through the page engine's translator — Gemini / LLM in text
+   mode, the local chain, else the free one), and the current model at the
+   row's right end (`transModelLabel`). Header 초기화 = `rebuild` from
+   `TransDoc.orig` (the recognition the doc was built from; older docs: their
+   blocks minus the edit fields): auto layers only, one undo step. Harness
+   t9.js. The 번역 편집기 list (TransWork.tsx) has a per-work 초기화 too
+   (`resetWorkEdits`: `saveTransDoc(src, null)` + cache drop for every page,
+   project back to page 1 / 작업 중; 인물 메모 kept; confirm first — no undo).
 
 ## 12. 캐릭터 분류 mode (Sorta, embedded)
 

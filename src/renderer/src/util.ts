@@ -258,6 +258,45 @@ function baseName(p: string): string {
 }
 const normPath = (p: string): string => p.replace(/[\\/]+/g, '\\').replace(/\\+$/, '').toLowerCase()
 
+// 폴더 분류: the library folders of a mode (as the scanner reads them — doujin:
+// the library roots plus the artist-folder roots and the favorites / download /
+// language folders; normal:
+// its roots plus its download folder), and which one holds a work (the
+// deepest root its folder — a merged work's first folder — is under; '' =
+// none of them).
+export function libraryFolders(
+  s: {
+    libraryRoots: string[]
+    favoritesDir: string | null
+    downloadDir: string | null
+    langDirs: { english: string | null; japanese: string | null; other: string | null }
+    flattenRoots: string[]
+    normalRoots: string[]
+    normalDownloadDir: string | null
+  },
+  mode: 'doujin' | 'normal'
+): string[] {
+  const all =
+    mode === 'normal'
+      ? [...(s.normalRoots ?? []), s.normalDownloadDir]
+      : [...(s.libraryRoots ?? []), ...(s.flattenRoots ?? []), s.favoritesDir, s.downloadDir, s.langDirs?.english, s.langDirs?.japanese, s.langDirs?.other]
+  const seen = new Set<string>()
+  return all.filter((r): r is string => {
+    if (!r || seen.has(normPath(r))) return false
+    seen.add(normPath(r))
+    return true
+  })
+}
+export function workFolder(w: Work, roots: string[]): string {
+  const p = normPath(w.sources?.[0] ?? w.path)
+  let best = ''
+  for (const r of roots) {
+    const n = normPath(r)
+    if (p.startsWith(n + '\\') && n.length > normPath(best).length) best = r
+  }
+  return best
+}
+
 // A chapter number can be "28", "28.1", or "28-1" (split/part numbering).
 const CH_NUM = String.raw`\d+(?:[.\-]\d+)?`
 // The number must sit directly against the unit char (no space). Allowing a

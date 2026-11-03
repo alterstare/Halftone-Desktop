@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { useStore, useSeriesRoots } from '../store'
-import { selectWorks, SORT_LABELS, groupSeries, matchesSearch, tagTokens, tokenLabel, analyzeSeries, CHAP_FAV_PREFIX, FAV_BASE, titleKey, type SeriesGroup, isComicCode, sortSeries } from '../util'
+import { libraryFolders, workFolder, selectWorks, SORT_LABELS, groupSeries, matchesSearch, tagTokens, tokenLabel, analyzeSeries, CHAP_FAV_PREFIX, FAV_BASE, titleKey, type SeriesGroup, isComicCode, sortSeries } from '../util'
 import type { SortMode, Work } from '../../../shared/types'
 import type { Filter } from '../store'
 import { langCategory, LANG_CAT_LABELS, type LangCat } from '../../../shared/lang'
@@ -56,6 +56,8 @@ export default function Home(): JSX.Element {
   const showUngrouped = useStore((s) => s.showUngrouped)
   const setGroupFilter = useStore((s) => s.setGroupFilter)
   const setShowUngrouped = useStore((s) => s.setShowUngrouped)
+  const folderFilter = useStore((s) => s.folderFilter)
+  const setFolderFilter = useStore((s) => s.setFolderFilter)
   const createGroup = useStore((s) => s.createGroup)
   const deleteGroup = useStore((s) => s.deleteGroup)
   const homeTopNonce = useStore((s) => s.homeTopNonce)
@@ -106,8 +108,8 @@ export default function Home(): JSX.Element {
   }, [searchSeed?.nonce])
   // Only one classification panel (작품/언어/그룹 분류) open at a time — opening
   // one collapses whichever was open.
-  const [openPanel, setOpenPanel] = useState<'cat' | 'lang' | 'group' | 'fav' | null>(null)
-  const togglePanel = (p: 'cat' | 'lang' | 'group' | 'fav'): void =>
+  const [openPanel, setOpenPanel] = useState<'cat' | 'lang' | 'group' | 'folder' | 'fav' | null>(null)
+  const togglePanel = (p: 'cat' | 'lang' | 'group' | 'folder' | 'fav'): void =>
     setOpenPanel((cur) => (cur === p ? null : p))
   // Favorite lists the user has UNchecked in the drawer (all checked by default).
   const [favUnchecked, setFavUnchecked] = useState<string[]>([])
@@ -178,9 +180,20 @@ export default function Home(): JSX.Element {
     return lc === null || langFilter[lc]
   }
   const allGroups = modeGroups.every((g) => groupFilter[g.id] !== false) && showUngrouped
+  // 폴더 분류: the mode's library folders ('' = works under none of them).
+  const folders = useMemo(() => libraryFolders(settings, libraryMode), [settings, libraryMode])
+  const folderOf = useMemo(() => new Map(modeWorks.map((w) => [w.id, workFolder(w, folders)])), [modeWorks, folders])
+  const folderCounts = useMemo(() => {
+    const n: Record<string, number> = {}
+    for (const f of folderOf.values()) n[f] = (n[f] ?? 0) + 1
+    return n
+  }, [folderOf])
+  const folderRows = [...folders, ...(folderCounts[''] ? [''] : [])]
+  const allFolders = folderRows.every((f) => folderFilter[f] !== false)
   const categoryWorks = useMemo(
     () =>
       modeWorks.filter((w) => {
+        if (folderFilter[folderOf.get(w.id) ?? ''] === false) return false
         // Normal mode hides the coded/language chips → don't let their state filter.
         if (libraryMode !== 'normal') {
           if (!(w.code ? showCoded : showUncoded)) return false
@@ -191,7 +204,7 @@ export default function Home(): JSX.Element {
         if (gids.length === 0) return showUngrouped
         return gids.some((id) => groupFilter[id] !== false)
       }),
-    [modeWorks, showCoded, showUncoded, langFilter, groupFilter, showUngrouped, libraryMode]
+    [modeWorks, showCoded, showUncoded, langFilter, groupFilter, showUngrouped, folderFilter, folderOf, libraryMode]
   )
 
   const favActive = filter.kind === 'favorites' || filter.kind === 'favlists'
@@ -335,11 +348,12 @@ export default function Home(): JSX.Element {
           // online-only entries are coded (작품 분류), have a language
           // (언어 분류, unknown passes) and no group (그룹 분류 → 그룹 미지정).
           showUngrouped &&
+          allFolders &&
           (normal || (showCoded && langPass(f.language ?? getFavLanguage(f.code) ?? null)))
       )
       .sort((a, b) => (favSort === 'rank' ? b.rank - a.rank || b.addedAt - a.addedAt : b.addedAt - a.addedAt))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [favActive, favDownloadedOnly, filter, onlineFavs, works, normal, favSort, localSeriesKeys, showCoded, showUngrouped, langFilter, sumVer])
+  }, [favActive, favDownloadedOnly, filter, onlineFavs, works, normal, favSort, localSeriesKeys, showCoded, showUngrouped, allFolders, langFilter, sumVer])
   // One merged favorites list (local works / series + online-only), sorted
   // together by favorite time (최근 추가순) or rating (평점 높은순), then paged.
   const favMerged = useMemo(
@@ -706,6 +720,31 @@ export default function Home(): JSX.Element {
                     <AddIcon />
                   </button>
                 </div>
+              </div>
+            )}
+          </div>
+          <div className="cat-wrap">
+            <button className={`chip ${!allFolders ? 'active' : ''} ${openPanel === 'folder' ? 'open' : ''}`} onClick={() => togglePanel('folder')}>
+              폴더 분류 <Caret up={openPanel === 'folder'} />
+            </button>
+            {openPanel === 'folder' && (
+              <div className="cat-panel grp-panel">
+                <div className="cat-panel-actions">
+                  <button className="mini" onClick={() => setFolderFilter(Object.fromEntries(folderRows.map((f) => [f, true])))}>
+                    전체 선택
+                  </button>
+                  <button className="mini" onClick={() => setFolderFilter(Object.fromEntries(folderRows.map((f) => [f, false])))}>
+                    전체 선택 해제
+                  </button>
+                </div>
+                {folderRows.length === 0 && <div className="cat-panel-empty">설정 › 폴더에서 라이브러리 폴더를 추가하세요</div>}
+                {folderRows.map((f) => (
+                  <label key={f} className="grp-row" title={f || '라이브러리 폴더 밖에 있는 작품'}>
+                    <input type="checkbox" checked={folderFilter[f] !== false} onChange={(e) => setFolderFilter({ [f]: e.target.checked })} />
+                    <span className="grp-row-name">{f ? (f.split(/[\\/]/).filter(Boolean).pop() ?? f) : '그 밖의 폴더'}</span>
+                    <span className="grp-row-count">({folderCounts[f] ?? 0})</span>
+                  </label>
+                ))}
               </div>
             )}
           </div>

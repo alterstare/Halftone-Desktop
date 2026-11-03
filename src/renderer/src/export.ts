@@ -2,8 +2,8 @@ import type { Work } from '../../shared/types'
 import type { TransBlock, TransResult } from '../../shared/ipc'
 import { getImages } from './images'
 import { workLanguage } from './util'
-import { getTranslation } from './translate'
-import { isSfx, loadImage, drawTranslation } from './inpaint'
+import { getTranslation, getTransDoc, getTransPaint } from './translate'
+import { isSfx, loadImage, drawTranslation, healPage, renderDoc } from './inpaint'
 
 // Reading order for exported text. Manga is drawn right-to-left, but the user asked
 // for left-top-first paragraph order, so we sort top→bottom in row bands and
@@ -94,7 +94,11 @@ export async function exportWorkImages(
       /* no translation for this page → save the original */
     }
     const canvas = document.createElement('canvas')
-    drawTranslation(canvas, img, res) // draws original + translation overlay (SFX skipped)
+    // Edited in the layered editor: its document; else original + translation
+    // overlay (SFX skipped), with the old editor's painted layer.
+    const doc = await getTransDoc(srcs[i])
+    if (doc) renderDoc(canvas, img, doc.doc, doc.images)
+    else drawTranslation(canvas, img, res, { heal: await healPage(img, res), paint: res.blocks.length ? await getTransPaint(srcs[i]) : null })
     const b64 = canvas.toDataURL('image/webp', 0.9).split(',')[1]
     await window.api.writeImageFile(dir, `${String(i + 1).padStart(3, '0')}.webp`, b64)
   }

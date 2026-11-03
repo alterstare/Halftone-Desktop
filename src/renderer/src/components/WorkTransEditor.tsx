@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { createPortal } from 'react-dom'
 import type { Work } from '../../../shared/types'
-import type { TransResult } from '../../../shared/ipc'
+import type { TransDoc, TransResult } from '../../../shared/ipc'
 import { getImages } from '../images'
 import { useStore } from '../store'
 import { workLanguage } from '../util'
-import { editedSrcs, getTranslation, saveTranslationEdit } from '../translate'
+import { editedSrcs, getTranslation, saveTransDoc } from '../translate'
 import TransEditor from './TransEditor'
 import CharacterMemo from './CharacterMemo'
 import type { TransEditorApi } from './TransEditor'
@@ -92,13 +92,13 @@ export default function WorkTransEditor({
     listRef.current?.querySelector('.ted-page.on')?.scrollIntoView({ block: 'nearest' })
   }, [idx])
 
-  const save = async (blocks: Parameters<typeof saveTranslationEdit>[1]): Promise<void> => {
+  const save = async (doc: TransDoc | null, images: Record<string, string | null>): Promise<void> => {
     if (!src) return
-    await saveTranslationEdit(src, blocks)
+    await saveTransDoc(src, doc, images)
     updateTransProject(work.id, { updatedAt: Date.now() })
     setEdited((s) => {
       const n = new Set(s)
-      if (blocks.length) n.add(src)
+      if (doc) n.add(src)
       else n.delete(src)
       return n
     })
@@ -106,7 +106,8 @@ export default function WorkTransEditor({
   // Save the open page only if the user changed something.
   const flush = async (): Promise<void> => {
     const a = apiRef.current
-    if (res?.ok && a?.dirty()) await save(a.snapshot())
+    const got = res?.ok && a?.dirty() ? a.collect() : null
+    if (got) await save(got.doc, got.images)
   }
   const go = async (i: number): Promise<void> => {
     if (i === idx || i < 0 || i >= srcs.length) return
@@ -144,33 +145,34 @@ export default function WorkTransEditor({
             apiRef={apiRef}
             src={src}
             blocks={res.blocks}
+            mask={res.mask}
             langHint={langHint}
             closeLabel="닫기"
             saveLabel="중간 저장"
             hint=""
-            headExtra={
-              <>
-                <button
-                  className={`mini ${hasMemo ? 'has-memo' : ''}`}
-                  onClick={() => setMemoOpen(true)}
-                  title="인물 이름·말투 메모 (번역에 반영)"
-                >
-                  인물 메모
-                </button>
-                <button
-                  className="mini"
-                  onClick={async () => {
-                    await flush()
-                    onClose()
-                    onExportImages()
-                  }}
-                >
-                  이미지로 내보내기
-                </button>
-              </>
+            transExtra={
+              <button
+                className={`mini ${hasMemo ? 'has-memo' : ''}`}
+                onClick={() => setMemoOpen(true)}
+                title="인물 이름·말투 메모 (번역에 반영)"
+              >
+                인물 메모
+              </button>
             }
-            onSave={async (blocks) => {
-              await save(blocks)
+            headExtra={
+              <button
+                className="mini"
+                onClick={async () => {
+                  await flush()
+                  onClose()
+                  onExportImages()
+                }}
+              >
+                이미지로 내보내기
+              </button>
+            }
+            onSave={async (doc, images) => {
+              await save(doc, images)
               setVer((v) => v + 1) // [] = 자동으로 되돌리기 → re-run; else reload the saved edit
             }}
             onClose={() => void close()}

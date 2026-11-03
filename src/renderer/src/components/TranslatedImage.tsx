@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
-import type { TransResult, TransBlock } from '../../../shared/ipc'
-import { getTranslation, saveTranslationEdit } from '../translate'
-import { loadImage, drawTranslation } from '../inpaint'
+import type { TransResult, TransDoc } from '../../../shared/ipc'
+import { getTranslation, getTransDoc, getTransPaint, saveTransDoc } from '../translate'
+import { loadImage, drawTranslation, healPage, renderDoc } from '../inpaint'
 import TransEditor from './TransEditor'
 import { useStore } from '../store'
 
@@ -32,6 +32,9 @@ export default function TranslatedImage({
   const [editing, setEditing] = useState(false)
   // Bumped when translation settings change → translate this page again.
   const transNonce = useStore((s) => s.transNonce)
+  // Bumped after the editor saves (redraw from its document) or resets (translate again).
+  const [docVer, setDocVer] = useState(0)
+  const [again, setAgain] = useState(0)
 
   // 1) Fetch OCR + translation (boxes + Korean text).
   useEffect(() => {
@@ -53,7 +56,7 @@ export default function TranslatedImage({
     return () => {
       alive = false
     }
-  }, [src, translate, langHint, transNonce])
+  }, [src, translate, langHint, transNonce, again])
 
   // 2) Once we have boxes + the image, draw the in-place translated page.
   useEffect(() => {
@@ -62,12 +65,22 @@ export default function TranslatedImage({
       return
     }
     let alive = true
-    loadImage(src)
-      .then((img) => {
+    Promise.all([loadImage(src), getTransPaint(src), getTransDoc(src)])
+      .then(([img, paint, doc]) => {
         const c = canvasRef.current
         if (!alive || !c) return
-        drawTranslation(c, img, res)
+        // Edited in the layered editor: its document, as saved.
+        if (doc) {
+          renderDoc(c, img, doc.doc, doc.images)
+          setRendered(true)
+          return
+        }
+        drawTranslation(c, img, res, { paint })
         if (alive) setRendered(true)
+        // With the inpainting model: the same page again, its art erases painted by it.
+        return healPage(img, res).then((heal) => {
+          if (alive && heal && canvasRef.current) drawTranslation(canvasRef.current, img, res, { heal, paint })
+        })
       })
       .catch((e) => {
         console.error('inpaint draw failed', e)
@@ -76,15 +89,18 @@ export default function TranslatedImage({
     return () => {
       alive = false
     }
-  }, [src, translate, res])
+  }, [src, translate, res, docVer])
 
   const showCanvas = translate && rendered && !!res?.ok && res.blocks.length > 0
 
   // Save edited blocks → persist override, refresh local res so the canvas redraws.
-  const onSaveEdit = async (blocks: TransBlock[]): Promise<void> => {
-    await saveTranslationEdit(src, blocks)
-    setRes((r) => (r && r.ok ? { ...r, blocks } : r))
+  const onSaveEdit = async (doc: TransDoc | null, images: Record<string, string | null>): Promise<void> => {
+    await saveTransDoc(src, doc, images)
     setEditing(false)
+    if (doc) {
+      setRes((r) => (r && r.ok ? { ...r, blocks: doc.blocks } : r))
+      setDocVer((v) => v + 1)
+    } else setAgain((v) => v + 1)
   }
 
   return (
@@ -112,6 +128,7 @@ export default function TranslatedImage({
         <TransEditor
           src={src}
           blocks={res.blocks}
+          mask={res.mask}
           langHint={langHint}
           onSave={onSaveEdit}
           onClose={() => setEditing(false)}

@@ -107,12 +107,24 @@ export const IPC = {
   transDraftMemo: 'translate:draftMemo',
   ocrPageTexts: 'ocr:pageTexts',
   translateTexts: 'translate:texts', // free engine: renderer OCRs, main translates strings
+  translateLines: 'translate:lines', // editor: re-translate lines with the page engine's translator
   ocrModelsStatus: 'ocr:modelsStatus',
   ocrModelsDownload: 'ocr:modelsDownload',
   ocrModelsDelete: 'ocr:modelsDelete',
   ocrModelsProgress: 'ocr:modelsProgress', // main -> renderer: { done, total } bytes
+  lamaStatus: 'lama:status',
+  lamaDownload: 'lama:download',
+  lamaDelete: 'lama:delete',
+  lamaProgress: 'lama:progress', // main -> renderer: { done, total } bytes
+  lamaPatch: 'lama:patch', // one 512×512 patch painted by the inpainting model
   getTransEdits: 'translate:getEdits', // load all persisted manual edits (bubble box/color/text)
   saveTransEdit: 'translate:saveEdit', // persist one page's edited blocks (keyed by image src)
+  getTransPaint: 'translate:getPaint', // a page's painted layer (editor's inpaint tools), data URL or null
+  saveTransPaint: 'translate:savePaint', // persist / clear that layer
+  getTransMask: 'translate:getMask', // an edited page's OCR text mask, or null
+  getTransDoc: 'translate:getDoc', // an edited page's editor document + layer images, or null
+  saveTransDoc: 'translate:saveDoc', // persist / clear it
+  saveTransMask: 'translate:saveMask', // persist / clear it (edits replace the OCR run)
   exportText: 'text:export', // OCR/translation → .txt in the export folder
   exportImageDir: 'text:exportImageDir', // create/return a fresh per-work image folder
   writeImageFile: 'text:writeImageFile', // write one rendered page image into that folder
@@ -200,6 +212,104 @@ export interface TransBlock {
   text: string // recognized source text
   tr: string // Korean translation
   bg?: string // manual bubble-fill colour override (hex); auto-sampled when unset
+  ink?: string // manual text colour override (hex); read off the source when unset
+  // Paragraphs of the source text, [x, y, w, h] each, when the block holds several
+  // (local OCR: joined balloons boxed as one block) — the translation is split
+  // over them.
+  paras?: number[][]
+  // Source glyph size in px (local OCR: character pitch along its lines) — the
+  // translation is typeset at about this size, smaller only when it won't fit.
+  size?: number
+  // The source text's lines (columns / rows), [x, y, w, h] each (local OCR): where
+  // text stood off a balloon, the room its translation may take without hiding art.
+  cols?: number[][]
+  // Touched in the editor (text / colour): its translation is final (empty = erase
+  // the source, never show it) and it's drawn even if it looks like a sound effect.
+  edited?: boolean
+  // The room its translation is typeset in, [x, y, w, h], when the editor's box was
+  // moved / resized — the source text is still erased where it is (x, y, w, h).
+  room?: number[]
+  // The text turned by this many degrees (clockwise) round its box's centre.
+  rot?: number
+  // Editor document (TransDoc) only:
+  id?: string // stable id the bubble regions point at
+  style?: TextStyle // the whole translation's style
+  runs?: TextRun[] // styles of parts of it (offsets into tr), over `style`
+  // Its colours as the auto pass read them: text, outline, the fill under it
+  // (hex), and whether it stands on the art (no balloon).
+  look?: { ink?: string; halo?: string; fill: string; art?: boolean; paints?: { ink?: string; halo?: string }[] }
+}
+
+// Text formatting in the editor's 번역문 stage. Unset = the auto look.
+export interface TextStyle {
+  font?: string // font family
+  size?: number // px, page (canvas) space
+  color?: string // hex
+  align?: 'justify' | 'left' | 'center' | 'right'
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  strike?: boolean
+  // true = a set outline (its width in px and colour; colour unset = the
+  // opposite shade of the text), false = none at all, unset = the auto halo.
+  outline?: boolean
+  outlineWidth?: number
+  outlineColor?: string
+  opacity?: number // the fill's, 0–1 (unset = 1)
+  gradient?: TextGradient // fills the text instead of `color`
+}
+// A linear gradient over a block's text: `angle` in degrees (0 = left → right,
+// 90 = top → bottom), stops at 0–1 along it with their colour (hex) and alpha.
+export interface GradStop {
+  pos: number
+  color: string
+  alpha: number
+}
+export interface TextGradient {
+  angle: number
+  stops: GradStop[]
+}
+export interface TextRun extends TextStyle {
+  start: number
+  end: number
+}
+
+// A bubble region (the editor's 말풍선 stage): where the translation of its
+// blocks goes (several = one speech, joined in reading order). Mask bit-packed
+// row-major over its rect (bit i&7 of byte i>>3), base64.
+export interface TransRegion {
+  id: string
+  layer: string // the bubble layer it's on
+  blocks: string[]
+  x: number
+  y: number
+  w: number
+  h: number
+  bits: string
+  ink?: number // source text pixels in it (splits a block's text between regions)
+  fill?: string // hex: the balloon's fill
+  room?: boolean // text on the art, no balloon
+}
+// One editor layer, over the page itself. bubbles: regions (a guide, never drawn
+// on the page); pixels: a painted layer (PNG); text: the translations.
+export interface TransLayer {
+  id: string
+  name: string
+  kind: 'bubbles' | 'pixels' | 'text'
+  visible: boolean
+  auto?: boolean // made by an auto step (re-running it replaces this layer)
+}
+// A page's editor document — what the viewer and export draw for an edited page.
+export interface TransDoc {
+  v: 1
+  W: number
+  H: number
+  blocks: TransBlock[]
+  regions: TransRegion[]
+  layers: TransLayer[] // top first; the page itself is under them all
+  // The recognition the document was built from (the editor's 초기화 rebuilds
+  // from it); missing on documents saved before it was kept.
+  orig?: TransBlock[]
 }
 // Extra context for LLM translation of one page: the work's character notes
 // and the previous page(s) already translated (keeps speech levels, names and
@@ -216,6 +326,17 @@ export interface TransResult {
   blocks: TransBlock[]
   panelText?: string // used when the engine returns text without per-box coords
   error?: string
+  mask?: TextMask // text pixels, from the local OCR engine only
+}
+
+// Text-pixel mask from the local OCR's detector (comic-text-detector `seg`),
+// bit-packed row-major (bit i&7 of byte i>>3), 1 = text. Mask pixel (x, y) covers
+// page pixel (x / scale, y / scale); page = the downscaled image sent for OCR.
+export interface TextMask {
+  w: number
+  h: number
+  scale: number
+  bits: Uint8Array
 }
 
 export interface WatchHit {
@@ -362,14 +483,32 @@ export interface Api {
   // Free engine: translate already-OCR'd strings (Google unofficial / DeepL).
   // Returns translations aligned to the input order ('' on per-item failure).
   translateTexts: (texts: string[], langHint?: string) => Promise<{ ok: boolean; texts: string[]; error?: string }>
+  // Translation editor: re-translate source lines with the page engine's translator.
+  translateLines: (texts: string[], langHint?: string, ctx?: TransContext) => Promise<{ ok: boolean; texts: string[]; error?: string }>
   // 로컬 OCR models (local translate engine): installed?, download all (one go), delete.
   ocrModelsStatus: () => Promise<{ installed: boolean; sizeMB: number }>
   ocrModelsDownload: () => Promise<{ ok: boolean; error?: string }>
   ocrModelsDelete: () => Promise<void>
   onOcrModelsProgress: (cb: (p: { done: number; total: number }) => void) => () => void
+  // 인페인팅 모델 (optional LaMa): installed?, download, delete; lamaPatch paints
+  // one 512×512 patch (rgb 3 bytes/px, mask 1 = paint) and returns its rgb.
+  lamaStatus: () => Promise<{ installed: boolean; sizeMB: number }>
+  lamaDownload: () => Promise<{ ok: boolean; error?: string }>
+  lamaDelete: () => Promise<void>
+  onLamaProgress: (cb: (p: { done: number; total: number }) => void) => () => void
+  lamaPatch: (rgb: Uint8Array, mask: Uint8Array) => Promise<Uint8Array | null>
   // Manual translation edits: map of image src → edited blocks. Loaded once at boot.
   getTransEdits: () => Promise<Record<string, TransBlock[]>>
   saveTransEdit: (src: string, blocks: TransBlock[]) => Promise<void>
+  // The editor's painted layer for a page (PNG data URL, page canvas size), drawn
+  // over the erased page under the translation; null = none.
+  getTransPaint: (src: string) => Promise<string | null>
+  saveTransPaint: (src: string, dataUrl: string | null) => Promise<void>
+  getTransMask: (src: string) => Promise<TextMask | null>
+  getTransDoc: (src: string) => Promise<{ doc: TransDoc; images: Record<string, string> } | null>
+  // images: layer id → PNG data URL (null = none); layers left out keep theirs.
+  saveTransDoc: (src: string, doc: TransDoc | null, images: Record<string, string | null>) => Promise<void>
+  saveTransMask: (src: string, mask: TextMask | null) => Promise<void>
   // Write extracted text to <textExportDir>/<title>.txt; returns the written path.
   exportText: (title: string, content: string) => Promise<string>
   // Create a fresh <textExportDir>/<title>[ (n)] folder for image export; returns its path.

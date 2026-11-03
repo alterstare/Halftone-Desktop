@@ -4,9 +4,10 @@
 import { app, ipcMain, dialog, shell, nativeTheme, clipboard } from 'electron'
 import { join, resolve, sep, basename, dirname } from 'path'
 import { promises as fs } from 'fs'
+import { createHash } from 'crypto'
 import { fitName } from '../../shared/nameFit'
 import type { Settings, SessionState, Work } from '../../shared/types'
-import type { CloseDecision, TransBlock, TransContext } from '../../shared/ipc'
+import type { CloseDecision, TextMask, TransBlock, TransContext, TransDoc } from '../../shared/ipc'
 import { IPC } from '../../shared/ipc'
 import { store, appState, getMainWindow, sendToRenderer, themeBg } from '../context'
 import { scanLibrary, scanRoot, scanDirs, needsFullScan, listImages, normalRoots } from '../lib/scanner'
@@ -16,8 +17,9 @@ import { setWorkFavorite } from '../lib/favoriteSync'
 import { organizeByLanguage } from '../lib/organize'
 import { connectSmb } from '../lib/smb'
 import { applyAutoUpdate } from '../lib/updatePref'
-import { translateImage, translateRegion, translateTexts, draftCharacterMemo } from '../lib/translate'
+import { translateImage, translateRegion, translateTexts, translateLines, draftCharacterMemo } from '../lib/translate'
 import { ocrModelsInstalled, downloadOcrModels, deleteOcrModels, OCR_MODELS_MB, ocrPage } from '../lib/localOcr'
+import { lamaInstalled, downloadLama, deleteLama, lamaPatch, LAMA_MB } from '../lib/lama'
 import { sanitize } from '../lib/doujin'
 import { applyNetwork } from '../lib/network'
 import { applyQuitShortcut } from '../lib/quitShortcut'
@@ -476,13 +478,109 @@ export function registerLibraryIpc(): void {
     }
   })
   ipcMain.handle(IPC.ocrModelsDelete, () => deleteOcrModels())
+  // 인페인팅 모델 (optional).
+  ipcMain.handle(IPC.lamaStatus, async () => ({ installed: await lamaInstalled(), sizeMB: LAMA_MB }))
+  ipcMain.handle(IPC.lamaDownload, async () => {
+    try {
+      await downloadLama((done, total) => sendToRenderer(IPC.lamaProgress, { done, total }))
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message }
+    }
+  })
+  ipcMain.handle(IPC.lamaDelete, () => deleteLama())
+  ipcMain.handle(IPC.lamaPatch, async (_e, rgb: Uint8Array, mask: Uint8Array) => {
+    try {
+      return await lamaPatch(rgb, mask)
+    } catch (e) {
+      console.error('lamaPatch failed', e)
+      return null
+    }
+  })
 
   ipcMain.handle(IPC.translateTexts, (_e, texts: string[], langHint?: string) =>
     translateTexts(texts, store.settings, langHint)
   )
+  ipcMain.handle(IPC.translateLines, (_e, texts: string[], langHint?: string, ctx?: TransContext) =>
+    translateLines(texts, store.settings, langHint, ctx)
+  )
 
   ipcMain.handle(IPC.getTransEdits, () => store.transEdits)
   ipcMain.handle(IPC.saveTransEdit, (_e, src: string, blocks: TransBlock[]) => store.saveTransEdit(src, blocks))
+  // The editor's painted layer per page: userData/trans-paint/<sha1 of src>.png.
+  const paintFile = (src: string): string =>
+    join(app.getPath('userData'), 'trans-paint', createHash('sha1').update(src).digest('hex') + '.png')
+  ipcMain.handle(IPC.getTransPaint, async (_e, src: string) => {
+    try {
+      return 'data:image/png;base64,' + (await fs.readFile(paintFile(src))).toString('base64')
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle(IPC.saveTransPaint, async (_e, src: string, dataUrl: string | null) => {
+    const f = paintFile(src)
+    if (!dataUrl) return fs.rm(f, { force: true })
+    await fs.mkdir(dirname(f), { recursive: true })
+    await fs.writeFile(f, Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64'))
+  })
+  // An edited page's OCR text mask (the edit replaces the OCR run, so the mask the
+  // erase needs is kept here): userData/trans-mask/<sha1 of src>.bin =
+  // w, h (u32 LE), scale (f64 LE), then the bits.
+  const maskFile = (src: string): string =>
+    join(app.getPath('userData'), 'trans-mask', createHash('sha1').update(src).digest('hex') + '.bin')
+  ipcMain.handle(IPC.getTransMask, async (_e, src: string): Promise<TextMask | null> => {
+    try {
+      const b = await fs.readFile(maskFile(src))
+      return { w: b.readUInt32LE(0), h: b.readUInt32LE(4), scale: b.readDoubleLE(8), bits: new Uint8Array(b.subarray(16)) }
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle(IPC.saveTransMask, async (_e, src: string, mask: TextMask | null) => {
+    const f = maskFile(src)
+    if (!mask) return fs.rm(f, { force: true })
+    const head = Buffer.alloc(16)
+    head.writeUInt32LE(mask.w, 0)
+    head.writeUInt32LE(mask.h, 4)
+    head.writeDoubleLE(mask.scale, 8)
+    await fs.mkdir(dirname(f), { recursive: true })
+    await fs.writeFile(f, Buffer.concat([head, Buffer.from(mask.bits)]))
+  })
+  // An edited page's editor document: userData/trans-doc/<sha1 of src>/ doc.json
+  // plus one <layer id>.png per painted layer.
+  const docDir = (src: string): string => join(app.getPath('userData'), 'trans-doc', createHash('sha1').update(src).digest('hex'))
+  const layerFile = (dir: string, id: string): string => join(dir, id.replace(/[^\w-]/g, '_') + '.png')
+  ipcMain.handle(IPC.getTransDoc, async (_e, src: string) => {
+    const dir = docDir(src)
+    try {
+      const doc = JSON.parse(await fs.readFile(join(dir, 'doc.json'), 'utf8')) as TransDoc
+      const images: Record<string, string> = {}
+      for (const l of doc.layers) {
+        if (l.kind !== 'pixels') continue
+        try {
+          images[l.id] = 'data:image/png;base64,' + (await fs.readFile(layerFile(dir, l.id))).toString('base64')
+        } catch {
+          /* empty layer */
+        }
+      }
+      return { doc, images }
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle(IPC.saveTransDoc, async (_e, src: string, doc: TransDoc | null, images: Record<string, string | null>) => {
+    const dir = docDir(src)
+    if (!doc) return fs.rm(dir, { recursive: true, force: true })
+    await fs.mkdir(dir, { recursive: true })
+    for (const [id, url] of Object.entries(images)) {
+      if (url) await fs.writeFile(layerFile(dir, id), Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'))
+      else await fs.rm(layerFile(dir, id), { force: true })
+    }
+    // Layers no longer in the document lose their image.
+    const keep = new Set(doc.layers.map((l) => layerFile(dir, l.id)))
+    for (const f of await fs.readdir(dir)) if (f.endsWith('.png') && !keep.has(join(dir, f))) await fs.rm(join(dir, f), { force: true })
+    await fs.writeFile(join(dir, 'doc.json'), JSON.stringify(doc))
+  })
 
   // ---------- exports (settings · 내보내기 폴더) ----------
 
