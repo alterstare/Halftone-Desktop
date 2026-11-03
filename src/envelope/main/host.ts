@@ -16,7 +16,7 @@ import { isInside, mimeOf, parseRange } from '../core/media'
 import { thumbnail, dominantColour } from '../core/thumbs'
 import { IPC, MEDIA_SCHEME } from '../shared/ipc'
 import type { EnvStatus, HostRequest, JobSummary, RemoteCommand } from '../shared/ipc'
-import type { AutoSubOptions, ScriptSubOptions, CoverItem, CoverSaveItem, SubExportItem, Cue, GlossaryEntry, RenameItem, SePref, Settings, SubLang, ToolResult, WavItem, WhisperModelId } from '../shared/types'
+import type { AutoSubOptions, ScriptSubOptions, CoverItem, CoverSaveItem, SetAsideItem, SubExportItem, Cue, GlossaryEntry, RenameItem, SePref, Settings, SubLang, ToolResult, WavItem, WhisperModelId } from '../shared/types'
 
 export interface EnvHostOptions {
   dataDir: string
@@ -186,6 +186,10 @@ function registerIpc(): void {
   ipcMain.handle(IPC.runWav, (_e, items: WavItem[]) => tool(core.runWav(items, trash).done))
   ipcMain.handle(IPC.planCover, (_e, ids: number[] | null) => core.planCover(ids).done)
   ipcMain.handle(IPC.runCover, (_e, items: CoverItem[]) => tool(core.runCover(items).done))
+  ipcMain.handle(IPC.duplicates, () => core.duplicates())
+  ipcMain.handle(IPC.notDuplicate, (_e, key: string, ids: number[], label: string) => core.notDuplicate(key, ids, label))
+  ipcMain.handle(IPC.planSetAside, (_e, ids: number[]) => core.planSetAside(ids))
+  ipcMain.handle(IPC.runSetAside, (_e, items: SetAsideItem[]) => tool(core.runSetAside(items).done))
   ipcMain.handle(IPC.planRename, (_e, ids: number[] | null, mode?: 'repair' | 'translate' | 'original') => core.planRename(ids, mode).done)
   // a cover's main colour: only pictures of the library or DLsite covers
   ipcMain.handle(IPC.coverColour, (_e, p: string) =>

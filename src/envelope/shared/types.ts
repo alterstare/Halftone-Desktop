@@ -304,9 +304,30 @@ export interface ToolResult {
   failed: string[]
 }
 
+// 중복 작품: works that are the same release (same work code, or — without
+// a code — the same title), one group each.
+export interface DupMember {
+  id: number
+  tracks: number // main tracks (each track once, whatever its versions)
+  files: number // audio / video files
+  size: number // bytes
+  formats: string[] // '.mp3', '.wav', …
+}
+export interface DupGroup {
+  key: string // what joins them: the code, or 'title:' + the folded title
+  label: string // the code, or the title
+  members: DupMember[] // the one suggested to keep first
+}
+// 중복 작품 › 따로 두기: a work folder and where it goes
+export interface SetAsideItem {
+  workId: number
+  from: string
+  to: string // <library folder>/_중복 작품/<folder name>
+}
+
 export interface HistoryEntry {
   id: string
-  kind: 'wav' | 'cover' | 'rename' | 'subtitle'
+  kind: 'wav' | 'cover' | 'rename' | 'subtitle' | 'dups'
   summary: string
   createdAt: number
   undoable: boolean // the newest undoable entry can be undone

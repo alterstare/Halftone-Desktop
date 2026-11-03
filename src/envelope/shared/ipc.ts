@@ -1,4 +1,4 @@
-import type { AppInfo, CoverItem, Cue, Group, HistoryEntry, ProgressEvent, RenameItem, SePref, Settings, SubLang, SubtitleText, ToolResult, UndoResult, WavItem, WorkDetail, WorkSummary, AutoSubOptions, EngineStatus, GlossaryEntry, ScriptPreview, ScriptSource, ScriptSubOptions, WhisperModelId, NameStatus, SubExportItem, CoverSaveItem } from './types'
+import type { AppInfo, CoverItem, Cue, DupGroup, Group, SetAsideItem, HistoryEntry, ProgressEvent, RenameItem, SePref, Settings, SubLang, SubtitleText, ToolResult, UndoResult, WavItem, WorkDetail, WorkSummary, AutoSubOptions, EngineStatus, GlossaryEntry, ScriptPreview, ScriptSource, ScriptSubOptions, WhisperModelId, NameStatus, SubExportItem, CoverSaveItem } from './types'
 
 export const IPC = {
   appInfo: 'env:app:info',
@@ -44,6 +44,10 @@ export const IPC = {
   planRename: 'env:tools:planRename',
   runRename: 'env:tools:runRename',
   history: 'env:tools:history',
+  duplicates: 'env:dups:list',
+  notDuplicate: 'env:dups:notDup',
+  planSetAside: 'env:dups:planSetAside',
+  runSetAside: 'env:dups:runSetAside',
   fetchDlsite: 'env:dlsite:fetch',
   libraryChanged: 'env:library:changed',
   showInFolder: 'env:file:show',
@@ -190,6 +194,11 @@ export interface Api {
   restoreSubs: (ids: number[] | null) => Promise<ToolResult>
   runRename: (items: RenameItem[]) => Promise<ToolResult>
   history: () => Promise<HistoryEntry[]>
+  // 중복 작품
+  duplicates: () => Promise<DupGroup[]>
+  notDuplicate: (key: string, ids: number[], label: string) => Promise<void>
+  planSetAside: (ids: number[]) => Promise<SetAsideItem[]>
+  runSetAside: (items: SetAsideItem[]) => Promise<ToolResult>
   // 작품 정보 from DLsite by work code (ids null = works not asked yet)
   fetchDlsite: (ids: number[] | null) => Promise<JobSummary>
   onLibraryChanged: (cb: () => void) => () => void

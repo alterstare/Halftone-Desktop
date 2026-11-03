@@ -192,6 +192,14 @@ export const MIGRATIONS: string[] = [
   // v14: a work's own cover choice ('folder' | 'dlsite'; NULL = the setting)
   `
   ALTER TABLE works ADD COLUMN cover_pref TEXT;
+  `,
+  // v15: 중복 작품 › 중복 아님 — a group the user said is not duplicates
+  // (key = the group's key + its work ids; a new copy shows the group again)
+  `
+  CREATE TABLE dup_ignore (
+    key TEXT PRIMARY KEY,
+    created_at INTEGER NOT NULL
+  );
   `
 ]
 

@@ -2,7 +2,7 @@
 // Halftone and the tests all drive the same code.
 import { mkdirSync, promises as fsp, readFileSync } from 'fs'
 import { basename, dirname, extname, join } from 'path'
-import type { CoverItem, CoverSaveItem, Cue, Group, HistoryEntry, RenameItem, SePref, Settings, SubExportItem, SubLang, SubtitleText, ToolResult, WavItem, WorkDetail, WorkSummary } from '../shared/types'
+import type { CoverItem, CoverSaveItem, Cue, DupGroup, Group, HistoryEntry, RenameItem, SePref, Settings, SubExportItem, SubLang, SetAsideItem, SubtitleText, ToolResult, WavItem, WorkDetail, WorkSummary } from '../shared/types'
 import * as tools from './tools'
 import type { EncodeFn, TrashFn } from './tools'
 import { encodeWavToMp3 } from './tools/wav'
@@ -31,6 +31,7 @@ import { findScripts, previewScript, scriptFromFile, scriptSubWork } from './scr
 import type { NameStatus, ScriptPreview, ScriptSource, ScriptSubOptions, WorkContent } from '../shared/types'
 import { existsSync } from 'fs'
 import * as originals from './originals'
+import * as dupes from './dupes'
 import { mergeGlossary, parseGlossaryText } from './glossaryText'
 
 export interface CorePaths {
@@ -109,6 +110,7 @@ export class EnvCore {
     this.log = new ActionLog(this.db)
     tools.registerCoverUndo(this.log)
     tools.registerRenameUndo(this.log, (pairs) => this.relocate(pairs))
+    dupes.registerDupUndo(this.db, this.log)
     // 자막 저장 (in the program): the previous text back, or none.
     this.log.register<{ trackPath: string; lang: SubLang; prev: string | null; label: string }>(
       'subtitle.app',
@@ -892,6 +894,21 @@ export class EnvCore {
     await this.leaveRecords(touched)
   }
 
+  // ---- 중복 작품 ----
+
+  duplicates(): DupGroup[] {
+    return dupes.duplicateGroups(this.db)
+  }
+  notDuplicate(key: string, ids: number[], label: string): void {
+    dupes.markNotDuplicate(this.db, this.log, key, ids, label)
+  }
+  planSetAside(ids: number[]): SetAsideItem[] {
+    return dupes.planSetAside(this.db, ids)
+  }
+  runSetAside(items: SetAsideItem[]): { id: number; done: Promise<ToolResult> } {
+    return this.queue.add('중복 작품 따로 두기', (ctx) => dupes.runSetAside(this.log, items, ctx), { resumable: false })
+  }
+
   // ---- 작품 정보 (DLsite) ----
 
   // ids = works to ask about (null = every work with a code not asked yet).
@@ -957,7 +974,9 @@ export class EnvCore {
       'subtitle.restore': 'subtitle',
       'tools.coversave': 'cover',
       'tools.cover': 'cover',
-      'tools.rename': 'rename'
+      'tools.rename': 'rename',
+      'tools.setaside': 'dups',
+      'dups.notdup': 'dups'
     }
     const logged = this.log.recent(limit).filter((a) => a.type in kinds)
     const newest = this.log.recent(1)[0]

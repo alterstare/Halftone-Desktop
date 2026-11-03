@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { JSX, ReactNode } from 'react'
 import { useStore } from '../store'
 import type { ToolTab, ToolsMode } from '../store'
-import type { CoverItem, CoverSaveItem, HistoryEntry, NameStatus, ProgressEvent, RenameItem, ScriptSource, SubExportItem, ToolResult, WavItem, WorkSummary } from '../../../shared/types'
+import type { CoverItem, CoverSaveItem, DupGroup, HistoryEntry, SetAsideItem, NameStatus, ProgressEvent, RenameItem, ScriptSource, SubExportItem, ToolResult, WavItem, WorkSummary } from '../../../shared/types'
 import { clock } from '../format'
 import {
   KeyboardArrowLeftIcon,
@@ -19,6 +19,7 @@ import {
   CancelIcon,
   CloseIcon,
   CloudDownloadIcon,
+  ContentCopyIcon,
   DriveFileRenameOutlineIcon,
   EditIcon,
   FileOpenIcon,
@@ -41,6 +42,7 @@ const TABS: [ToolTab, string, typeof ImageIcon][] = [
   ['subs', '자막', SubtitlesIcon],
   ['cover', '썸네일', ImageIcon],
   ['wav', '용량 최적화', AudioFileIcon],
+  ['dups', '중복 작품', ContentCopyIcon],
   ['jobs', '작업', ScheduleIcon]
 ]
 // what each tab does in each mode
@@ -51,6 +53,7 @@ const ABOUT: Record<ToolsMode, Record<ToolTab, string>> = {
     subs: '자막을 번역하거나 만들어 프로그램 안에 저장합니다. 음성 파일 옆에는 쓰지 않습니다(폴더에 넣으려면 폴더 변경 › 자막).',
     cover: '프로그램에서 보여 줄 작품 표지를 고릅니다. mp3 파일은 바뀌지 않습니다.',
     wav: '용량 최적화는 파일을 바꾸는 작업이라 폴더 변경에서만 할 수 있습니다.',
+    dups: '같은 작품이 여러 폴더에 있는지 찾습니다(같은 작품 코드, 코드가 없으면 같은 제목). 중복이 아닌 묶음은 "중복 아님"으로 목록에서 뺄 수 있습니다. 남길 작품을 고르고 나머지를 옮기는 것은 폴더 변경에서 합니다.',
     jobs: '받아쓰기 · 대본 자막 · 번역 · 이름 번역 · 파일 정리 같은 작업의 진행 상황입니다. 작업마다 취소하거나, 모두 중지(재개하면 멈춘 곳부터 이어서) · 모두 취소할 수 있습니다.'
   },
   folder: {
@@ -61,6 +64,7 @@ const ABOUT: Record<ToolsMode, Record<ToolTab, string>> = {
     cover:
       '폴더 이미지(트랙 번호가 같은 그림, 없으면 작품 표지)를 mp3 안에 앨범 커버로 넣습니다. 파일 날짜는 그대로이고, 원래 태그를 보관해 되돌릴 수 있습니다.',
     wav: '같은 폴더에서 확장자만 다른 같은 이름의 파일이 대상입니다. mp3와 길이가 같은 wav는 휴지통으로 보내고, wav만 있으면 mp3로 바꾼 뒤 길이를 확인하고 wav를 휴지통으로 보냅니다. 휴지통에서 복원할 수 있습니다.',
+    dups: '같은 작품이 여러 폴더에 있으면 묶어서 보여 줍니다(같은 작품 코드, 코드가 없으면 같은 제목). 묶음마다 남길 작품을 고르면 나머지 작품 폴더는 그 라이브러리 폴더 안의 "_중복 작품" 폴더로 옮겨지고 라이브러리에서 빠집니다. 삭제하지 않으며, 되돌릴 수 있습니다.',
     jobs: '받아쓰기 · 대본 자막 · 번역 · 이름 번역 · 파일 정리 같은 작업의 진행 상황입니다. 작업마다 취소하거나, 모두 중지(재개하면 멈춘 곳부터 이어서) · 모두 취소할 수 있습니다.'
   }
 }
@@ -945,6 +949,151 @@ function CoverApp({ scope }: { scope: number[] | null }): JSX.Element {
   )
 }
 
+// 중복 작품: the groups (same code, or same title), each work with what it
+// holds. 프로그램 내 변경: look, 중복 아님. 폴더 변경: the work to keep per
+// group (the suggested one first) → the others go to "_중복 작품".
+function DupsPanel({ scope, mode, tick, onDone }: { scope: number[] | null; mode: ToolsMode; tick: number; onDone: () => void }): JSX.Element {
+  const works = useStore((s) => s.works)
+  const showToast = useStore((s) => s.showToast)
+  const [groups, setGroups] = useState<DupGroup[] | null>(null)
+  const [keep, setKeep] = useState<Record<string, number>>({})
+  const [skip, setSkip] = useState<Set<string>>(new Set())
+  const [ask, setAsk] = useState<SetAsideItem[] | null>(null)
+  const [busy, setBusy] = useState(false)
+  const load = (): void => void window.api.duplicates().then(setGroups)
+  useEffect(load, [tick, works])
+  const byId = useMemo(() => new Map(works.map((w) => [w.id, w])), [works])
+  const shown = (groups ?? []).filter((g) => !scope || g.members.some((m) => scope.includes(m.id)))
+  const kept = (g: DupGroup): number => keep[g.key] ?? g.members[0].id
+  const moving = shown.filter((g) => !skip.has(g.key)).flatMap((g) => g.members.filter((m) => m.id !== kept(g)).map((m) => m.id))
+  const notDup = async (g: DupGroup): Promise<void> => {
+    await window.api.notDuplicate(
+      g.key,
+      g.members.map((m) => m.id),
+      g.label
+    )
+    load()
+    onDone()
+  }
+  const run = async (): Promise<void> => {
+    if (!ask) return
+    setBusy(true)
+    try {
+      const r = await window.api.runSetAside(ask)
+      showToast({ ok: r.ok, message: r.message })
+      await useStore.getState().loadWorks()
+    } finally {
+      setAsk(null)
+      setBusy(false)
+      onDone()
+    }
+  }
+  if (!groups) return <p className="hint tools-empty">중복 작품을 찾는 중…</p>
+  if (!shown.length) return <p className="hint tools-empty">중복 작품이 없습니다.</p>
+  const out = (g: DupGroup): boolean => mode === 'folder' && !skip.has(g.key)
+  return (
+    <>
+      <div className="tools-summary">
+        <span>{mode === 'folder' ? `중복 묶음 ${shown.length}개 · 따로 둘 작품 ${moving.length}개` : `중복 묶음 ${shown.length}개`}</span>
+        <span className="grow" />
+        {mode === 'folder' && (
+          <button className="btn primary" disabled={!moving.length || busy} onClick={() => void window.api.planSetAside(moving).then(setAsk)}>
+            선택한 {moving.length}개 따로 두기
+          </button>
+        )}
+      </div>
+      {shown.map((g) => (
+        <section key={g.key} className="tgroup">
+          <label className="tgroup-head check">
+            {mode === 'folder' ? (
+              <input
+                type="checkbox"
+                checked={!skip.has(g.key)}
+                title="이 묶음 정리하기"
+                onChange={(e) =>
+                  setSkip((s) => {
+                    const n = new Set(s)
+                    if (e.target.checked) n.delete(g.key)
+                    else n.add(g.key)
+                    return n
+                  })
+                }
+              />
+            ) : (
+              <span />
+            )}
+            <span className="tgroup-title">{g.label}</span>
+            <Tag kind="mute">{g.key.startsWith('title:') ? '같은 제목' : '같은 작품 코드'}</Tag>
+            <span className="hint">{total(g.members.length)}</span>
+            <button
+              className="mini"
+              title="이 묶음을 중복 목록에서 뺍니다(기록에서 되돌리기)"
+              onClick={(e) => {
+                e.preventDefault()
+                void notDup(g)
+              }}
+            >
+              중복 아님
+            </button>
+          </label>
+          {g.members.map((m, k) => {
+            const w = byId.get(m.id)
+            if (!w) return null
+            const isKept = kept(g) === m.id
+            return (
+              <label key={m.id} className={`trow-tool ${out(g) && !isKept ? 'dup-out' : ''}`}>
+                {mode === 'folder' ? (
+                  <input type="radio" name={`keep-${g.key}`} checked={isKept} disabled={!out(g)} title="남길 작품" onChange={() => setKeep((x) => ({ ...x, [g.key]: m.id }))} />
+                ) : (
+                  <span />
+                )}
+                {w.cover ? <img className="tr-thumb" src={window.api.thumbUrl(w.cover)} alt="" /> : <span className="tr-thumb empty" />}
+                <span className="tr-main">
+                  <span className="tr-name" title={w.title}>
+                    {w.title}
+                  </span>
+                  <span className="tr-sub hint" title={w.path}>
+                    {w.path}
+                  </span>
+                </span>
+                <span className="tr-side">
+                  {k === 0 && <Tag kind="ok">추천</Tag>}
+                  {out(g) && <Tag kind={isKept ? 'ok' : 'warn'}>{isKept ? '남기기' : '따로 두기'}</Tag>}
+                  <Tag kind="mute">트랙 {m.tracks}개</Tag>
+                  <Tag kind="mute">{m.formats.map((f) => f.replace('.', '')).join(' · ') || '파일 없음'}</Tag>
+                  <Tag kind="mute">{mb(m.size)}</Tag>
+                  {(w.played > 0 || w.favorite || w.rank > 0) && <Tag kind="mute">들은 기록</Tag>}
+                  <FolderButton path={w.path} />
+                </span>
+              </label>
+            )
+          })}
+        </section>
+      ))}
+      {ask && (
+        <Confirm
+          title="작품 폴더를 옮길까요?"
+          body={
+            <>
+              작품 {ask.length}개를 각 라이브러리 폴더 안의 "_중복 작품" 폴더로 옮깁니다. 라이브러리에서 빠지며, 기록에서 되돌릴 수 있습니다.
+              <span className="dup-moves">
+                {ask.map((x) => (
+                  <span key={x.workId} className="hint" title={`${x.from} → ${x.to}`}>
+                    {name(x.from)}
+                  </span>
+                ))}
+              </span>
+            </>
+          }
+          ok="옮기기"
+          onCancel={() => setAsk(null)}
+          onOk={() => void run()}
+        />
+      )}
+    </>
+  )
+}
+
 // 용량 최적화 changes files: only in 폴더 변경.
 function FolderOnly(): JSX.Element {
   return (
@@ -968,6 +1117,7 @@ const NOTHING: Record<ToolTab, string> = {
   subs: '내보낼 자막 없음',
   cover: '넣을 mp3 없음',
   wav: '최적화할 파일 없음',
+  dups: '',
   jobs: ''
 }
 
@@ -1001,7 +1151,7 @@ export default function ToolsView(): JSX.Element {
   }, [tab, scope, mode])
 
   const plan = async (): Promise<void> => {
-    if (tab === 'jobs' || mode !== 'folder') return
+    if (tab === 'jobs' || tab === 'dups' || mode !== 'folder') return
     setBusy('plan')
     try {
       const got: Item[] =
@@ -1029,7 +1179,7 @@ export default function ToolsView(): JSX.Element {
     } finally {
       setBusy(null)
     }
-    if (mode === 'folder') await plan()
+    if (mode === 'folder' && tab !== 'dups') await plan()
     else setTick((t) => t + 1)
   }
 
@@ -1222,7 +1372,8 @@ export default function ToolsView(): JSX.Element {
       {mode === 'app' && tab === 'subs' && <SubsRestore scope={scope} />}
       {mode === 'app' && tab === 'cover' && <CoverApp scope={scope} />}
       {mode === 'app' && tab === 'wav' && <FolderOnly />}
-      {mode === 'folder' && tab !== 'jobs' && !items && busy !== 'plan' && busy !== 'scan' && (
+      {tab === 'dups' && <DupsPanel scope={scope} mode={mode} tick={tick} onDone={reloadHistory} />}
+      {mode === 'folder' && tab !== 'jobs' && tab !== 'dups' && !items && busy !== 'plan' && busy !== 'scan' && (
         <p className="hint tools-empty">라이브러리 스캔을 누르면 바꿀 것을 작품별로 보여 줍니다. 아무것도 바뀌지 않습니다.</p>
       )}
       {mode === 'folder' && items && (

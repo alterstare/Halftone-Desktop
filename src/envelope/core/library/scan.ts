@@ -13,6 +13,7 @@ import type { FolderRole } from './roles'
 import { probe } from './probe'
 import { SUB_EXTS, langOfName } from '../subtitle'
 import type { SubFile } from '../../shared/types'
+import { DUP_DIR } from '../dupes'
 
 export const AUDIO_EXTS = new Set(['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.opus'])
 export const VIDEO_EXTS = new Set(['.mp4', '.m4v', '.webm'])
@@ -86,7 +87,7 @@ async function hasMedia(dir: string, depth = 0): Promise<boolean> {
 export async function findWorks(root: string): Promise<string[]> {
   const out: string[] = []
   for (const e of await readDir(root)) {
-    if (!e.isDirectory()) continue
+    if (!e.isDirectory() || e.name === DUP_DIR) continue // 중복 작품 › 따로 두기
     const p = join(root, e.name)
     if (CODE.test(e.name)) {
       out.push(p)

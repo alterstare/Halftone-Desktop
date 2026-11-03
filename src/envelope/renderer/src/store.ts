@@ -6,7 +6,7 @@ import type { ContentKey } from './workInfo'
 
 // library → work page → now playing (full player with subtitles)
 export type View = 'library' | 'work' | 'now' | 'tools' | 'settings'
-export type ToolTab = 'rename' | 'dlsite' | 'subs' | 'cover' | 'wav' | 'jobs'
+export type ToolTab = 'rename' | 'dlsite' | 'subs' | 'cover' | 'wav' | 'dups' | 'jobs'
 // 파일 정리 changes either only what the program keeps (names shown, DLsite
 // info, subtitles, the cover shown) or the library's folders and files
 export type ToolsMode = 'app' | 'folder'
