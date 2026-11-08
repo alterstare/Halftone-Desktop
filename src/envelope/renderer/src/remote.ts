@@ -12,6 +12,31 @@ const TIME_MS = 200 // the clock goes down at most this often
 
 const slice = (s: State): Mirrored => ({ now: s.now, playing: s.playing, time: s.time, duration: s.duration, subs: s.subs, sleep: s.sleep })
 
+// Where the user is (screen, album, the library's search / filter / page):
+// the big window opens where the panel was, and the panel follows the big
+// window while it is open — switching keeps the place.
+interface Place {
+  view: State['view']
+  workId: number | null
+  query: string
+  filter: State['filter']
+  libPage: State['libPage']
+}
+const placeOf = (s: State): Place => ({
+  view: s.view,
+  workId: s.view === 'work' ? (s.shown?.id ?? null) : null,
+  query: s.query,
+  filter: s.filter,
+  libPage: s.libPage
+})
+function goPlace(p: Place): void {
+  const st = useStore.getState()
+  useStore.setState({ query: p.query, filter: p.filter, libPage: p.libPage })
+  if (p.view === 'work' && p.workId !== null) {
+    if (st.view !== 'work' || st.shown?.id !== p.workId) void st.openWork(p.workId)
+  } else if (st.view !== p.view) st.setView(p.view === 'work' ? 'library' : p.view)
+}
+
 // Frame side: send the state while the big window is open; run its actions.
 export function serveRemote(): () => void {
   let lastTime = 0
@@ -23,7 +48,8 @@ export function serveRemote(): () => void {
     window.api.mirror(onlyTime ? { time: s.time } : slice(s))
   })
   const run: Record<string, (...a: never[]) => unknown> = {
-    hello: () => window.api.mirror(slice(useStore.getState())),
+    hello: () => window.api.mirror({ ...slice(useStore.getState()), place: placeOf(useStore.getState()) }),
+    place: (p: Place) => goPlace(p),
     play,
     playWork,
     toggle,
@@ -51,9 +77,26 @@ export function serveRemote(): () => void {
 
 // Big-window side: take the frame's state as it comes.
 export function followRemote(): () => void {
-  const off = window.api.onMirror((s) => useStore.setState(s as Partial<Mirrored>))
+  let placed = false
+  const off = window.api.onMirror((m) => {
+    const { place, ...s } = m as Partial<Mirrored> & { place?: Place }
+    useStore.setState(s)
+    if (place && !placed) {
+      placed = true
+      goPlace(place)
+    }
+  })
+  // once there, every move goes down to the panel (it shows it when back)
+  const offPlace = useStore.subscribe((s, p) => {
+    if (!placed) return
+    if (s.view === p.view && s.shown?.id === p.shown?.id && s.query === p.query && s.filter === p.filter && s.libPage === p.libPage) return
+    window.api.remoteCmd({ fn: 'place', args: [placeOf(s)] })
+  })
   window.api.remoteCmd({ fn: 'hello', args: [] })
-  return off
+  return () => {
+    off()
+    offPlace()
+  }
 }
 
 export const remoteRefresh = (): void => window.api.remoteCmd({ fn: 'refresh', args: [] })

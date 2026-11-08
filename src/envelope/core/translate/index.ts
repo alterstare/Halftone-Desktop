@@ -12,7 +12,7 @@ export type TranslatorId = Settings['translator']
 export type { GlossaryEntry }
 
 export interface TranslateCtx {
-  kind: 'subtitle' | 'script' | 'name'
+  kind: 'subtitle' | 'script' | 'name' | 'align'
   glossary: GlossaryEntry[]
   prompt?: string // the user's extra instructions
   signal?: AbortSignal
@@ -36,6 +36,7 @@ export const TRANSLATE = {
   maxWaits: 20, // 429s in a row for one request
   minTokensLeft: 2500, // fewer left this minute: wait for the reset first
   maxAnswerTokens: 4096,
+  groqGapMs: 2100, // between Groq requests (free: 30 a minute, not in its headers)
   googleGapMs: 1500, // between Google requests
   googleChars: 4000 // URL-encoded characters per Google request
 }
@@ -51,6 +52,7 @@ export const LLM_BASE: Record<Settings['llmProvider'], string> = {
 const KIND_TEXT: Record<TranslateCtx['kind'], string> = {
   subtitle: 'subtitles of a Japanese voice drama / ASMR work (one speaker talking to the listener)',
   script: 'lines of a Japanese voice drama / ASMR script',
+  align: 'pieces of Japanese speech written down by a speech engine (may be noisy), only to find where they are in a Korean script. A plain literal translation is enough',
   name: 'file and folder names of a Japanese voice drama work. Keep codes like RJ01234567, track numbers, brackets 【】「」 and SE/format words as they are'
 }
 
@@ -121,11 +123,13 @@ export function parseWait(v: string | null | undefined): number | null {
 
 // Per engine: don't send before this time (the minute's tokens are spent).
 const nextAt = new Map<string, number>()
+// Per engine: the plain gap between requests (not shown as a wait).
+const gapAt = new Map<string, number>()
 
 // An LLM request that keeps to the provider's limits: before sending, waits
 // out a spent minute; on 429 waits what the provider says and sends again;
 // a wait too long (a daily limit) stops the job.
-async function limited(name: string, send: () => Promise<Response>, ctx: TranslateCtx): Promise<string> {
+async function limited(name: string, send: () => Promise<Response>, ctx: TranslateCtx, gapMs = 0): Promise<string> {
   for (let tries = 0; ; tries++) {
     const hold = (nextAt.get(name) ?? 0) - Date.now()
     if (hold > 0) {
@@ -133,6 +137,9 @@ async function limited(name: string, send: () => Promise<Response>, ctx: Transla
       await sleep(hold, ctx.signal)
       ctx.onWait?.(0)
     }
+    const gap = (gapAt.get(name) ?? 0) - Date.now()
+    if (gap > 0) await sleep(gap, ctx.signal)
+    if (gapMs) gapAt.set(name, Date.now() + gapMs)
     const res = await send()
     const txt = await res.text()
     const h = (k: string): string | null => res.headers?.get?.(k) ?? null
@@ -236,7 +243,8 @@ export function llmTranslator(s: Settings, fetchFn: Fetch = fetch): Translator {
               ...(s.llmProvider === 'groq' && gptOss ? { reasoning_effort: 'low' } : {})
             })
           }),
-        ctx
+        ctx,
+        s.llmProvider === 'groq' ? TRANSLATE.groqGapMs : 0
       )
       const data = JSON.parse(txt) as { choices?: { message?: { content?: string } }[] }
       return String(data.choices?.[0]?.message?.content ?? '')
@@ -327,8 +335,8 @@ export function deeplTranslator(s: Settings, fetchFn: Fetch = fetch): Translator
   }
 }
 
-export function makeTranslator(s: Settings, fetchFn: Fetch = fetch, chromiumFetch: Fetch = fetchFn): Translator {
-  switch (s.translator) {
+export function makeTranslator(s: Settings, fetchFn: Fetch = fetch, chromiumFetch: Fetch = fetchFn, which: Settings['translator'] = s.translator): Translator {
+  switch (which) {
     case 'deepl':
       return deeplTranslator(s, fetchFn)
     case 'gemini':
@@ -348,22 +356,85 @@ function applyGlossary(line: string, glossary: GlossaryEntry[]): string {
   return out
 }
 
+// 같은 줄 빼기: a line said again in the same work is sent once and its
+// translation copied — only lines whose meaning doesn't hang on the scene
+// (measured on the sample library: −24% lines): sound words / moans, whole
+// stage directions "(泣)" "(息を吐く音)", and lines of 8+ characters (a long
+// line repeated word for word is the same line). Short words like はい / いいよ
+// / ほら still go line by line — their translation depends on the context.
+export function dedupeKey(line: string): string {
+  return line
+    .normalize('NFKC')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/(\.{2,}|・{2,}|‥|…)+/g, '…')
+    .replace(/[～〜~]+/g, '〜')
+    .replace(/!+/g, '!')
+    .replace(/\?+/g, '?')
+}
+export function isSoundWord(key: string): boolean {
+  const core = key.replace(/[…、。!?〜♡♥・\s「」『』()（）]/g, '')
+  if (!core || core.length > 10 || !/^[ぁ-ゖァ-ヺー]+$/.test(core)) return false
+  return /[ぁぃぅぇぉァィゥェォー]|[っッ]$|(.)\1\1/.test(core)
+}
+export const dedupable = (key: string): boolean => key.length >= 8 || /^\(.*\)$/.test(key) || isSoundWord(key)
+
+export interface TranslateLinesOptions {
+  dedupe?: boolean // 같은 줄 빼기 (above)
+  breaks?: number[] // indices where a new track starts: context never crosses them
+  // after each request: lines before `upTo` are final in `out` (to save
+  // finished tracks right away, so a stop loses only the track in progress)
+  onDone?: (upTo: number, out: string[]) => void | Promise<void>
+}
+
+// Lines handed in track by track while earlier ones are being translated: a
+// request goes out as soon as a batch is full (40 lines to send), the rest
+// waits for the next tracks; after end() the last, smaller batch goes too.
+export interface LineStream {
+  push(lines: string[]): number // one track (context stays inside it); its first index
+  end(): void // no more tracks
+  done: Promise<string[]> // every translation; rejects on a stop / failure
+}
+
 // Translate every line: batches with context, checked and re-asked; a batch
-// that keeps failing is split down to single lines. onProgress(done, total).
-export async function translateLines(
-  lines: string[],
+// that keeps failing is split down to single lines. Batches may span tracks,
+// so several short tracks share a request. onProgress(done, total) counts the
+// lines actually sent (total grows while tracks come in).
+export function translateStream(
   tr: Translator,
   ctx: TranslateCtx,
-  onProgress?: (done: number, total: number) => void
-): Promise<string[]> {
-  const out: string[] = new Array(lines.length).fill('')
+  onProgress?: (done: number, total: number) => void,
+  opts: Omit<TranslateLinesOptions, 'breaks'> = {}
+): LineStream {
+  const lines: string[] = []
+  const out: string[] = []
+  const breaks: number[] = []
+  // which lines go out; the others copy the line they repeat
+  const send: number[] = []
+  const copyOf = new Map<number, number>()
+  const first = new Map<string, number>()
+  let ended = false
+  let wake: (() => void) | null = null
+  const nudge = (): void => {
+    wake?.()
+    wake = null
+  }
+  // context: neighbours in the original lines, within the same track (a
+  // track is pushed whole, so its lines are all there)
+  ctx.signal?.addEventListener('abort', nudge, { once: true })
+  const trackStart = (i: number): number => Math.max(0, ...breaks.filter((b) => b <= i))
+  const trackEnd = (i: number): number => Math.min(lines.length, ...breaks.filter((b) => b > i))
   const size = tr.batch ?? (tr.llm ? TRANSLATE.batch : 50)
   let done = 0
   const run = async (from: number, to: number, depth: number): Promise<void> => {
     ctx.signal?.throwIfAborted()
-    const part = lines.slice(from, to)
-    const before = tr.llm ? lines.slice(Math.max(0, from - TRANSLATE.context), from) : []
-    const after = tr.llm ? lines.slice(to, to + TRANSLATE.context) : []
+    const idx = send.slice(from, to)
+    const part = idx.map((i) => lines[i])
+    const lo = idx[0]
+    const hi = idx[idx.length - 1]
+    const ctxOn = tr.llm && ctx.kind !== 'align' // finding places needs no context: fewer tokens
+    const before = ctxOn ? lines.slice(Math.max(trackStart(lo), lo - TRANSLATE.context), lo) : []
+    const after = ctxOn ? lines.slice(hi + 1, Math.min(trackEnd(hi), hi + 1 + TRANSLATE.context)) : []
     let got: string[] = []
     let lastErr: unknown = null
     for (let a = 0; a <= TRANSLATE.retries; a++) {
@@ -383,10 +454,74 @@ export async function translateLines(
       return
     }
     if (bad && !got.length && lastErr) throw lastErr
-    part.forEach((_, i) => (out[from + i] = got[i] ?? ''))
+    idx.forEach((li, i) => (out[li] = got[i] ?? ''))
     done += part.length
-    onProgress?.(done, lines.length)
+    onProgress?.(done, send.length)
   }
-  for (let i = 0; i < lines.length; i += size) await run(i, Math.min(lines.length, i + size), 0)
-  return out
+  // a repeat always copies an earlier line, so everything before the next
+  // line to send is final once its copies are filled in
+  const fill = (upTo: number): void => {
+    for (const [i, f] of copyOf) if (i < upTo) out[i] = out[f]
+  }
+  const loop = async (): Promise<string[]> => {
+    let sent = 0
+    for (;;) {
+      // a full batch, or whatever is left once no more tracks come
+      while (send.length - sent < size && !ended) {
+        ctx.signal?.throwIfAborted()
+        await new Promise<void>((r) => (wake = r))
+      }
+      if (sent >= send.length) break
+      const to = Math.min(send.length, sent + size)
+      await run(sent, to, 0)
+      sent = to
+      if (opts.onDone) {
+        const upTo = sent < send.length ? send[sent] : lines.length
+        fill(upTo)
+        await opts.onDone(upTo, out)
+      }
+    }
+    fill(lines.length)
+    return out
+  }
+  return {
+    push(track) {
+      const at = lines.length
+      breaks.push(at)
+      track.forEach((l, j) => {
+        const i = at + j
+        lines.push(l)
+        out.push('')
+        const k = opts.dedupe ? dedupeKey(l) : ''
+        if (k && dedupable(k)) {
+          const f = first.get(k)
+          if (f !== undefined) return void copyOf.set(i, f)
+          first.set(k, i)
+        }
+        send.push(i)
+      })
+      nudge()
+      return at
+    },
+    end() {
+      ended = true
+      nudge()
+    },
+    done: loop()
+  }
+}
+
+// All lines at once (`breaks` = where each track starts).
+export async function translateLines(
+  lines: string[],
+  tr: Translator,
+  ctx: TranslateCtx,
+  onProgress?: (done: number, total: number) => void,
+  opts: TranslateLinesOptions = {}
+): Promise<string[]> {
+  const s = translateStream(tr, ctx, onProgress, opts)
+  const cuts = [...new Set([0, ...(opts.breaks ?? []), lines.length])].sort((a, b) => a - b)
+  for (let k = 0; k + 1 < cuts.length; k++) s.push(lines.slice(cuts[k], cuts[k + 1]))
+  s.end()
+  return s.done
 }

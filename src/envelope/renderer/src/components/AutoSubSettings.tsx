@@ -6,6 +6,7 @@ import type { JSX } from 'react'
 import { useStore } from '../store'
 import type { EngineStatus, GlossaryEntry, Settings, WhisperModelId } from '../../../shared/types'
 import { Dropdown } from './ui'
+import { useDraft } from './settingsDraft'
 import { AddIcon, CheckIcon, CloudDownloadIcon, DeleteIcon, FileOpenIcon, FolderOpenIcon } from './icons'
 
 const MODELS: [WhisperModelId, string, number][] = [
@@ -100,15 +101,15 @@ export function Glossary({ workId = null }: { workId?: number | null }): JSX.Ele
 }
 
 export default function AutoSubSettings(): JSX.Element | null {
-  const s = useStore((x) => x.settings)
-  const save = useStore((x) => x.saveSettings)
+  const draft = useDraft()
   const job = useStore((x) => x.job)
   const [eng, setEng] = useState<EngineStatus | null>(null)
   const refresh = (): void => void window.api.engineStatus().then(setEng)
   useEffect(refresh, [job?.state])
-  if (!s) return null
+  if (!draft) return null
+  const { s } = draft
   const toast = useStore.getState().showToast
-  const set = (p: Partial<Settings>): void => void save(p)
+  const set = (p: Partial<Settings>): void => draft.set(p)
   const busy = !!job && (job.state === 'running' || job.state === 'queued')
 
   return (
@@ -120,23 +121,38 @@ export default function AutoSubSettings(): JSX.Element | null {
         </Row>
         {s.asrEngine === 'local' ? (
           <>
-            <Row
-              label="엔진"
-              hint={
-                eng
-                  ? `Vulkan(GPU) ${eng.vulkan ? '설치 완료' : '미설치'} · CPU ${eng.cpu ? '설치 완료' : '미설치'} — GPU 엔진이 있으면 먼저 쓰고, 안 되면 CPU로 자동 전환합니다.`
-                  : undefined
-              }
-            >
+            <Row label="엔진" hint="GPU 엔진이 있으면 먼저 쓰고, 안 되면 CPU로 자동 전환합니다.">
               <div className="flat-group">
-                <button className="mini" disabled={busy} onClick={async () => (toast(await window.api.installEngine()), refresh())}>
-                  <CloudDownloadIcon /> 엔진 받기
+                <button
+                  className="mini"
+                  disabled={busy}
+                  title={eng?.vulkan && eng.cpu ? '최신 빌드로 다시 받습니다' : undefined}
+                  onClick={async () => (toast(await window.api.installEngine()), refresh())}
+                >
+                  <CloudDownloadIcon /> {eng?.vulkan && eng.cpu ? '다시 받기' : '엔진 받기'}
                 </button>
                 <button className="mini" title="직접 빌드한 Vulkan whisper-cli 넣기" onClick={async () => (toast(await window.api.importVulkanEngine()), refresh())}>
                   <FolderOpenIcon /> Vulkan 엔진 넣기
                 </button>
               </div>
             </Row>
+            {/* what is installed, at a glance — the same rows as the models */}
+            <div className="models">
+              {(
+                [
+                  ['vulkan', 'Vulkan (GPU)'],
+                  ['cpu', 'CPU']
+                ] as const
+              ).map(([b, label]) => (
+                <div key={b} className={`model-row engine-row ${eng?.[b] ? 'on' : ''}`}>
+                  <span className="model-pick">
+                    {eng?.[b] && <CheckIcon />}
+                    <span>{label}</span>
+                  </span>
+                  <span className="hint engine-state">{!eng ? '' : eng[b] ? `설치 완료${eng.versions[b] ? ` · ${eng.versions[b]}` : ''}` : '미설치'}</span>
+                </div>
+              ))}
+            </div>
             <Row label="장치">
               <Seg value={s.localDevice} options={[['auto', '자동 (GPU 먼저)'], ['cpu', 'CPU만']]} onChange={(v) => set({ localDevice: v })} />
             </Row>
@@ -191,12 +207,26 @@ export default function AutoSubSettings(): JSX.Element | null {
             onChange={(v) => set({ translator: v })}
           />
         </Row>
-        {s.translator === 'deepl' && (
+        <Row label="대본 위치 맞추기 번역" hint="한국어 대본으로 자막을 만들 때, 들은 일본어를 이 엔진으로 번역해서 대본 줄의 위치를 찾습니다. 번역문은 위치를 찾는 데만 쓰고 저장하지 않습니다.">
+          <Dropdown
+            kind="mini"
+            title="대본 위치 맞추기 번역"
+            value={s.alignTranslator}
+            options={[
+              ['google', 'Google (무료)'],
+              ['deepl', 'DeepL'],
+              ['gemini', 'Gemini'],
+              ['llm', 'LLM']
+            ]}
+            onChange={(v) => set({ alignTranslator: v })}
+          />
+        </Row>
+        {(s.translator === 'deepl' || s.alignTranslator === 'deepl') && (
           <Row label="DeepL API 키" hint="DeepL API Free 키 (한 달 50만 자 무료).">
             <Field secret value={s.deeplApiKey} onSave={(v) => set({ deeplApiKey: v })} />
           </Row>
         )}
-        {s.translator === 'gemini' && (
+        {(s.translator === 'gemini' || s.alignTranslator === 'gemini') && (
           <>
             <Row label="Gemini API 키" hint="Google AI Studio에서 무료로 만들 수 있습니다.">
               <Field secret value={s.geminiApiKey} onSave={(v) => set({ geminiApiKey: v })} />
@@ -206,7 +236,7 @@ export default function AutoSubSettings(): JSX.Element | null {
             </Row>
           </>
         )}
-        {s.translator === 'llm' && (
+        {(s.translator === 'llm' || s.alignTranslator === 'llm') && (
           <>
             <Row label="LLM 제공자" hint="OpenAI 호환 API. Groq는 받아쓰기 키를 함께 씁니다(따로 넣으면 그 키).">
               <Dropdown
@@ -255,9 +285,9 @@ export default function AutoSubSettings(): JSX.Element | null {
           </div>
           <textarea
             className="set-text"
-            defaultValue={s.translatePrompt}
+            value={s.translatePrompt}
             rows={3}
-            onBlur={(e) => e.target.value !== s.translatePrompt && set({ translatePrompt: e.target.value })}
+            onChange={(e) => set({ translatePrompt: e.target.value })}
           />
         </div>
         <div className="set-row column">

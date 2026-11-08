@@ -79,6 +79,10 @@ export interface State {
   // back / forward (mouse side buttons, Alt+←/→)
   history: { view: View; workId: number | null }[]
   historyAt: number
+  // Settings screen with unsaved edits: a navigation away is held in
+  // `pendingNav` so the screen can ask (save / don't save / stay) first.
+  settingsDirty: boolean
+  pendingNav: (() => void) | null
 
   setView: (v: View) => void
   setQuery: (q: string) => void
@@ -96,6 +100,8 @@ export interface State {
   moveTab: (id: number, to: number) => void
   navBack: () => void
   navForward: () => void
+  setSettingsDirty: (b: boolean) => void
+  clearPendingNav: () => void
 }
 
 const MAX_HISTORY = 50
@@ -135,8 +141,11 @@ export const useStore = create<State>((set, get) => ({
   closedTabs: [],
   history: [{ view: 'library', workId: null }],
   historyAt: 0,
+  settingsDirty: false,
+  pendingNav: null,
 
   setView: (view) => {
+    if (view !== 'settings' && held(() => get().setView(view))) return
     set({ view, editing: false })
     record(view, view === 'work' ? (get().shown?.id ?? null) : null)
   },
@@ -157,6 +166,7 @@ export const useStore = create<State>((set, get) => ({
   loadGroups: async () => set({ groups: await window.api.groups() }),
   // Opens (and adds) the work's LP tab.
   openWork: async (id) => {
+    if (held(() => void get().openWork(id))) return
     const w = await window.api.work(id)
     if (!w) return
     const { tabs, shown } = get()
@@ -220,8 +230,19 @@ export const useStore = create<State>((set, get) => ({
     saveTabs()
   },
   navBack: () => go(-1),
-  navForward: () => go(1)
+  navForward: () => go(1),
+  setSettingsDirty: (b) => set({ settingsDirty: b }),
+  clearPendingNav: () => set({ pendingNav: null })
 }))
+
+// Leaving the settings screen with unsaved edits: keep the navigation for the
+// confirm modal instead of running it.
+function held(nav: () => void): boolean {
+  const st = useStore.getState()
+  if (st.view !== 'settings' || !st.settingsDirty) return false
+  useStore.setState({ pendingNav: nav })
+  return true
+}
 
 function saveTabs(): void {
   if (tabSave) clearTimeout(tabSave)
@@ -238,6 +259,7 @@ function record(view: View, workId: number | null): void {
 }
 
 async function go(dir: -1 | 1): Promise<void> {
+  if (held(() => void go(dir))) return
   const st = useStore.getState()
   const at = st.historyAt + dir
   const h = st.history[at]

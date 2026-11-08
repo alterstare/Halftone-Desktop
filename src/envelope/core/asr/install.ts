@@ -1,7 +1,7 @@
 // 엔진 · 모델 받기: the whisper.cpp builds (CPU from the official releases,
 // Vulkan from Envelope's CI) and the ggml models from Hugging Face — into the
 // data folder, through ".part" files so a broken download never looks finished.
-import { createWriteStream, existsSync, promises as fsp } from 'fs'
+import { createWriteStream, existsSync, promises as fsp, readFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { execFile } from 'child_process'
@@ -15,8 +15,18 @@ export type { EngineStatus }
 export function engineStatus(enginesDir: string, modelsDir: string): EngineStatus {
   const models = {} as Record<WhisperModel, boolean>
   for (const m of Object.keys(WHISPER_MODELS) as WhisperModel[]) models[m] = !!modelsDir && existsSync(modelPath(modelsDir, m))
-  return { vulkan: !!whisperBinary(enginesDir, 'vulkan'), cpu: !!whisperBinary(enginesDir, 'cpu'), models }
+  const version = (b: WhisperBuild): string => {
+    try {
+      return readFileSync(join(enginesDir, `whisper-${b}`, RELEASE_FILE), 'utf8').trim()
+    } catch {
+      return ''
+    }
+  }
+  return { vulkan: !!whisperBinary(enginesDir, 'vulkan'), cpu: !!whisperBinary(enginesDir, 'cpu'), versions: { vulkan: version('vulkan'), cpu: version('cpu') }, models }
 }
+
+// next to a downloaded build: the release tag it came from
+const RELEASE_FILE = 'release.txt'
 
 type Progress = (done: number, total: number) => void
 
@@ -91,6 +101,7 @@ export async function installBuild(enginesDir: string, build: WhisperBuild, fetc
     const bin = whisperBinary(enginesDir, build)
     if (!bin) throw new Error('받은 파일에 whisper-cli가 없습니다')
     if (process.platform !== 'win32') await fsp.chmod(bin, 0o755)
+    await fsp.writeFile(join(dest, RELEASE_FILE), rel.tag_name)
     return rel.tag_name
   } finally {
     await fsp.rm(tmp, { recursive: true, force: true })

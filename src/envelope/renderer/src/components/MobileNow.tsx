@@ -17,7 +17,6 @@ import {
   BedtimeIcon,
   EditIcon,
   Forward5Icon,
-  FullscreenIcon,
   KeyboardArrowDownIcon,
   KeyboardArrowLeftIcon,
   KeyboardArrowRightIcon,
@@ -118,9 +117,6 @@ function MoreMenu(): JSX.Element {
             </button>
             <button className="menu-item" onClick={() => (close(), useStore.setState({ editing: true }))}>
               <EditIcon /> 자막 편집
-            </button>
-            <button className="menu-item" onClick={() => (close(), void document.querySelector<HTMLElement>('.stage')?.requestFullscreen())}>
-              <FullscreenIcon /> 전체 화면
             </button>
             <div className="menu-sep" />
             <div className="menu-title">

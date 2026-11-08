@@ -1,8 +1,13 @@
+// 설정. Edits stay in a draft until 저장 (Halftone's settings shell: 저장 /
+// 취소 at the bottom, and leaving with unsaved edits asks first). Library
+// folders, groups, engine / model downloads and the glossary are actions, not
+// settings — they still happen at once.
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import { useStore } from '../store'
-import { embedded } from '../embed'
-import type { AppInfo, SubMode } from '../../../shared/types'
+import { embedded, hosted } from '../embed'
+import type { AppInfo, Settings, SubMode } from '../../../shared/types'
+import { DraftContext, changed } from './settingsDraft'
 import { addLibraryFolder } from './Library'
 import { AddIcon, CheckIcon, CloseIcon, CloudDownloadIcon, DeleteIcon, EditIcon, FolderOpenIcon, RefreshIcon } from './icons'
 import { Confirm, Stepper } from './ui'
@@ -111,15 +116,58 @@ function Groups(): JSX.Element {
 }
 
 export default function SettingsView(): JSX.Element | null {
-  const s = useStore((x) => x.settings)
-  const save = useStore((x) => x.saveSettings)
+  const saved = useStore((x) => x.settings)
   const scan = useStore((x) => x.scan)
+  const pendingNav = useStore((x) => x.pendingNav)
+  const [edits, setEdits] = useState<Partial<Settings>>({})
   const [info, setInfo] = useState<AppInfo | null>(null)
   useEffect(() => {
     void window.api.appInfo().then(setInfo)
   }, [])
-  if (!s) return null
   const st = useStore.getState
+  const diff = saved ? changed(saved, edits) : {}
+  const dirty = Object.keys(diff).length > 0
+  // Unsaved edits → the store's navigation guard asks before leaving.
+  useEffect(() => {
+    st().setSettingsDirty(dirty)
+  }, [dirty]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => st().setSettingsDirty(false), []) // eslint-disable-line react-hooks/exhaustive-deps
+  // The theme is previewed while editing; on leaving, the saved one comes back.
+  const theme = edits.theme ?? saved?.theme
+  useEffect(() => {
+    if (!hosted && theme) document.documentElement.dataset.theme = theme
+  }, [theme])
+  useEffect(
+    () => () => {
+      const t = st().settings?.theme
+      if (!hosted && t) document.documentElement.dataset.theme = t
+    },
+    [] // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  if (!saved) return null
+  const s: Settings = { ...saved, ...edits }
+  const save = (p: Partial<Settings>): Promise<void> => (setEdits((e) => ({ ...e, ...p })), Promise.resolve())
+
+  // Write the edits, then reload what depends on them.
+  const persist = async (): Promise<void> => {
+    await st().saveSettings(diff)
+    setEdits({})
+    st().setSettingsDirty(false)
+    if ('titleSource' in diff || 'coverSource' in diff || 'nameDisplay' in diff) {
+      await st().loadWorks()
+      if ('nameDisplay' in diff) await st().refreshWork()
+    }
+  }
+  const leave = async (keep: boolean): Promise<void> => {
+    const nav = st().pendingNav
+    if (keep) await persist()
+    else {
+      setEdits({})
+      st().setSettingsDirty(false)
+    }
+    st().clearPendingNav()
+    nav?.()
+  }
   const scanning = scan && (scan.state === 'running' || scan.state === 'queued')
 
   const removeDir = async (d: string): Promise<void> => {
@@ -130,159 +178,181 @@ export default function SettingsView(): JSX.Element | null {
   }
 
   return (
-    <div className="settings">
-      <h1>설정</h1>
-      <section>
-        <h3>라이브러리</h3>
-        <div className="dirs">
-          {s.libraryDirs.map((d) => (
-            <div key={d} className="dir">
-              <FolderOpenIcon />
-              <span className="selectable">{d}</span>
-              <button className="mini icon" title="목록에서 빼기 (파일은 그대로)" onClick={() => void removeDir(d)}>
-                <DeleteIcon />
+    <DraftContext.Provider value={{ s, set: (p) => void save(p) }}>
+      <div className="settings">
+        <h1>설정</h1>
+        <section>
+          <h3>라이브러리</h3>
+          <div className="dirs">
+            {s.libraryDirs.map((d) => (
+              <div key={d} className="dir">
+                <FolderOpenIcon />
+                <span className="selectable">{d}</span>
+                <button className="mini icon" title="목록에서 빼기 (파일은 그대로)" onClick={() => void removeDir(d)}>
+                  <DeleteIcon />
+                </button>
+              </div>
+            ))}
+            <div className="flat-group">
+              <button className="mini" onClick={() => void addLibraryFolder()}>
+                <AddIcon /> 폴더 추가
+              </button>
+              <button
+                className="mini"
+                disabled={!!scanning || !s.libraryDirs.length}
+                onClick={async () => {
+                  const r = await window.api.scan()
+                  st().showToast(r)
+                  void st().loadWorks()
+                }}
+              >
+                <RefreshIcon /> {scanning ? `스캔 중 ${scan.total ? `${scan.done} / ${scan.total}` : ''}` : '다시 스캔'}
               </button>
             </div>
-          ))}
-          <div className="flat-group">
-            <button className="mini" onClick={() => void addLibraryFolder()}>
-              <AddIcon /> 폴더 추가
-            </button>
-            <button
-              className="mini"
-              disabled={!!scanning || !s.libraryDirs.length}
-              onClick={async () => {
-                const r = await window.api.scan()
-                st().showToast(r)
-                void st().loadWorks()
-              }}
-            >
-              <RefreshIcon /> {scanning ? `스캔 중 ${scan.total ? `${scan.done} / ${scan.total}` : ''}` : '다시 스캔'}
-            </button>
           </div>
-        </div>
-      </section>
-      <section>
-        <h3>작품 정보</h3>
-        <Row label="제목 표시" hint="DLsite 제목은 작품 코드로 가져옵니다. 폴더 이름이 작품 코드뿐인 작품은 스캔할 때 자동으로 가져옵니다.">
-          <Seg
-            value={s.titleSource}
-            options={[
-              ['folder', '폴더 이름'],
-              ['dlsite', 'DLsite 제목']
-            ]}
-            onChange={(v) => void save({ titleSource: v }).then(() => st().loadWorks())}
-          />
-        </Row>
-        <Row label="표지" hint="DLsite 표지는 앱 데이터 폴더에 저장하고, 작품 폴더는 바꾸지 않습니다. 그림이 없는 작품은 항상 DLsite 표지를 씁니다.">
-          <Seg
-            value={s.coverSource}
-            options={[
-              ['folder', '폴더 이미지'],
-              ['dlsite', 'DLsite 표지']
-            ]}
-            onChange={(v) => void save({ coverSource: v }).then(() => st().loadWorks())}
-          />
-        </Row>
-        <Row label="이름 표시" hint="번역한 이름은 작품 화면의 이름 번역 버튼으로 만듭니다. 파일 이름은 바꾸지 않습니다(바꾸려면 파일 정리 › 이름 바꾸기).">
-          <Seg
-            value={s.nameDisplay}
-            options={[
-              ['original', '원래 이름'],
-              ['translated', '번역한 이름']
-            ]}
-            onChange={(v) => void save({ nameDisplay: v }).then(() => (st().loadWorks(), st().refreshWork()))}
-          />
-        </Row>
-        <Row
-          label="원래 이름 기록"
-          hint="처음 스캔했을 때의 일본어 이름(깨진 이름은 복구한 일본어)과 일본어 자막을 프로그램 안에 기록해 두고, 파일 정리 › 폴더 변경을 실행한 작품 폴더에는 envelope-original.json으로도 남깁니다. 되돌리기: 파일 정리 › 이름 › 폴더 변경 › 기록한 원래 이름, 자막 › 프로그램 내 변경 › 기록한 일본어 자막 되살리기."
-        >
-          <Seg
-            value={s.originalsInFolder ? 'on' : 'off'}
-            options={[
-              ['on', '작품 폴더에도 남기기'],
-              ['off', '프로그램 안에만']
-            ]}
-            onChange={(v) => void save({ originalsInFolder: v === 'on' })}
-          />
-        </Row>
-        <Row label="DLsite에서 가져오기" hint="아직 가져오지 않은 작품의 제목 · 서클 · 성우 · 표지를 가져옵니다 (1초에 한 작품).">
-          <div className="flat-group">
-            <button
-              className="mini"
-              onClick={async () => {
-                const r = await window.api.fetchDlsite(null)
-                st().showToast(r)
-                void st().loadWorks()
-              }}
-            >
-              <CloudDownloadIcon /> 가져오기
-            </button>
-          </div>
-        </Row>
-      </section>
-      <section>
-        <h3>그룹</h3>
-        <Groups />
-      </section>
-      <section>
-        <h3>재생</h3>
-        <Row label="기본 버전" hint="SE를 넣은 판과 뺀 판이 다 있을 때 먼저 고를 쪽입니다. 작품마다 바꿀 수 있습니다.">
-          <Seg value={s.sePref} options={[['on', 'SE 포함'], ['off', 'SE 제외']]} onChange={(v) => void save({ sePref: v })} />
-        </Row>
-        <Row label="파일 형식" hint="같은 트랙이 여러 형식으로 있을 때 먼저 고를 쪽입니다.">
-          <Seg value={s.formatPref} options={[['lossless', '무손실 (wav · flac)'], ['mp3', 'mp3']]} onChange={(v) => void save({ formatPref: v })} />
-        </Row>
-        <Row label="이어 듣기" hint="켜면 작품 · 트랙을 마지막으로 듣던 곳부터 재생합니다. 끄면 항상 첫 트랙의 처음부터 재생합니다(들은 위치 기록은 그대로 남습니다).">
-          <Seg value={s.resume ? 'on' : 'off'} options={[['on', '켜기'], ['off', '끄기']]} onChange={(v) => void save({ resume: v === 'on' })} />
-        </Row>
-        <Row label="건너뛰기 간격">
-          <Seg value={s.seekStep} options={[[5, '5초'], [10, '10초'], [15, '15초'], [30, '30초']]} onChange={(v) => void save({ seekStep: v })} />
-        </Row>
-      </section>
-      <section>
-        <h3>자막</h3>
-        <Row label="표시" hint="원문(일본어)과 번역(한국어) 자막이 둘 다 있을 때 보여줄 줄입니다.">
-          <Seg<SubMode>
-            value={s.subMode}
-            options={[
-              ['both', '둘 다'],
-              ['original', '원문'],
-              ['translation', '번역'],
-              ['off', '끄기']
-            ]}
-            onChange={(v) => void save({ subMode: v })}
-          />
-        </Row>
-        <Row label="글자 크기">
-          <Seg value={s.subSize} options={[[18, '작게'], [22, '보통'], [28, '크게'], [36, '아주 크게']]} onChange={(v) => void save({ subSize: v })} />
-        </Row>
-      </section>
-      <AutoSubSettings />
-      <section>
-        <h3>화면</h3>
-        {!embedded && (
-          <Row label="테마">
-            <Seg value={s.theme} options={[['light', '라이트'], ['dark', '다크']]} onChange={(v) => void save({ theme: v })} />
+        </section>
+        <section>
+          <h3>작품 정보</h3>
+          <Row label="제목 표시" hint="DLsite 제목은 작품 코드로 가져옵니다. 폴더 이름이 작품 코드뿐인 작품은 스캔할 때 자동으로 가져옵니다.">
+            <Seg
+              value={s.titleSource}
+              options={[
+                ['folder', '폴더 이름'],
+                ['dlsite', 'DLsite 제목']
+              ]}
+              onChange={(v) => void save({ titleSource: v })}
+            />
           </Row>
+          <Row label="표지" hint="DLsite 표지는 앱 데이터 폴더에 저장하고, 작품 폴더는 바꾸지 않습니다. 그림이 없는 작품은 항상 DLsite 표지를 씁니다.">
+            <Seg
+              value={s.coverSource}
+              options={[
+                ['folder', '폴더 이미지'],
+                ['dlsite', 'DLsite 표지']
+              ]}
+              onChange={(v) => void save({ coverSource: v })}
+            />
+          </Row>
+          <Row label="이름 표시" hint="번역한 이름은 작품 화면의 이름 번역 버튼으로 만듭니다. 파일 이름은 바꾸지 않습니다(바꾸려면 파일 정리 › 이름 바꾸기).">
+            <Seg
+              value={s.nameDisplay}
+              options={[
+                ['original', '원래 이름'],
+                ['translated', '번역한 이름']
+              ]}
+              onChange={(v) => void save({ nameDisplay: v })}
+            />
+          </Row>
+          <Row
+            label="원래 이름 기록"
+            hint="처음 스캔했을 때의 일본어 이름(깨진 이름은 복구한 일본어)과 일본어 자막을 프로그램 안에 기록해 두고, 파일 정리 › 폴더 변경을 실행한 작품 폴더에는 envelope-original.json으로도 남깁니다. 되돌리기: 파일 정리 › 이름 › 폴더 변경 › 기록한 원래 이름, 자막 › 프로그램 내 변경 › 기록한 일본어 자막 되살리기."
+          >
+            <Seg
+              value={s.originalsInFolder ? 'on' : 'off'}
+              options={[
+                ['on', '작품 폴더에도 남기기'],
+                ['off', '프로그램 안에만']
+              ]}
+              onChange={(v) => void save({ originalsInFolder: v === 'on' })}
+            />
+          </Row>
+          <Row label="DLsite에서 가져오기" hint="아직 가져오지 않은 작품의 제목 · 서클 · 성우 · 표지를 가져옵니다 (1초에 한 작품).">
+            <div className="flat-group">
+              <button
+                className="mini"
+                onClick={async () => {
+                  const r = await window.api.fetchDlsite(null)
+                  st().showToast(r)
+                  void st().loadWorks()
+                }}
+              >
+                <CloudDownloadIcon /> 가져오기
+              </button>
+            </div>
+          </Row>
+        </section>
+        <section>
+          <h3>그룹</h3>
+          <Groups />
+        </section>
+        <section>
+          <h3>재생</h3>
+          <Row label="기본 버전" hint="SE를 넣은 판과 뺀 판이 다 있을 때 먼저 고를 쪽입니다. 작품마다 바꿀 수 있습니다.">
+            <Seg value={s.sePref} options={[['on', 'SE 포함'], ['off', 'SE 제외']]} onChange={(v) => void save({ sePref: v })} />
+          </Row>
+          <Row label="파일 형식" hint="같은 트랙이 여러 형식으로 있을 때 먼저 고를 쪽입니다.">
+            <Seg value={s.formatPref} options={[['lossless', '무손실 (wav · flac)'], ['mp3', 'mp3']]} onChange={(v) => void save({ formatPref: v })} />
+          </Row>
+          <Row label="이어 듣기" hint="켜면 작품 · 트랙을 마지막으로 듣던 곳부터 재생합니다. 끄면 항상 첫 트랙의 처음부터 재생합니다(들은 위치 기록은 그대로 남습니다).">
+            <Seg value={s.resume ? 'on' : 'off'} options={[['on', '켜기'], ['off', '끄기']]} onChange={(v) => void save({ resume: v === 'on' })} />
+          </Row>
+          <Row label="건너뛰기 간격">
+            <Seg value={s.seekStep} options={[[5, '5초'], [10, '10초'], [15, '15초'], [30, '30초']]} onChange={(v) => void save({ seekStep: v })} />
+          </Row>
+        </section>
+        <section>
+          <h3>자막</h3>
+          <Row label="표시" hint="원문(일본어)과 번역(한국어) 자막이 둘 다 있을 때 보여줄 줄입니다.">
+            <Seg<SubMode>
+              value={s.subMode}
+              options={[
+                ['both', '둘 다'],
+                ['original', '원문'],
+                ['translation', '번역'],
+                ['off', '끄기']
+              ]}
+              onChange={(v) => void save({ subMode: v })}
+            />
+          </Row>
+          <Row label="글자 크기">
+            <Seg value={s.subSize} options={[[18, '작게'], [22, '보통'], [28, '크게'], [36, '아주 크게']]} onChange={(v) => void save({ subSize: v })} />
+          </Row>
+        </section>
+        <AutoSubSettings />
+        <section>
+          <h3>화면</h3>
+          {!embedded && (
+            <Row label="테마">
+              <Seg value={s.theme} options={[['light', '라이트'], ['dark', '다크']]} onChange={(v) => void save({ theme: v })} />
+            </Row>
+          )}
+          <Row label="한 페이지 작품 수" hint="라이브러리 목록을 이 개수씩 나눠 페이지로 보여줍니다.">
+            <Stepper value={s.pageSize ?? 50} min={1} step={10} onChange={(v) => void save({ pageSize: v })} />
+          </Row>
+          <Row label="LP 탭 위치" hint="열어 둔 작품이 LP로 쌓이는 막대의 위치입니다.">
+            <Seg value={s.tabSide} options={[['left', '왼쪽'], ['right', '오른쪽']]} onChange={(v) => void save({ tabSide: v })} />
+          </Row>
+        </section>
+        <section>
+          <h3>단축키</h3>
+          <ShortcutSettings />
+        </section>
+        <div className="settings-actions">
+          <button className="btn" onClick={() => st().setView('library')}>
+            취소
+          </button>
+          <button className="btn primary" onClick={async () => (await persist(), st().showToast({ ok: true, message: '저장되었습니다' }))}>
+            저장
+          </button>
+        </div>
+        {info && (
+          <p className="hint selectable about">
+            Env/ {info.version} · 데이터 구조 {info.schemaVersion} · {info.dataDir}
+          </p>
         )}
-        <Row label="한 페이지 작품 수" hint="라이브러리 목록을 이 개수씩 나눠 페이지로 보여줍니다.">
-          <Stepper value={s.pageSize ?? 50} min={1} step={10} onChange={(v) => void save({ pageSize: v })} />
-        </Row>
-        <Row label="LP 탭 위치" hint="열어 둔 작품이 LP로 쌓이는 막대의 위치입니다.">
-          <Seg value={s.tabSide} options={[['left', '왼쪽'], ['right', '오른쪽']]} onChange={(v) => void save({ tabSide: v })} />
-        </Row>
-      </section>
-      <section>
-        <h3>단축키</h3>
-        <ShortcutSettings />
-      </section>
-      {info && (
-        <p className="hint selectable about">
-          Env/ {info.version} · 데이터 구조 {info.schemaVersion} · {info.dataDir}
-        </p>
-      )}
-    </div>
+        {pendingNav && (
+          <Confirm
+            title="저장하지 않은 변경이 있습니다"
+            body="설정을 저장하고 나갈까요?"
+            ok="저장"
+            alt="저장하지 않기"
+            cancel="닫기"
+            onOk={() => void leave(true)}
+            onAlt={() => void leave(false)}
+            onCancel={() => st().clearPendingNav()}
+          />
+        )}
+      </div>
+    </DraftContext.Provider>
   )
 }

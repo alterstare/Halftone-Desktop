@@ -46,9 +46,33 @@ export function trackLabel(work: WorkDetail, groupKey: string): string {
   return `${ROLE_LABEL[g.role] ?? '트랙'} ${same.indexOf(g) + 1}`
 }
 
-// 전체 자막 panel in the cover's main colour; the text dark on a bright one
-export function lyricsTheme(hex: string | null): React.CSSProperties | undefined {
-  if (!hex) return undefined
+// The cover's colour softened to a pastel: its hue kept, saturation at most
+// PASTEL_S, lightness within PASTEL_L (the raw dominant colour was neon or a
+// primary colour).
+const PASTEL_S = 0.45
+const PASTEL_L: [number, number] = [0.72, 0.84]
+function pastel(hex: string): string {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l0 = (max + min) / 2
+  const d = max - min
+  const s0 = d === 0 ? 0 : d / (1 - Math.abs(2 * l0 - 1))
+  const h = d === 0 ? 0 : max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  const s = Math.min(s0, PASTEL_S)
+  const l = Math.min(PASTEL_L[1], Math.max(PASTEL_L[0], l0))
+  // HSL → RGB
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs((h % 2) - 1))
+  const [r1, g1, b1] = h < 1 ? [c, x, 0] : h < 2 ? [x, c, 0] : h < 3 ? [0, c, x] : h < 4 ? [0, x, c] : h < 5 ? [x, 0, c] : [c, 0, x]
+  const m = l - c / 2
+  return '#' + [r1, g1, b1].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('')
+}
+
+// 전체 자막 panel in the cover's main colour (as a pastel); the text dark on a bright one
+export function lyricsTheme(raw: string | null): React.CSSProperties | undefined {
+  if (!raw) return undefined
+  const hex = pastel(raw)
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
   const lin = (c: number): number => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
   const light = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b) > 0.35

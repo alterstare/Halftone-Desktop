@@ -69,7 +69,12 @@ export function Stage(): JSX.Element {
   const l1 = line(main)
   const l2 = line(second)
   return (
-    <div className="stage" ref={ref} onDoubleClick={() => (document.fullscreenElement ? void document.exitFullscreen() : void ref.current?.requestFullscreen())}>
+    // full screen only in the big window (double-click or the button)
+    <div
+      className="stage"
+      ref={ref}
+      onDoubleClick={narrow ? undefined : () => (document.fullscreenElement ? void document.exitFullscreen() : void ref.current?.requestFullscreen())}
+    >
       {img && !video && (
         <>
           <div className="stage-blur" style={{ backgroundImage: `url("${window.api.thumbUrl(img)}")` }} />
@@ -98,9 +103,11 @@ export function Stage(): JSX.Element {
             </button>
           </>
         )}
-        <button className="mini icon" title="전체 화면 (더블클릭)" onClick={() => void ref.current?.requestFullscreen()}>
-          <FullscreenIcon />
-        </button>
+        {!narrow && (
+          <button className="mini icon" title="전체 화면 (더블클릭)" onClick={() => void ref.current?.requestFullscreen()}>
+            <FullscreenIcon />
+          </button>
+        )}
       </div>
     </div>
   )

@@ -2,17 +2,18 @@
 // (tiny, then base / small when too many lines stay unsure) → subtitles in
 // the script's language, and for a Japanese script also Korean (the script is
 // translated, which is better than translating what the engine heard).
-import type { AutoSubResult, Cue, ScriptPreview, ScriptSource, ScriptSubOptions, SubLang, SubtitleText, TrackGroup, WorkDetail } from '../../shared/types'
+import type { AutoSubResult, Cue, ScriptPreview, ScriptSource, ScriptSubOptions, SubLang, SubtitleText, TrackGroup, TrackVersion, WorkDetail } from '../../shared/types'
 import type { Db } from '../db'
 import type { AsrEngine } from '../asr/engines'
 import type { JobContext } from '../queue'
 import type { DecodeFn } from '../autosub'
-import { sourceVersion, transcribeSegments } from '../autosub'
+import { cacheGet, cachePut, sourceVersion, transcribeSegments } from '../autosub'
 import type { GlossaryEntry, Translator } from '../translate'
 import { TranslateStop, translateLines } from '../translate'
 import { readScript } from './read'
 import { scriptLines, splitByTracks } from './text'
-import { ALIGN, alignAcross, alignByLength, alignJapanese, toAlignedCues } from './align'
+import type { AsrSegment } from '../asr/clean'
+import { ALIGN, alignAcross, alignByContent, alignByLength, alignJapanese, speechPieces, toAlignedCues } from './align'
 
 export { findScripts, scriptFromFile } from './read'
 
@@ -47,6 +48,8 @@ export interface ScriptSubDeps {
   asr: () => Promise<AsrEngine> // Korean scripts: segments from the normal engine
   maxChunkS: number
   translator: Translator | null
+  // Korean scripts: the heard Japanese translated only to find the lines (null = by length)
+  alignTranslator: Translator | null
   glossary: GlossaryEntry[]
   prompt: string
   readSub: (path: string) => Promise<SubtitleText>
@@ -80,6 +83,8 @@ export async function scriptSubWork(db: Db, work: WorkDetail, src: ScriptSource,
   const groups = work.groups.filter((g) => by.has(g.key))
   const total = groups.length || 1
   let step = 0
+  // Korean script: heard first, track by track; then placed all together
+  const heardKo: { g: TrackGroup; v: TrackVersion; lines: string[]; segs: AsrSegment[]; duration: number }[] = []
   for (const g of groups) {
     ctx.signal.throwIfAborted()
     const lines = by.get(g.key)!
@@ -112,7 +117,13 @@ export async function scriptSubWork(db: Db, work: WorkDetail, src: ScriptSource,
         }
         cues = best ?? []
       } else {
-        const segs = await transcribeSegments(db, v, { ...deps, asr: await deps.asr(), translator: null, glossary: [], saveSub: deps.saveSub }, 'ja', ctx, (f) => report(f, '대본 맞추기'))
+        const words = !!deps.alignTranslator
+        const segs = await transcribeSegments(db, v, { ...deps, asr: await deps.asr(), translator: null, glossary: [], saveSub: deps.saveSub }, 'ja', ctx, (f) => report(f, '대본 맞추기'), words)
+        if (words) {
+          heardKo.push({ g, v, lines, segs, duration: duration || segs[segs.length - 1]?.end || 0 })
+          step++
+          continue // placed below, with the other tracks
+        }
         cues = toAlignedCues(lines, alignByLength(lines, segs, duration || segs[segs.length - 1]?.end || 0))
       }
       const saved = await deps.saveSub(v.id, lang, cues, opts.redo)
@@ -130,7 +141,8 @@ export async function scriptSubWork(db: Db, work: WorkDetail, src: ScriptSource,
               signal: ctx.signal,
               onWait: (w) => report(0.7, w ? `대본 번역 · 사용 한도 대기 ${w}초` : '대본 번역')
             }, (d, t) =>
-            report(0.7 + (0.3 * d) / t, '대본 번역')
+            report(0.7 + (0.3 * d) / t, '대본 번역'),
+            { dedupe: true }
           )
           const koCues = cues.map((c, i) => ({ ...c, text: out[i].trim() })).filter((c) => c.text)
           const s2 = await deps.saveSub(v.id, 'ko', koCues, opts.redo)
@@ -143,7 +155,71 @@ export async function scriptSubWork(db: Db, work: WorkDetail, src: ScriptSource,
     }
     step++
   }
+  if (heardKo.length) await placeKorean(db, heardKo, deps, opts, ctx, res)
   return res
+}
+
+// Korean script: every track's heard pieces translated in one go (moans left
+// out, a repeated piece once, no context; each translation kept in the cache,
+// so running again or after a stop asks only for what is missing), then each
+// track's lines placed by content (alignByContent).
+async function placeKorean(
+  db: Db,
+  tracks: { g: TrackGroup; v: TrackVersion; lines: string[]; segs: AsrSegment[]; duration: number }[],
+  deps: ScriptSubDeps,
+  opts: ScriptSubOptions,
+  ctx: JobContext,
+  res: AutoSubResult
+): Promise<void> {
+  const tr = deps.alignTranslator!
+  const pieces = tracks.map((t) => speechPieces(t.segs))
+  const texts = pieces.flat().map((p) => p.text)
+  const key = (t: string): string => `align|${tr.id}|${t}`
+  const ko = texts.map((t) => cacheGet<string>(db, key(t)))
+  const miss = ko.flatMap((k, i) => (k === null ? [i] : []))
+  const label = '위치 맞추기용 번역'
+  let failed: string | null = null
+  if (miss.length) {
+    try {
+      ctx.report(0, miss.length, label)
+      await translateLines(
+        miss.map((i) => texts[i]),
+        tr,
+        { kind: 'align', glossary: [], signal: ctx.signal, onWait: (w) => ctx.report(0, miss.length, w ? `${label} · 사용 한도 대기 ${w}초` : label) },
+        (d, t) => ctx.report(d, t, label),
+        {
+          dedupe: true,
+          onDone: (upTo, out) => {
+            for (let k = 0; k < upTo; k++) {
+              const i = miss[k]
+              if (ko[i] === null && out[k]) {
+                ko[i] = out[k]
+                cachePut(db, key(texts[i]), 'translate', tr.id, out[k])
+              }
+            }
+          }
+        }
+      )
+    } catch (e) {
+      if (ctx.signal.aborted || e instanceof TranslateStop) throw e
+      failed = String((e as Error)?.message ?? e)
+    }
+  }
+  let at = 0
+  for (const [k, t] of tracks.entries()) {
+    const ps = pieces[k].map((p, i) => ({ start: p.start, end: p.end, ko: ko[at + i] ?? '' }))
+    at += ps.length
+    try {
+      // translation failed: by length, as before
+      const al = failed ? alignByLength(t.lines, t.segs, t.duration) : alignByContent(t.lines, ps, t.duration)
+      const saved = await deps.saveSub(t.v.id, 'ko', toAlignedCues(t.lines, al), opts.redo)
+      if (saved.conflict) res.skipped.push(`${t.g.title}: 다른 프로그램이 만든 자막이 있어 저장하지 않았습니다`)
+      else res.made++
+      if (failed) res.skipped.push(`${t.g.title}: 위치 맞추기용 번역이 안 되어 길이로만 맞췄습니다 (${failed})`)
+    } catch (e) {
+      res.failed.push(`${t.g.title}: ${String((e as Error)?.message ?? e)}`)
+    }
+  }
 }
 
 // Whole script, no headings: transcribe every main track (small model, word

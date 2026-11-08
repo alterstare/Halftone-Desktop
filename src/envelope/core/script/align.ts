@@ -4,9 +4,10 @@
 //   character (edit-distance DP inside a band around the diagonal). A line
 //   takes the times of its matched characters; unmatched lines are spread
 //   between their neighbours by length. Confidence = share of matched chars.
-// · Korean script ↔ Japanese speech: characters can't match, so lines are
-//   matched to the engine's segments by length (Gale–Church): 1–1, 1–2, 2–1,
-//   and skips.
+// · Korean script ↔ Japanese speech: characters can't match, so the heard
+//   pieces are machine-translated and matched by content (alignByContent,
+//   below); by length alone (Gale–Church: 1–1, 1–2, 2–1, skips) when
+//   nothing may be translated.
 import type { Cue } from '../../shared/types'
 import type { AsrSegment, AsrWord } from '../asr/clean'
 
@@ -423,4 +424,154 @@ export function toAlignedCues(lines: string[], al: AlignedLine[]): Cue[] {
     text,
     ...(al[i].conf < ALIGN.lowConf ? { low: true } : {})
   }))
+}
+
+// ---- Korean script ↔ Japanese speech by content ----
+// Length alone drifts on long tracks (measured on 9 tracks / 1002 lines with
+// the provided subtitles as truth: start within 1 s 15%, within 3 s 24%). So
+// the heard speech is cut into pieces (word times, at sentence marks and
+// pauses; moans left out), the pieces are machine-translated, and lines and
+// pieces are paired in order by the syllable pairs they share — names, calls
+// and words a translation keeps are anchors. Lines between two anchors go
+// onto the pieces between them by length. Same tracks: 62% / 82%.
+
+export const CONTENT = {
+  minScore: 0.12, // a pair must share more than this (Dice of syllable pairs)
+  lenWeight: 0.08, // penalty per log of length ratio
+  smallGrams: 3, // fewer syllable pairs than this weigh less ("너" ↔ "너,")
+  pauseS: 0.5, // a gap between words this long cuts a piece
+  leadS: 0.3 // lines start this much before the speech (as subtitles do)
+}
+
+// a piece of speech that is only moans / noise: nothing to find a line by
+const JA_MOAN_RUN = /[あいうえおんっぁぃぅぇぉゔはひふへほ]{2,}/g
+export function moanPiece(text: string): boolean {
+  if (NOISE_WORD.test(text)) return true
+  return normJa(text).replace(JA_MOAN_RUN, '').length < 3
+}
+
+// whisper's segments can hold many sentences (one ran 50 s): cut them at
+// sentence marks and pauses by the word times; moans left out
+export function speechPieces(segs: AsrSegment[]): AsrSegment[] {
+  const out: AsrSegment[] = []
+  for (const s of segs) {
+    const ws = s.words ?? []
+    if (ws.length < 2) {
+      out.push({ start: s.start, end: s.end, text: s.text })
+      continue
+    }
+    let cur: AsrWord[] = []
+    const flush = (): void => {
+      if (cur.length) out.push({ start: cur[0].start, end: cur[cur.length - 1].end, text: cur.map((w) => w.text).join('') })
+      cur = []
+    }
+    ws.forEach((w, i) => {
+      cur.push(w)
+      const next = ws[i + 1]
+      if (!next || /[、。！？!?…]\s*$/.test(w.text) || next.start - w.end > CONTENT.pauseS) flush()
+    })
+    flush()
+  }
+  return out.filter((p) => !moanPiece(p.text))
+}
+
+const koNorm = (s: string): string => s.replace(/[^가-힣0-9a-zA-Z]/g, '')
+function syllablePairs(s: string): Map<string, number> {
+  const m = new Map<string, number>()
+  const t = koNorm(s)
+  for (let i = 0; i + 2 <= t.length; i++) m.set(t.slice(i, i + 2), (m.get(t.slice(i, i + 2)) ?? 0) + 1)
+  if (t.length === 1) m.set(t, 1)
+  return m
+}
+function shared(a: Map<string, number>, b: Map<string, number>): number {
+  let na = 0
+  let nb = 0
+  let both = 0
+  for (const v of a.values()) na += v
+  for (const v of b.values()) nb += v
+  for (const [k, v] of a) both += Math.min(v, b.get(k) ?? 0)
+  return na + nb ? ((2 * both) / (na + nb)) * Math.min(1, Math.min(na, nb) / CONTENT.smallGrams) : 0
+}
+const mergePairs = (ms: Map<string, number>[]): Map<string, number> => {
+  const out = new Map<string, number>()
+  for (const m of ms) for (const [k, v] of m) out.set(k, (out.get(k) ?? 0) + v)
+  return out
+}
+
+// pieces: heard speech with its Korean translation ('' = not translated)
+export function alignByContent(lines: string[], pieces: { start: number; end: number; ko: string }[], total: number): AlignedLine[] {
+  const n = lines.length
+  const m = pieces.length
+  const lg = lines.map(syllablePairs)
+  const pg = pieces.map((p) => syllablePairs(p.ko))
+  const ll = lines.map((l) => koNorm(l).length)
+  const pl = pieces.map((p) => koNorm(p.ko).length)
+  const score = (i: number, a: number, j: number, b: number): number => {
+    let l1 = 0
+    let l2 = 0
+    for (let k = 0; k < a; k++) l1 += ll[i + k]
+    for (let k = 0; k < b; k++) l2 += pl[j + k]
+    const s = shared(a === 1 ? lg[i] : mergePairs(lg.slice(i, i + a)), b === 1 ? pg[j] : mergePairs(pg.slice(j, j + b)))
+    return s - CONTENT.minScore - CONTENT.lenWeight * Math.abs(Math.log((l1 + 2) / (l2 + 2))) - 0.02 * (a + b - 2)
+  }
+  // best total score in order: a line may go unheard, a piece may have no
+  // line; 1 line ↔ 1–4 pieces or 2–3 lines ↔ 1 piece
+  const D = Array.from({ length: n + 1 }, () => new Float64Array(m + 1).fill(-Infinity))
+  const B = Array.from({ length: n + 1 }, () => new Uint8Array(m + 1)) // lines * 8 + pieces
+  D[0][0] = 0
+  for (let i = 0; i <= n; i++)
+    for (let j = 0; j <= m; j++) {
+      const d = D[i][j]
+      if (d === -Infinity) continue
+      const relax = (a: number, b: number, v: number): void => {
+        if (v > D[i + a][j + b]) {
+          D[i + a][j + b] = v
+          B[i + a][j + b] = a * 8 + b
+        }
+      }
+      if (i < n) relax(1, 0, d)
+      if (j < m) relax(0, 1, d)
+      for (let a = 1; a <= 3 && i + a <= n; a++)
+        for (let b = 1; b <= (a > 1 ? 1 : 4) && j + b <= m; b++) relax(a, b, d + score(i, a, j, b))
+    }
+  const times: (AlignedLine | null)[] = lines.map(() => null)
+  const place = (i0: number, i1: number, start: number, end: number, conf: number): void => {
+    const lens = ll.slice(i0, i1).map((x) => Math.max(1, x))
+    const sum = lens.reduce((x, y) => x + y, 0)
+    let t = start
+    lens.forEach((len, k) => {
+      const d = ((end - start) * len) / sum
+      times[i0 + k] = { start: t, end: t + d, conf }
+      t += d
+    })
+  }
+  const anchors: [number, number, number, number][] = []
+  for (let i = n, j = m; i > 0 || j > 0; ) {
+    const a = B[i][j] >> 3
+    const b = B[i][j] & 7
+    if (!a && !b) break
+    if (a && b) {
+      const gain = D[i][j] - D[i - a][j - b]
+      place(i - a, i, pieces[j - b].start, pieces[j - 1].end, Math.min(1, gain + CONTENT.minScore + 0.3))
+      anchors.push([i - a, i, j - b, j])
+    }
+    i -= a
+    j -= b
+  }
+  // between two anchors: the lines left over onto the pieces left over, by length
+  anchors.reverse()
+  let li = 0
+  let pj = 0
+  for (const [i0, i1, j0, j1] of [...anchors, [n, n, m, m]]) {
+    if (i0 > li && j0 > pj) {
+      const gap = pieces.slice(pj, j0).map((p) => ({ start: p.start, end: p.end, text: p.ko }))
+      alignByLength(lines.slice(li, i0), gap, total).forEach((t, k) => {
+        if (t.conf > 0.3) times[li + k] = { ...t, conf: Math.min(t.conf, 0.4) }
+      })
+    }
+    li = i1
+    pj = j1
+  }
+  for (const t of times) if (t) t.start = Math.max(0, t.start - CONTENT.leadS)
+  return fill(lines, times, total)
 }

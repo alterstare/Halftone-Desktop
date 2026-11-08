@@ -9,8 +9,8 @@ import type { AsrEngine } from './asr/engines'
 import type { AsrSegment } from './asr/clean'
 import { cleanSegments, toCues } from './asr/clean'
 import { chunkAudio, detectSpeech, planChunks, toTrackTime } from './asr/vad'
-import type { GlossaryEntry, Translator } from './translate'
-import { TranslateStop, translateLines } from './translate'
+import type { GlossaryEntry, LineStream, Translator } from './translate'
+import { TranslateStop, translateStream } from './translate'
 import type { JobContext } from './queue'
 
 export type DecodeFn = (path: string, signal?: AbortSignal) => Promise<Int16Array>
@@ -70,63 +70,120 @@ export async function autoSubWork(db: Db, work: WorkDetail, deps: AutoSubDeps, o
   let step = 0
   const report = (frac: number, label: string): void => ctx.report(Math.min(steps, step + frac), steps, label)
 
-  for (const g of groups) {
-    ctx.signal.throwIfAborted()
-    const v = sourceVersion(g)
-    try {
-      let original = await subOf(g, lang, deps.readSub)
-      if (opts.transcribe) {
-        if (original && !opts.redo) res.skipped.push(`${g.title}: 자막이 이미 있습니다`)
-        else if (!deps.asr) throw new Error('받아쓰기 엔진이 없습니다')
-        else {
-          report(0, `받아쓰기 · ${g.title}`)
-          const cues = await transcribeTrack(db, v, deps, lang, ctx, (f) => report(f, `받아쓰기 · ${g.title}`))
-          if (!cues.length) res.skipped.push(`${g.title}: 말소리를 찾지 못했습니다`)
+  // Translation runs beside transcription: each track's lines go into the
+  // stream when ready, a request goes out whenever 40 lines are waiting (short
+  // tracks share one, a line repeated across them is sent once — 같은 줄 빼기),
+  // and the last smaller batch after the last track. Each track is saved as
+  // soon as its lines are translated, so a stop loses only the track in
+  // progress and running again skips the saved ones.
+  // A used-up limit (TranslateStop) also stops the transcribing.
+  const inner = new AbortController()
+  const onAbort = (): void => inner.abort()
+  ctx.signal.addEventListener('abort', onAbort, { once: true })
+  const job: JobContext = { ...ctx, signal: inner.signal }
+  let stop: TranslateStop | null = null
+  type Session = { s: LineStream; tracks: { g: TrackGroup; v: TrackVersion; src: Cue[]; at: number }[]; saved: number }
+  let session: Session | null = null
+  const open = (): Session => {
+    const se: Session = { s: null!, tracks: [], saved: 0 }
+    const save = async (upTo: number, out: string[]): Promise<void> => {
+      for (; se.saved < se.tracks.length; se.saved++) {
+        const p = se.tracks[se.saved]
+        if (p.at + p.src.length > upTo) return
+        const cues = p.src.map((c, i) => ({ start: c.start, end: c.end, text: out[p.at + i].trim() })).filter((c) => c.text)
+        const r = await deps.saveSub(p.v.id, 'ko', cues, opts.redo)
+        if (r.conflict) res.skipped.push(`${p.g.title}: 다른 프로그램이 만든 한국어 자막이 있어 저장하지 않았습니다`)
+        else res.made++
+        step++
+        report(0, `번역 · ${p.g.title}`)
+      }
+    }
+    se.s = translateStream(
+      deps.translator!,
+      {
+        kind: 'subtitle',
+        glossary: deps.glossary,
+        prompt: deps.prompt,
+        signal: job.signal,
+        onWait: (w) => report(0, w ? `번역 · 사용 한도 대기 ${w}초` : '번역')
+      },
+      undefined,
+      { dedupe: true, onDone: save }
+    )
+    se.s.done.catch((e) => {
+      if (session === se) session = null
+      if (e instanceof TranslateStop && !ctx.signal.aborted) {
+        stop = e
+        inner.abort()
+        return
+      }
+      if (inner.signal.aborted) return // stopped by the user, or the job is over
+      // a failure: the tracks not saved yet fail, the next ones get a new stream
+      for (const p of se.tracks.slice(se.saved)) {
+        res.failed.push(`${p.g.title}: ${String((e as Error)?.message ?? e)}`)
+        step++
+      }
+    })
+    return se
+  }
+
+  try {
+    for (const g of groups) {
+      if (stop) throw stop
+      ctx.signal.throwIfAborted()
+      const v = sourceVersion(g)
+      try {
+        let original = await subOf(g, lang, deps.readSub)
+        if (opts.transcribe) {
+          if (original && !opts.redo) res.skipped.push(`${g.title}: 자막이 이미 있습니다`)
+          else if (!deps.asr) throw new Error('받아쓰기 엔진이 없습니다')
           else {
-            const saved = await deps.saveSub(v.id, lang, cues, opts.redo)
-            if (saved.conflict) res.skipped.push(`${g.title}: 다른 프로그램이 만든 자막이 있어 저장하지 않았습니다`)
+            report(0, `받아쓰기 · ${g.title}`)
+            const cues = await transcribeTrack(db, v, deps, lang, job, (f) => report(f, `받아쓰기 · ${g.title}`))
+            if (!cues.length) res.skipped.push(`${g.title}: 말소리를 찾지 못했습니다`)
             else {
-              res.made++
-              original = { path: '', cues, lang, envMade: true }
+              const saved = await deps.saveSub(v.id, lang, cues, opts.redo)
+              if (saved.conflict) res.skipped.push(`${g.title}: 다른 프로그램이 만든 자막이 있어 저장하지 않았습니다`)
+              else {
+                res.made++
+                original = { path: '', cues, lang, envMade: true }
+              }
             }
           }
+          step++
         }
-        step++
-      }
-      if (opts.translate && lang === 'ja') {
-        const ko = await subOf(g, 'ko', deps.readSub)
-        if (!original?.cues.length) res.skipped.push(`${g.title}: 번역할 일본어 자막이 없습니다`)
-        else if (ko && !opts.redo) res.skipped.push(`${g.title}: 한국어 자막이 이미 있습니다`)
-        else if (!deps.translator) throw new Error('번역 엔진이 없습니다')
-        else {
-          report(0, `번역 · ${g.title}`)
-          const src = original.cues
-          const out = await translateLines(
-            src.map((c) => c.text.replace(/\n/g, ' ')),
-            deps.translator,
-            {
-              kind: 'subtitle',
-              glossary: deps.glossary,
-              prompt: deps.prompt,
-              signal: ctx.signal,
-              onWait: (w) => report(0, w ? `번역 · ${g.title} · 사용 한도 대기 ${w}초` : `번역 · ${g.title}`)
-            },
-            (d, t) => report(d / t, `번역 · ${g.title}`)
-          )
-          const cues = src.map((c, i) => ({ start: c.start, end: c.end, text: out[i].trim() })).filter((c) => c.text)
-          const saved = await deps.saveSub(v.id, 'ko', cues, opts.redo)
-          if (saved.conflict) res.skipped.push(`${g.title}: 다른 프로그램이 만든 한국어 자막이 있어 저장하지 않았습니다`)
-          else res.made++
+        if (opts.translate && lang === 'ja') {
+          const ko = await subOf(g, 'ko', deps.readSub)
+          if (!original?.cues.length) res.skipped.push(`${g.title}: 번역할 일본어 자막이 없습니다`)
+          else if (ko && !opts.redo) res.skipped.push(`${g.title}: 한국어 자막이 이미 있습니다`)
+          else if (!deps.translator) throw new Error('번역 엔진이 없습니다')
+          else {
+            const se = (session ??= open())
+            const src = original.cues
+            se.tracks.push({ g, v, src, at: se.s.push(src.map((c) => c.text.replace(/\n/g, ' '))) })
+            continue // counted when saved
+          }
+          step++
         }
-        step++
+      } catch (e) {
+        if (stop) throw stop
+        if (ctx.signal.aborted || e instanceof TranslateStop) throw e
+        res.failed.push(`${g.title}: ${String((e as Error)?.message ?? e)}`)
+        step = Math.ceil(step + 0.01)
       }
-    } catch (e) {
-      if (ctx.signal.aborted || e instanceof TranslateStop) throw e
-      res.failed.push(`${g.title}: ${String((e as Error)?.message ?? e)}`)
-      step = Math.ceil(step + 0.01)
     }
+    if (session) {
+      const se: Session = session
+      se.s.end()
+      await se.s.done.catch(() => undefined) // handled above
+    }
+    if (stop) throw stop
+    ctx.signal.throwIfAborted()
+    return res
+  } finally {
+    ctx.signal.removeEventListener('abort', onAbort)
+    inner.abort() // a stream still waiting for tracks ends
   }
-  return res
 }
 
 // One track → cues on the track's clock.

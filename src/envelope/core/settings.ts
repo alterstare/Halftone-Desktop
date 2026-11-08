@@ -38,6 +38,7 @@ export const DEFAULT_SETTINGS: Settings = {
   localModel: 'large-v3-turbo-q5_0',
   localDevice: 'auto',
   translator: 'google',
+  alignTranslator: 'google',
   deeplApiKey: '',
   geminiApiKey: '',
   geminiModel: 'gemini-2.5-flash',

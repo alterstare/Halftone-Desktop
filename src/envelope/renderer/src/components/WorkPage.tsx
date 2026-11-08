@@ -294,13 +294,6 @@ export default function WorkPage(): JSX.Element | null {
         {coverUrl && <div className="mw-bg" style={{ backgroundImage: `url("${coverUrl}")` }} />}
         {top}
         <div className="mw-cover">{coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : <div className="cover-box-ph"><LibraryMusicIcon /></div>}</div>
-        <div className="mw-collect">
-          <Stars id={w.id} rank={rank} />
-          <div className="flat-group">
-            <GroupButton id={w.id} groupIds={groupIds} />
-            <FavButton id={w.id} on={fav} />
-          </div>
-        </div>
         <h1 className="mw-title selectable">{w.title}</h1>
         {(w.circle || w.voices.length > 0) && (
           <div className="mw-people">
@@ -312,9 +305,16 @@ export default function WorkPage(): JSX.Element | null {
         <div className="mw-meta">{[kind, length(total)].filter(Boolean).join(' · ')}</div>
         <TagLine tags={w.tags} className="mw-tags" all />
         <div className="mw-actions">
-          {playBtn}
+          <div className="mw-collect">
+            <Stars id={w.id} rank={rank} />
+            <div className="flat-group">
+              <GroupButton id={w.id} groupIds={groupIds} />
+              <FavButton id={w.id} on={fav} />
+            </div>
+          </div>
+          <span className="grow" />
           {shuffle}
-          {resume}
+          {playBtn}
         </div>
         {(w.hasSeChoice || w.editions.length > 0) && <div className="mw-prefs">{prefs}</div>}
         <div className="mw-count">
@@ -325,55 +325,58 @@ export default function WorkPage(): JSX.Element | null {
       </div>
     )
 
+  // big window: the page is one box (Spotify) that scrolls with it — its
+  // bottom shows only at the end; the scrollbar stays at the page's edge
   return (
     <div className="workpage">
-      <div className="wp-head">
-        {coverUrl && <div className="wp-backdrop" style={{ backgroundImage: `url("${coverUrl}")` }} />}
-        {top}
-        <div className="wp-main">
-          <div className="wp-cover">{coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : <div className="cover-box-ph"><LibraryMusicIcon /></div>}</div>
-          <div className="wp-info">
-            {kind && <div className="wp-kind">{kind}</div>}
-            <h1 className="wp-title selectable">{w.title}</h1>
-            <div className="wp-meta">
-              {main.length}트랙 · {length(total) || '길이 미확인'}
-            </div>
-            {(w.circle || w.voices.length > 0) && (
-              <div className="wp-people">
-                {w.circle && (
-                  <>
-                    서클 <b>{w.circle}</b>
-                  </>
-                )}
-                {w.circle && w.voices.length > 0 && ' · '}
-                {w.voices.length > 0 && (
-                  <>
-                    성우 <b>{w.voices.join(', ')}</b>
-                  </>
-                )}
+      <div className="wp-box">
+        <div className="wp-head">
+          {coverUrl && <div className="wp-backdrop" style={{ backgroundImage: `url("${coverUrl}")` }} />}
+          {top}
+          <div className="wp-main">
+            <div className="wp-cover">{coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : <div className="cover-box-ph"><LibraryMusicIcon /></div>}</div>
+            <div className="wp-info">
+              {kind && <div className="wp-kind">{kind}</div>}
+              <h1 className="wp-title selectable">{w.title}</h1>
+              <div className="wp-meta">
+                {main.length}트랙 · {length(total) || '길이 미확인'}
               </div>
-            )}
-            <TagLine tags={w.tags} className="wp-tags" all />
-            <div className="wp-collect">
-              <Stars id={w.id} rank={rank} />
-              <div className="flat-group">
-                <GroupButton id={w.id} groupIds={groupIds} />
-                <FavButton id={w.id} on={fav} />
+              {(w.circle || w.voices.length > 0) && (
+                <div className="wp-people">
+                  {w.circle && (
+                    <>
+                      서클 <b>{w.circle}</b>
+                    </>
+                  )}
+                  {w.circle && w.voices.length > 0 && ' · '}
+                  {w.voices.length > 0 && (
+                    <>
+                      성우 <b>{w.voices.join(', ')}</b>
+                    </>
+                  )}
+                </div>
+              )}
+              <TagLine tags={w.tags} className="wp-tags" all />
+              <div className="wp-collect">
+                <Stars id={w.id} rank={rank} />
+                <div className="flat-group">
+                  <GroupButton id={w.id} groupIds={groupIds} />
+                  <FavButton id={w.id} on={fav} />
+                </div>
+                {/* play + shuffle on the stars' line, at its right end */}
+                <span className="grow" />
+                {resume}
+                {shuffle}
+                {playBtn}
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="wp-actions">
-        {playBtn}
-        {shuffle}
-        {resume}
-        <span className="grow" />
-        {prefs}
-      </div>
+        <div className="wp-actions">{prefs}</div>
 
-      {table}
+        {table}
+      </div>
     </div>
   )
 }

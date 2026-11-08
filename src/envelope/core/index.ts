@@ -373,10 +373,42 @@ export class EnvCore {
     })
   }
 
-  // Several works, one job each (so the job list shows which one is going).
+  // Several works: their names go out together — one work's names fill only
+  // part of a request, so a request per work spent the per-minute request /
+  // token limits (Groq free: 30 a minute) after a few works (429 after 429).
+  // Works sharing a glossary (most: just the common one) are one job; the
+  // same name in several works is sent once.
   translateNamesOf(ids: number[], onlyMissing = true, foldersOnly = false): { ids: number[]; done: Promise<{ names: number; failed: string[] }> } {
-    const jobs = ids.map((id) => ({ id, job: this.translateWorkNames(id, onlyMissing, foldersOnly) }))
-    // the engine refused (blocked / daily limit): the works still waiting
+    const groups = new Map<string, number[]>()
+    for (const id of ids) {
+      const k = JSON.stringify(this.glossary(id))
+      groups.set(k, [...(groups.get(k) ?? []), id])
+    }
+    const tr = this.translator()
+    const jobs = [...groups.values()].map((works) => ({
+      works,
+      job: this.queue.add(works.length === 1 ? `이름 번역 · ${this.workRow(works[0]).title}` : `이름 번역 · 작품 ${works.length}개`, async (ctx) => {
+        const label = works.length === 1 ? `이름 번역 · ${this.workRow(works[0]).title}` : `이름 번역 · 작품 ${works.length}개`
+        const have = onlyMissing ? namesMap(this.db) : null
+        const items: { path: string; name: string }[] = []
+        for (const [i, id] of works.entries()) {
+          ctx.signal.throwIfAborted()
+          ctx.report(i, works.length, `${label} · 이름 읽기`)
+          for (const x of await tools.nameItemsOf(this.workRow(id), foldersOnly)) if (!have?.has(x.path)) items.push(x)
+        }
+        let last = { d: 0, t: 0 }
+        return translateNames(
+          this.db,
+          items,
+          tr,
+          this.glossary(works[0]),
+          ctx.signal,
+          (d, t) => ((last = { d, t }), ctx.report(d, t, label)),
+          (s) => ctx.report(last.d, last.t, s ? `${label} · 사용 한도 대기 ${s}초` : label)
+        )
+      })
+    }))
+    // the engine refused (blocked / daily limit): the jobs still waiting
     // would only be refused too
     for (const j of jobs) j.job.done.catch((e) => e instanceof TranslateStop && jobs.forEach((o) => o !== j && this.queue.cancel(o.job.id)))
     const done = Promise.allSettled(jobs.map((j) => j.job.done)).then((rs) => {
@@ -384,7 +416,10 @@ export class EnvCore {
       const failed: string[] = []
       rs.forEach((r, i) => {
         if (r.status === 'fulfilled') names += r.value
-        else if (!(r.reason instanceof CancelledError)) failed.push(`${this.workRow(jobs[i].id).title}: ${String((r.reason as Error)?.message ?? r.reason)}`)
+        else if (!(r.reason instanceof CancelledError)) {
+          const w = jobs[i].works
+          failed.push(`${w.length === 1 ? this.workRow(w[0]).title : `작품 ${w.length}개`}: ${String((r.reason as Error)?.message ?? r.reason)}`)
+        }
       })
       return { names, failed }
     })
@@ -448,8 +483,10 @@ export class EnvCore {
 
   // Engines for script timings: Groq when it is the speech engine; with the
   // GPU build and the big model just that one (it hears far better — the
-  // small ones turn moans into endless "ううう…" — so retrying with them
-  // only costs time); otherwise the small models, tiny first (fetched when
+  // small ones turn moans into endless "ううう…" — and on the GPU it is also
+  // the fastest: measured 4.8 s vs tiny 6.6 s / small 8.1 s on a 229 s track,
+  // 19 s vs 32–50 s on a moan-heavy one); otherwise (CPU, where tiny is ~10×
+  // faster than the big one) the small models, tiny first (fetched when
   // missing; base / small / large join the retries once downloaded).
   private async alignEngines(ctx: { signal: AbortSignal; report: (d: number, t: number, l?: string, u?: 'bytes') => void }): Promise<AsrEngine[]> {
     if (this.asrOverride) return [this.asrOverride]
@@ -471,6 +508,8 @@ export class EnvCore {
       const src = await this.resolveScript(w, opts.sourceId)
       if (!src) throw new Error('대본을 찾지 못했습니다')
       const translator = src.lang !== 'ko' && opts.translate ? this.translator() : null
+      // Korean script: placed by content when text may go out (else by length)
+      const alignTranslator = src.lang === 'ko' && s.allowTextUpload ? (this.translatorOverride ?? makeTranslator(s, this.fetchFn, this.chromiumFetch, s.alignTranslator)) : null
       return scriptSubWork(
         this.db,
         w,
@@ -481,6 +520,7 @@ export class EnvCore {
           asr: async () => this.asrEngine(),
           maxChunkS: s.asrEngine === 'groq' ? GROQ.maxChunkS : 1800,
           translator,
+          alignTranslator,
           glossary: this.glossary(workId),
           prompt: s.translatePrompt,
           readSub: (p) => this.readSubtitle(p),

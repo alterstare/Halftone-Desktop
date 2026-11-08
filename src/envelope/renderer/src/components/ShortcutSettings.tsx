@@ -2,14 +2,16 @@
 // one, or go back to the defaults (Halftone's 단축키 section).
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
-import { useStore } from '../store'
+import { useDraft } from './settingsDraft'
 import { SHORTCUTS, comboFromEvent, prettyCombo, shortcutCombos } from '../../../shared/shortcuts'
 import type { ShortcutId } from '../../../shared/shortcuts'
+import type { Settings } from '../../../shared/types'
 import { AddIcon, CloseSmallIcon, RefreshIcon } from './icons'
 
 export default function ShortcutSettings(): JSX.Element {
-  const s = useStore((x) => x.settings)
-  const save = useStore((x) => x.saveSettings)
+  const draft = useDraft()
+  const s = draft?.s
+  const save = (p: Pick<Settings, 'shortcuts'>): void => draft?.set(p)
   const [capture, setCapture] = useState<ShortcutId | null>(null)
   const overrides = s?.shortcuts ?? {}
 
@@ -18,7 +20,7 @@ export default function ShortcutSettings(): JSX.Element {
     const next = { ...overrides }
     if (JSON.stringify(combos) === JSON.stringify(def)) delete next[id]
     else next[id] = combos
-    void save({ shortcuts: next })
+    save({ shortcuts: next })
   }
 
   // Next key press becomes a combo of `capture` (Escape cancels). Taken from
@@ -38,12 +40,12 @@ export default function ShortcutSettings(): JSX.Element {
       }
       const mine = shortcutCombos(next, capture)
       if (!mine.includes(c)) next[capture] = [...mine, c]
-      void save({ shortcuts: next })
+      save({ shortcuts: next })
       setCapture(null)
     }
     window.addEventListener('keydown', h, true)
     return () => window.removeEventListener('keydown', h, true)
-  }, [capture, overrides, save])
+  }, [capture, overrides]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const groups = [...new Set(SHORTCUTS.map((d) => d.group))]
   return (

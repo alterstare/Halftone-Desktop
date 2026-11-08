@@ -152,7 +152,7 @@ export default function AutoSubButton({ w }: { w: WorkDetail }): JSX.Element {
             </Check>
             <div className="hint autosub-engines">
               {method === 'script' && source
-                ? `${s?.asrEngine === 'groq' ? 'Groq' : '로컬 tiny 모델(없으면 받기, base · small은 받아 두면 다시 맞출 때 사용)'}로 위치 맞추기${source.lang !== 'ko' && translate ? ` · ${TRANSLATOR[s?.translator ?? 'google']}` : ''}`
+                ? `${s?.asrEngine === 'groq' ? 'Groq' : source.lang === 'ko' ? ENGINE.local : '로컬 tiny 모델(없으면 받기, base · small은 받아 두면 다시 맞출 때 사용)'}로 위치 맞추기${source.lang === 'ko' ? ` · 위치 맞추기 번역 ${TRANSLATOR[s?.alignTranslator ?? 'google']}` : ''}${source.lang !== 'ko' && translate ? ` · ${TRANSLATOR[s?.translator ?? 'google']}` : ''}`
                 : `${transcribe ? ENGINE[s?.asrEngine ?? 'local'] : ''}${transcribe && translate ? ' · ' : ''}${translate ? TRANSLATOR[s?.translator ?? 'google'] : ''}`}
               {' — 바꾸기: 설정 › 자동 자막'}
             </div>

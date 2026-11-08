@@ -42,6 +42,9 @@ export interface Settings {
   localModel: 'large-v3-turbo-q5_0' | 'small' | 'base' | 'tiny' // local transcription model
   localDevice: 'auto' | 'cpu' // auto = Vulkan (GPU) first, CPU when it fails
   translator: 'google' | 'deepl' | 'gemini' | 'llm' // Halftone's choices
+  // 대본 위치 맞추기 (Korean script): the heard Japanese is translated with this
+  // engine only to find where each line is said (never saved)
+  alignTranslator: 'google' | 'deepl' | 'gemini' | 'llm'
   deeplApiKey: string
   geminiApiKey: string
   geminiModel: string
@@ -358,6 +361,8 @@ export interface AutoSubResult {
 export interface EngineStatus {
   vulkan: boolean // engines/whisper-vulkan
   cpu: boolean // engines/whisper-cpu
+  // the release each build came from ('' = put in by hand, or from before this was kept)
+  versions: { vulkan: string; cpu: string }
   models: Record<WhisperModelId, boolean>
 }
 

@@ -366,14 +366,20 @@ export function Confirm({
   body,
   ok,
   danger = false,
+  alt,
+  cancel = '취소',
   onOk,
+  onAlt,
   onCancel
 }: {
   title: string
   body?: ReactNode
   ok: string
   danger?: boolean // the action loses something (red)
+  alt?: string // a second action between ok and cancel (e.g. 저장하지 않기)
+  cancel?: string
   onOk: () => void
+  onAlt?: () => void
   onCancel: () => void
 }): JSX.Element {
   useEffect(() => {
@@ -396,8 +402,13 @@ export function Confirm({
           <button className={`cfm-btn ${danger ? 'danger' : 'primary'}`} onClick={onOk}>
             {ok}
           </button>
+          {alt && (
+            <button className="cfm-btn" onClick={onAlt}>
+              {alt}
+            </button>
+          )}
           <button className="cfm-btn ghost" onClick={onCancel}>
-            취소
+            {cancel}
           </button>
         </div>
       </div>
