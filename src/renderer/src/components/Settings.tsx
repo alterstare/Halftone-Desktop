@@ -254,7 +254,7 @@ export default function Settings(): JSX.Element {
           <div className="settings-version">Halftone v{__APP_VERSION__}</div>
         </div>
 
-        {toast && <div className="settings-toast">✓ {toast}</div>}
+        {toast && <div className="settings-toast">{toast}</div>}
         {notice && (
           <ConfirmModal
             title="완료"

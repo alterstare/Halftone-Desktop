@@ -358,22 +358,36 @@ img {
   border-color: var(--accent);
 }
 
-/* Floating save confirmation toast (Settings). */
+/* Floating save confirmation toast (Settings): bottom center, hugs its text,
+   translucent theme veil — same look as the Sorta / Envelope toasts. */
 .settings-toast {
   position: fixed;
+  left: 0;
+  right: 0;
   bottom: 32px;
-  left: 50%;
-  transform: translateX(-50%);
+  margin: 0 auto;
+  width: fit-content;
+  height: fit-content;
+  max-width: min(560px, calc(100% - 32px));
   z-index: 1000;
-  background: var(--accent);
-  color: var(--bg-1);
-  font-size: 14px;
-  font-weight: 700;
-  padding: 11px 20px;
-  border-radius: var(--r6);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  backdrop-filter: blur(8px);
   pointer-events: none;
-  animation: toast-in 0.18s ease-out;
+  animation: toast-fade 0.14s ease-out;
+}
+:root[data-theme='dark'] .settings-toast {
+  background: rgba(0, 0, 0, 0.7);
+}
+@keyframes toast-fade {
+  from {
+    opacity: 0;
+  }
 }
 @keyframes toast-in {
   from {
@@ -7448,9 +7462,6 @@ select:hover,
    then invisible — still there, still playing */
 .envelope-dock.hidden {
   pointer-events: none;
-}
-.envelope-dock {
-  will-change: transform, opacity;
 }
 .envelope-frame {
   width: 100%;
