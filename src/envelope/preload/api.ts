@@ -31,6 +31,7 @@ export function createApi(ipcRenderer: IpcRenderer): Api {
     pickFolder: () => invoke(IPC.pickFolder),
     addLibraryDir: (p) => invoke(IPC.addLibraryDir, p),
     removeLibraryDir: (p) => invoke(IPC.removeLibraryDir, p),
+    libraryDirWorks: (p) => invoke(IPC.libraryDirWorks, p),
     scan: () => invoke(IPC.scan),
     works: () => invoke(IPC.works),
     work: (id) => invoke(IPC.work, id),

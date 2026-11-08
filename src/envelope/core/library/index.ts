@@ -67,6 +67,13 @@ export function saveWork(db: Db, root: string, w: ScannedWork, now = Date.now())
   })()
 }
 
+// Paths of the works saved under these library folders.
+export function workPathsUnder(db: Db, roots: string[]): string[] {
+  if (!roots.length) return []
+  const rows = db.prepare(`SELECT path FROM works WHERE root IN (${roots.map(() => '?').join(',')})`).all(...roots) as { path: string }[]
+  return rows.map((r) => r.path)
+}
+
 // Drop works that are gone: under a scanned root but not found again, or
 // under a root no longer in the library.
 export function pruneWorks(db: Db, roots: string[], found: Set<string>): number {

@@ -48,6 +48,7 @@ export interface ScanResult {
   works: number
   removed: number
   failed: string[]
+  offline: string[] // library folders not reachable (drive / NAS off): their works kept
 }
 
 export class EnvCore {
@@ -184,7 +185,11 @@ export class EnvCore {
         const found = new Set<string>()
         const failed: string[] = []
         const all: { root: string; dir: string }[] = []
-        for (const root of roots) for (const dir of await findWorks(root)) all.push({ root, dir })
+        // A folder that isn't there (unplugged drive, NAS off) reads as empty:
+        // keep its works instead of dropping them all with their history.
+        const offline = roots.filter((r) => !existsSync(r))
+        for (const w of library.workPathsUnder(this.db, offline)) found.add(w)
+        for (const root of roots) if (!offline.includes(root)) for (const dir of await findWorks(root)) all.push({ root, dir })
         for (let i = 0; i < all.length; i++) {
           if (ctx.signal.aborted) throw new Error('cancelled')
           const { root, dir } = all[i]
@@ -202,7 +207,7 @@ export class EnvCore {
         ctx.report(all.length, all.length)
         // A failed work keeps its old entry.
         for (const f of failed) found.add(f.slice(0, f.indexOf(': ')))
-        return { works: found.size, removed: library.pruneWorks(this.db, roots, found), failed }
+        return { works: found.size, removed: library.pruneWorks(this.db, roots, found), failed, offline }
       },
       { background }
     )
@@ -996,6 +1001,11 @@ export class EnvCore {
 
   // Works DLsite should fill in on its own: named only by their code, or
   // without any picture (not asked before).
+  // Works under a library folder (removing the folder drops them).
+  libraryDirWorks(dir: string): number {
+    return library.workPathsUnder(this.db, [dir]).length
+  }
+
   codeOnlyWorks(): number[] {
     return (
       this.db

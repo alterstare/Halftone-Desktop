@@ -127,7 +127,8 @@ async function scanJob(background = false): Promise<JobSummary> {
     const parts = [`작품 ${r.works}개`]
     if (r.removed) parts.push(`없어진 작품 ${r.removed}개 정리`)
     if (r.failed.length) parts.push(`${r.failed.length}개 실패`)
-    return { ok: !r.failed.length, message: parts.join(', ') }
+    if (r.offline.length) parts.push(`연결되지 않은 폴더 ${r.offline.length}개(작품 유지)`)
+    return { ok: !r.failed.length && !r.offline.length, message: parts.join(', ') }
   } catch (e) {
     changed()
     if (e instanceof CancelledError) return { ok: false, message: '취소했습니다.' }
@@ -145,6 +146,7 @@ function registerIpc(): void {
     core.saveSettings({ libraryDirs: core.settings().libraryDirs.filter((d) => d !== dir) })
     return scanJob()
   })
+  ipcMain.handle(IPC.libraryDirWorks, (_e, dir: string) => core.libraryDirWorks(dir))
   ipcMain.handle(IPC.scan, () => scanJob())
   ipcMain.handle(IPC.works, () => core.works())
   ipcMain.handle(IPC.work, (_e, id: number) => core.work(id))

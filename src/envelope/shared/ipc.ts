@@ -12,6 +12,7 @@ export const IPC = {
   pickFolder: 'env:dialog:pickFolder',
   addLibraryDir: 'env:library:addDir',
   removeLibraryDir: 'env:library:removeDir',
+  libraryDirWorks: 'env:library:dirWorks',
   scan: 'env:library:scan',
   works: 'env:library:works',
   work: 'env:library:work',
@@ -155,6 +156,7 @@ export interface Api {
   // library
   addLibraryDir: (path: string) => Promise<JobSummary> // adds, then scans
   removeLibraryDir: (path: string) => Promise<JobSummary>
+  libraryDirWorks: (path: string) => Promise<number> // works removing the folder drops
   scan: () => Promise<JobSummary>
   works: () => Promise<WorkSummary[]>
   work: (id: number) => Promise<WorkDetail | null>

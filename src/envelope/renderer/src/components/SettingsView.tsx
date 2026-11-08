@@ -170,7 +170,15 @@ export default function SettingsView(): JSX.Element | null {
   }
   const scanning = scan && (scan.state === 'running' || scan.state === 'queued')
 
+  // A folder with works asks first: its works leave with their history.
+  const [removing, setRemoving] = useState<{ dir: string; works: number } | null>(null)
+  const askRemove = async (d: string): Promise<void> => {
+    const works = await window.api.libraryDirWorks(d)
+    if (works) setRemoving({ dir: d, works })
+    else void removeDir(d)
+  }
   const removeDir = async (d: string): Promise<void> => {
+    setRemoving(null)
     const r = await window.api.removeLibraryDir(d)
     await st().loadSettings()
     await st().loadWorks()
@@ -188,7 +196,7 @@ export default function SettingsView(): JSX.Element | null {
               <div key={d} className="dir">
                 <FolderOpenIcon />
                 <span className="selectable">{d}</span>
-                <button className="mini icon" title="목록에서 빼기 (파일은 그대로)" onClick={() => void removeDir(d)}>
+                <button className="mini icon" title="목록에서 빼기 (파일은 그대로)" onClick={() => void askRemove(d)}>
                   <DeleteIcon />
                 </button>
               </div>
@@ -339,6 +347,21 @@ export default function SettingsView(): JSX.Element | null {
           <p className="hint selectable about">
             Env/ {info.version} · 데이터 구조 {info.schemaVersion} · {info.dataDir}
           </p>
+        )}
+        {removing && (
+          <Confirm
+            title="라이브러리 폴더를 뺄까요?"
+            body={
+              <>
+                <span className="selectable">{removing.dir}</span>
+                <br />이 폴더의 작품 {removing.works}개도 목록에서 빠지고, 즐겨찾기 · 별점 · 이어 듣기 · 북마크 같은 기록도 함께 지워집니다. 파일은 그대로 둡니다.
+              </>
+            }
+            ok="빼기"
+            danger
+            onOk={() => void removeDir(removing.dir)}
+            onCancel={() => setRemoving(null)}
+          />
         )}
         {pendingNav && (
           <Confirm
