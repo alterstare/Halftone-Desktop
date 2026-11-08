@@ -2690,22 +2690,35 @@ function settleInks(page: string, cs: (RGB | null)[]): (RGB | null)[] {
 // line), in reading order, in its own colours. The first block draws them all.
 // Not fitting at 85% of its size, it takes room past it (`claim`), as text
 // running over a balloon does, rather than getting smaller still.
+// ROOM_GAP is the gap across lines (column beside column); along them (one
+// block's columns ending above the next's) only ROOM_RUN — that is two
+// balloons stacked, not one speech (4087000 p.2: 2.5 em apart, joined).
 const ROOM_OVERLAP = 0.3
 const ROOM_GAP = 2.5
+const ROOM_RUN = 1
 function artRooms(jobs: Job[]): void {
   const rects = (j: Job): Rect[] => (j.b.cols ?? [[j.b.x, j.b.y, j.b.w, j.b.h]]).map(([x, y, w, h]) => ({ x0: x, y0: y, w, h }))
   const em = (j: Job): number => j.b.size ?? Math.min(j.b.w, j.b.h)
-  const side = (a: Rect, b: Rect, e: number): boolean => {
+  // Lines run top to bottom (Japanese columns) when they are taller than wide.
+  const upright = (j: Job): boolean => {
+    const rs = rects(j)
+    return rs.reduce((s, r) => s + r.h, 0) > rs.reduce((s, r) => s + r.w, 0)
+  }
+  const side = (a: Rect, b: Rect, e: number, up: boolean | null): boolean => {
     const gx = Math.max(b.x0 - (a.x0 + a.w), a.x0 - (b.x0 + b.w))
     const gy = Math.max(b.y0 - (a.y0 + a.h), a.y0 - (b.y0 + b.h))
-    return (gx <= e * ROOM_GAP && -gy >= ROOM_OVERLAP * Math.min(a.h, b.h)) || (gy <= e * ROOM_GAP && -gx >= ROOM_OVERLAP * Math.min(a.w, b.w))
+    return (
+      (gx <= e * (up === false ? ROOM_RUN : ROOM_GAP) && -gy >= ROOM_OVERLAP * Math.min(a.h, b.h)) ||
+      (gy <= e * (up === true ? ROOM_RUN : ROOM_GAP) && -gx >= ROOM_OVERLAP * Math.min(a.w, b.w))
+    )
   }
   const parent = jobs.map((_, i) => i)
   const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])))
   for (let a = 0; a < jobs.length; a++)
     for (let b = a + 1; b < jobs.length; b++) {
       const e = Math.max(em(jobs[a]), em(jobs[b]))
-      if (rects(jobs[a]).some((ra) => rects(jobs[b]).some((rb) => side(ra, rb, e)))) parent[find(a)] = find(b)
+      const up = upright(jobs[a]) === upright(jobs[b]) ? upright(jobs[a]) : null
+      if (rects(jobs[a]).some((ra) => rects(jobs[b]).some((rb) => side(ra, rb, e, up)))) parent[find(a)] = find(b)
     }
   const groups = new Map<number, Job[]>()
   jobs.forEach((j, i) => groups.set(find(i), [...(groups.get(find(i)) ?? []), j]))

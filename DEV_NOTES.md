@@ -499,7 +499,9 @@ the same balloon come out differently on every page):
    a plain balloon's fill must also be paper (`PLAIN_LIGHT` ≥200 or
    `PLAIN_DARK` ≤60 luminance) — a grey wall's bright patch was swallowing the
    blocks; a room's size is always trusted (`sizeTrusted`), else minFont fell
-   to 9px (ant-sized text); `ROOM_GAP` 2.5 em; `maskReach` grows an art
+   to 9px (ant-sized text); `ROOM_GAP` 2.5 em across lines (column beside
+   column), only `ROOM_RUN` 1 em along them (two blocks' columns stacked end
+   to end = two balloons — 4087000 p.2 joined at 2.5 em); `maskReach` grows an art
    block's erase box along text-mask runs (gaps ≤0.6 em, ≤4 em past the box,
    not into other boxes) — the detector box can stop short of a column's end.
    Debugger writes `mask.txt` (the OCR mask as '#'/'.'). A plain balloon must
@@ -524,6 +526,24 @@ the same balloon come out differently on every page):
    reads the lot as junk. Its own text lines are regrouped (`groupLines`) and
    read; still junk → read line by line, the clean lines regrouped and their
    texts joined in reading order (the effect stays junk and drops).
+   **Long lines** (visual-novel text boxes): manga-ocr squashes its input to
+   224², so a line past ~16 chars comes back half made up at a confidence
+   isJunk passes (synthetic measure: `.scratch/ocrmeasure`). `readLine` reads
+   a line longer than `LONG_H` 14 (horizontal, length ÷ its ink-row height,
+   `inkRows` — the detector's line height is not the glyph size) / `LONG_V`
+   16 (column, length ÷ width) glyphs in pieces of `PIECE` 5, cut on the
+   line's character grid (`glyphGaps`: pitch by autocorrelation, phase from
+   five cell edges — a lone gap can be a kanji's own, 弓|長). A half-width
+   "..." still shifts the grid, so pieces overlap `OVERLAP` 1.5 cells past
+   each cut and are joined on the longest run their seam ends share
+   (`joinSeam`, ties → fewest characters dropped); a phrase of 4+ read twice
+   in a row inside a piece is the decoder looping and is kept once. A vertical block
+   with such a column is read column by column, right to left. Lines are read
+   to their own ends, not clipped to the block box (it stopped ~200 px short
+   of a text box's line). The test sets (484 / neon) are unchanged.
+   Two boxes of one balloon (the detector can box it twice) then read the
+   same text: `oneSpeech` merges blocks with the same text overlapping by
+   ≥ 25% of the smaller into one over their union.
 5. **Ellipsis in wrapping**: an ellipsis written onto a word ("직장이라…활용하기")
    is a break point after it (`AFTER_DOTS`, the two halves joined without a
    space on one line), and a cut never lands before / inside an ellipsis glued

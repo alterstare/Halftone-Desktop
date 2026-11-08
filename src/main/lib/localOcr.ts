@@ -451,6 +451,165 @@ async function readJapanese(block: NativeImage): Promise<{ text: string; conf: n
 
 const avg = (a: number[]): number => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0)
 
+// manga-ocr squashes its input to 224×224, so a long line reads only up to
+// ~16 characters; past that it writes the start and makes up the rest, with
+// confidence high enough to pass isJunk (measured on synthetic lines: 16 chars
+// 0.96–0.99, 20 chars 0.76–0.89, 28 chars 0.36–0.54; read in pieces of 3–10
+// chars, 0.95–1.00). A line longer than LONG_* × its glyph size (≈ its
+// character count) is read in pieces of PIECE × that, cut in the gaps between
+// glyphs. A horizontal line's glyph size is its ink rows (`inkRows`): the
+// detector's line height is not (a text box's three 47 px lines came back 88,
+// 49 and 43 px). A manga column's width is its glyph size (the test sets'
+// longest: 14.4).
+// A cut can still land in a glyph (a half-width "..." shifts the grid), and
+// both halves then read as something. So pieces overlap by OVERLAP cells past
+// each cut — a glyph cut in one piece is whole in the other — and are joined
+// on the longest run of characters their seam ends share (`joinSeam`): what
+// each read of the other's side, half glyphs included, drops.
+const LONG_H = 14
+const LONG_V = 16
+const PIECE = 5
+const OVERLAP = 1.5
+const SEAM = 6
+
+// One line (or a single-line block) of the page → text, in pieces when it is
+// long. A line short enough is read from its box as before.
+async function readLine(page: NativeImage, b: Box): Promise<{ text: string; conf: number }> {
+  const vert = b.y2 - b.y1 > b.x2 - b.x1
+  const ink = vert ? b : inkRows(page, b)
+  const along = vert ? b.y2 - b.y1 : b.x2 - b.x1
+  const across = vert ? b.x2 - b.x1 : ink.y2 - ink.y1
+  if (along <= across * (vert ? LONG_V : LONG_H)) return readJapanese(crop(page, b))
+  const img = crop(page, ink)
+  const { width: w, height: h } = img.getSize()
+  const { cuts, pitch } = glyphGaps(img, vert, Math.ceil(along / (across * PIECE)), across)
+  const ov = Math.round(pitch * OVERLAP)
+  const parts: { text: string; conf: number }[] = []
+  for (let k = 0; k + 1 < cuts.length; k++) {
+    const a1 = Math.max(0, cuts[k] - (k ? ov : 0))
+    const a2 = Math.min(cuts[cuts.length - 1], cuts[k + 1] + (k + 2 < cuts.length ? ov : 0))
+    const r = await readJapanese(vert ? crop(img, { x1: 0, y1: a1, x2: w, y2: a2 }) : crop(img, { x1: a1, y1: 0, x2: a2, y2: h }))
+    // A piece is a few cells long: a phrase of 4+ read twice in a row is the
+    // decoder looping, not the text.
+    parts.push({ ...r, text: r.text.replace(/(.{4,}?)\1+/gu, '$1') })
+  }
+  const n = parts.reduce((a, p) => a + p.text.length, 0)
+  return { text: parts.map((p) => p.text).reduce(joinSeam), conf: n ? parts.reduce((a, p) => a + p.conf * p.text.length, 0) / n : 0 }
+}
+
+// Two overlapping pieces' texts → one: the longest run shared by the last SEAM
+// characters of a and the first SEAM of b is where they meet (of equal runs,
+// the one dropping fewest characters); a is kept up to its end, b after it.
+// Nothing shared → just joined.
+function joinSeam(a: string, b: string): string {
+  const A = [...a]
+  const B = [...b]
+  const tail = A.slice(-SEAM)
+  const head = B.slice(0, SEAM)
+  let len = 0
+  let ia = 0
+  let ib = 0
+  for (let i = 0; i < tail.length; i++)
+    for (let j = 0; j < head.length; j++) {
+      let l = 0
+      while (i + l < tail.length && j + l < head.length && tail[i + l] === head[j + l]) l++
+      // equal runs: the one dropping fewest characters (a lone し further back is chance)
+      if (l > len || (l && l === len && tail.length - i - l + j < tail.length - ia - len + ib)) ((len = l), (ia = i), (ib = j))
+    }
+  if (!len) return a + b
+  return A.slice(0, A.length - tail.length + ia + len).join('') + B.slice(ib + len).join('')
+}
+
+// A horizontal line's rows of ink: the run of rows with ink (variance of the
+// darkest channel ≥ 15% of the most) through the box's middle, looked for
+// half a box height past it either side (the box can cut a line's glyphs
+// short), plus 2 px. The box itself when there is none.
+function inkRows(page: NativeImage, b: Box): Box {
+  const { height: ph } = page.getSize()
+  const h = b.y2 - b.y1
+  const y0 = Math.max(0, Math.round(b.y1 - h / 2))
+  const y1 = Math.min(ph, Math.round(b.y2 + h / 2))
+  if (y1 - y0 < 2 || b.x2 - b.x1 < 1) return b
+  const p = pixels(crop(page, { x1: b.x1, y1: y0, x2: b.x2, y2: y1 }))
+  const vs: number[] = []
+  for (let y = 0; y < p.h; y++) {
+    let s = 0
+    let s2 = 0
+    for (let x = 0; x < p.w; x++) {
+      const g = Math.min(R(p, y * p.w + x), G(p, y * p.w + x), B(p, y * p.w + x))
+      s += g
+      s2 += g * g
+    }
+    vs.push(s2 / p.w - (s / p.w) ** 2)
+  }
+  const thr = Math.max(...vs) * 0.15
+  const mid = Math.round((b.y1 + b.y2) / 2) - y0
+  let at = -1
+  for (let d = 0; d < h / 2 && at < 0; d++) {
+    if (vs[mid - d] >= thr) at = mid - d
+    else if (vs[mid + d] >= thr) at = mid + d
+  }
+  if (at < 0) return b
+  let s = at
+  let e = at
+  while (s > 0 && vs[s - 1] >= thr) s--
+  while (e < p.h - 1 && vs[e + 1] >= thr) e++
+  return { ...b, y1: Math.max(0, y0 + s - 2), y2: Math.min(ph, y0 + e + 3) }
+}
+
+// Cut positions along a line for n pieces, on the line's character grid:
+// Japanese is set on a fixed pitch, so the cells' edges are found as a grid,
+// not as single gaps (a kanji's own gap, 弓|長 in 張, can be the flattest spot
+// near a split and cut it in two). Profile = variance of the darkest channel
+// across the line (as readJapanese sees it); pitch = its strongest
+// autocorrelation within 0.6–1.4 × the glyph size; near each even split, the
+// grid phase whose five edges (±2 cells) are flattest. Cuts include 0 and the
+// line's length.
+function glyphGaps(img: NativeImage, vert: boolean, n: number, glyph: number): { cuts: number[]; pitch: number } {
+  const p = pixels(img)
+  const along = vert ? p.h : p.w
+  const across = vert ? p.w : p.h
+  const vs: number[] = []
+  for (let a = 0; a < along; a++) {
+    let s = 0
+    let s2 = 0
+    for (let c = 0; c < across; c++) {
+      const i = vert ? a * p.w + c : c * p.w + a
+      const g = Math.min(R(p, i), G(p, i), B(p, i))
+      s += g
+      s2 += g * g
+    }
+    vs.push(s2 / across - (s / across) ** 2)
+  }
+  const m = avg(vs)
+  let pitch = Math.round(glyph)
+  let top = -Infinity
+  for (let lag = Math.round(glyph * 0.6); lag <= Math.round(glyph * 1.4) && lag < along; lag++) {
+    let c = 0
+    for (let a = 0; a + lag < along; a++) c += (vs[a] - m) * (vs[a + lag] - m)
+    c /= along - lag
+    if (c > top) ((top = c), (pitch = lag))
+  }
+  const cuts = [0]
+  for (let k = 1; k < n; k++) {
+    const mid = Math.round((along * k) / n)
+    let best = mid
+    let low = Infinity
+    for (let a = Math.round(mid - pitch / 2); a < mid + pitch / 2; a++) {
+      let s = 0
+      let c = 0
+      for (let j = -2; j <= 2; j++) {
+        const x = a + j * pitch
+        if (x >= 0 && x < along) ((s += vs[x]), c++)
+      }
+      if (c && s / c < low && a > cuts[cuts.length - 1] && a < along) ((low = s / c), (best = a))
+    }
+    cuts.push(best)
+  }
+  cuts.push(along)
+  return { cuts, pitch }
+}
+
 // 2b. English: PaddleOCR line detection (DB map → connected components) + CTC recognition
 async function readEnglish(block: NativeImage): Promise<{ text: string; conf: number }> {
   const s = await loadSessions()
@@ -561,13 +720,29 @@ function isJunk(text: string, conf: number, english: boolean): boolean {
 // One block → text. Japanese multi-line horizontal blocks (profiles, captions)
 // are read line by line: manga-ocr squashes a whole paragraph into 224×224 and
 // garbles it, while single lines read cleanly. Unsure lines are dropped.
+// A vertical block with a column too long to read whole (LONG_V) is read
+// column by column, right to left. Lines are read to their own ends: the
+// detector's block box can stop short of a long line (a text box's line ran
+// ~200 px past it).
 async function readBlock(img: NativeImage, b: Box, lines: Line[], english: boolean): Promise<{ text: string; conf: number }> {
   if (english) return readEnglish(crop(img, b))
+  const { width: iw, height: ih } = img.getSize()
+  const own = (l: Line): Box => ({ x1: Math.max(0, l.x1), y1: Math.max(0, l.y1), x2: Math.min(iw, l.x2), y2: Math.min(ih, l.y2), conf: 0 })
+  const vl = lines.filter((l) => l.vert && holds(b, l)).sort((p, q) => q.x1 - p.x1)
+  if (vl.length > 1 && vl.some((l) => l.y2 - l.y1 > (l.x2 - l.x1) * LONG_V)) {
+    const parts: { text: string; conf: number }[] = []
+    for (const l of vl) {
+      const r = await readLine(img, own(l))
+      if (r.text && r.conf >= 0.6) parts.push(r)
+    }
+    const n = parts.reduce((a, p) => a + p.text.length, 0)
+    if (n) return { text: parts.map((p) => p.text).join(''), conf: parts.reduce((a, p) => a + p.conf * p.text.length, 0) / n }
+  }
   const hl = lines.filter((l) => !l.vert && holds(b, l)).sort((p, q) => p.y1 - q.y1)
-  if (b.x2 - b.x1 < (b.y2 - b.y1) * 1.2 || hl.length < 2) return readJapanese(crop(img, b))
+  if (b.x2 - b.x1 < (b.y2 - b.y1) * 1.2 || hl.length < 2) return readLine(img, b)
   const parts: { text: string; conf: number }[] = []
   for (const l of hl) {
-    const r = await readJapanese(crop(img, { x1: Math.max(l.x1, b.x1), y1: l.y1, x2: Math.min(l.x2, b.x2), y2: l.y2 }))
+    const r = await readLine(img, own(l))
     if (r.text && r.conf >= 0.6) parts.push(r)
   }
   const n = parts.reduce((a, p) => a + p.text.length, 0)
@@ -688,7 +863,36 @@ export async function ocrPage(
       blocks.push({ x: g.x1, y: g.y1, w: g.x2 - g.x1, h: g.y2 - g.y1, text, tr: '', ...(size && { size }), cols })
     }
   }
-  return { w, h, blocks, mask: det.mask }
+  return { w, h, blocks: oneSpeech(blocks, det.lines), mask: det.mask }
+}
+
+// The detector can box one balloon twice (overlapping boxes); with lines read
+// to their ends, both read the same text and it would be translated and drawn
+// twice. Blocks with the same text whose boxes overlap by ≥ 25% of the
+// smaller are one block over their union.
+function oneSpeech(blocks: TransBlock[], lines: Line[]): TransBlock[] {
+  const box = (b: TransBlock): Box => ({ x1: b.x, y1: b.y, x2: b.x + b.w, y2: b.y + b.h, conf: 0 })
+  const out: TransBlock[] = []
+  for (const b of blocks) {
+    const i = out.findIndex((o) => {
+      if (o.text !== b.text) return false
+      const p = box(o)
+      const q = box(b)
+      const cut = { x1: Math.max(p.x1, q.x1), y1: Math.max(p.y1, q.y1), x2: Math.min(p.x2, q.x2), y2: Math.min(p.y2, q.y2) }
+      return cut.x2 > cut.x1 && cut.y2 > cut.y1 && area(cut) >= 0.25 * Math.min(area(p), area(q))
+    })
+    if (i < 0) {
+      out.push(b)
+      continue
+    }
+    const p = box(out[i])
+    const q = box(b)
+    const u: Box = { x1: Math.min(p.x1, q.x1), y1: Math.min(p.y1, q.y1), x2: Math.max(p.x2, q.x2), y2: Math.max(p.y2, q.y2), conf: 0 }
+    const paras = paragraphs(u, lines)
+    const size = blockSize(u, lines, b.text)
+    out[i] = { x: u.x1, y: u.y1, w: u.x2 - u.x1, h: u.y2 - u.y1, text: b.text, tr: '', ...(paras && { paras }), ...(size && { size }), cols: columns(u, lines) }
+  }
+  return out
 }
 
 // User-picked region (translation editor's 영역 번역) → its text. No junk
