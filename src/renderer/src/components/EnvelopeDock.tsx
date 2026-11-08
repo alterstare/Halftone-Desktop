@@ -138,11 +138,12 @@ export default function EnvelopeDock(): JSX.Element | null {
     }
     if (from === shape) return
     el.getAnimations().forEach((a) => a.cancel())
-    el.style.visibility = ''
     const LIFT = 'translateY(-14px) scale(0.94)'
+    // stays see-through (opacity 0, no clicks), never visibility: hidden — a
+    // hidden frame shown again after the big window (an album open there)
+    // sometimes wasn't painted: loaded behind, blank in front
     if (shape === 'hidden') {
-      const a = el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: LIFT }], { duration: 300, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' })
-      a.onfinish = () => (el.style.visibility = 'hidden')
+      el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: LIFT }], { duration: 300, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' })
       return
     }
     const first =
@@ -152,11 +153,18 @@ export default function EnvelopeDock(): JSX.Element | null {
             transform: `translate(${before.left - now.left}px, ${before.top - now.top}px) scale(${before.width / now.width}, ${before.height / now.height})`,
             opacity: 1
           }
-    el.animate([{ ...first, transformOrigin: '0 0' }, { transform: 'none', opacity: 1, transformOrigin: '0 0' }], {
+    const a = el.animate([{ ...first, transformOrigin: '0 0' }, { transform: 'none', opacity: 1, transformOrigin: '0 0' }], {
       duration: 360,
       // into the bar: faster and faster (sucked in); out of it: settling
       easing: shape === 'bar' ? 'cubic-bezier(0.5, 0, 0.75, 0.25)' : 'cubic-bezier(0.2, 0.8, 0.25, 1)'
     })
+    // settled: make the frame paint itself anew (see above)
+    a.onfinish = () => {
+      const f = frame.current
+      if (!f) return
+      f.style.transform = 'translateZ(0)'
+      requestAnimationFrame(() => requestAnimationFrame(() => (f.style.transform = '')))
+    }
   }, [shape, open])
 
   // closing: slide back out, then go (opened again meanwhile → it just stays,

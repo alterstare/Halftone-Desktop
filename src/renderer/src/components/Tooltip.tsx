@@ -29,12 +29,18 @@ export default function Tooltip(): JSX.Element | null {
   useEffect(() => {
     let timer: number | undefined
     let cur: HTMLElement | null = null
+    // Every element up the tree that has a `title` is stripped too: with only
+    // the hovered one stripped, the browser showed the nearest ancestor's
+    // title natively next to ours (a button inside a titled row / card).
+    let stripped: HTMLElement[] = []
 
     const restore = (): void => {
-      if (cur && cur.dataset.tip != null) {
-        cur.setAttribute('title', cur.dataset.tip)
-        delete cur.dataset.tip
-      }
+      for (const el of stripped)
+        if (el.dataset.tip != null) {
+          el.setAttribute('title', el.dataset.tip)
+          delete el.dataset.tip
+        }
+      stripped = []
       cur = null
     }
 
@@ -45,8 +51,11 @@ export default function Tooltip(): JSX.Element | null {
       if (!text) return
       restore()
       cur = el
-      el.dataset.tip = text
-      el.removeAttribute('title')
+      for (let a: HTMLElement | null = el; a; a = a.parentElement?.closest<HTMLElement>('[title]') ?? null) {
+        a.dataset.tip = a.getAttribute('title') ?? ''
+        a.removeAttribute('title')
+        stripped.push(a)
+      }
       window.clearTimeout(timer)
       timer = window.setTimeout(() => {
         const r = el.getBoundingClientRect()
@@ -68,12 +77,13 @@ export default function Tooltip(): JSX.Element | null {
     // isn't stale.
     const obs = new MutationObserver((muts) => {
       for (const m of muts) {
-        if (m.target !== cur) continue
-        const t = (cur as HTMLElement).getAttribute('title')
+        const el = m.target as HTMLElement
+        if (!stripped.includes(el)) continue
+        const t = el.getAttribute('title')
         if (t == null) continue
-        cur!.dataset.tip = t
-        cur!.removeAttribute('title')
-        setTip((prev) => (prev ? { ...prev, text: t } : prev))
+        el.dataset.tip = t
+        el.removeAttribute('title')
+        if (el === cur) setTip((prev) => (prev ? { ...prev, text: t } : prev))
       }
     })
     obs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['title'] })
