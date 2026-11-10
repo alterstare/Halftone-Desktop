@@ -1,4 +1,5 @@
 import { getCover } from './images'
+import { dHashFromUrl, matchesAny } from './exclude'
 
 // Thumbnail pipeline: each work gets a small webp generated once (Chromium
 // decodes webp/avif via canvas) and saved to disk by main. Afterwards the
@@ -170,4 +171,29 @@ export async function regenLocalThumb(workId: string): Promise<string | null> {
   mem.set(workId, url)
   pending.delete(workId)
   return url
+}
+
+// 제외 이미지 추가: a cached thumb made from a page that is now excluded is
+// remade from the first kept page (call after setExcluded). Every work's thumb
+// is hashed; only ones that look like one of `added` are touched. Returns how
+// many were replaced.
+export async function replaceExcludedThumbs(
+  workIds: string[],
+  added: string[],
+  onProgress?: (done: number, total: number) => void
+): Promise<number> {
+  let next = 0
+  let done = 0
+  let replaced = 0
+  const worker = async (): Promise<void> => {
+    while (next < workIds.length) {
+      const id = workIds[next++]
+      const url = await window.api.getThumb(id).catch(() => null)
+      const h = url ? await dHashFromUrl(url.replace(/#raw$/, '')) : null
+      if (h && matchesAny(h, added) && (await regenLocalThumb(id).catch(() => null))) replaced++
+      onProgress?.(++done, workIds.length)
+    }
+  }
+  await Promise.all(Array.from({ length: MAX_CONCURRENT }, worker))
+  return replaced
 }

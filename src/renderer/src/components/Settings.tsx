@@ -13,6 +13,7 @@ import { useLock } from '../lock'
 import type { Settings as SettingsT } from '../../../shared/types'
 import { SPLIT_SETTING_KEYS } from '../../../shared/types'
 import { setExcluded } from '../exclude'
+import { replaceExcludedThumbs } from '../thumbs'
 import { clearTranslation } from '../translate'
 import ConfirmModal from './ConfirmModal'
 import SearchClear from './SearchClear'
@@ -37,6 +38,19 @@ const CATS: { id: Cat; label: string }[] = [
   { id: 'keys', label: '단축키' },
   { id: 'manage', label: '관리' }
 ]
+
+// Newly registered 제외 이미지 → find the thumbs showing it and remake them
+// (in the background, as a job).
+async function replaceExcluded(added: string[]): Promise<void> {
+  const st = useStore.getState()
+  const ids = st.works.map((w) => w.id)
+  if (!ids.length) return
+  const jid = st.startJob('thumb', st.libraryMode, '제외 이미지 썸네일 교체')
+  st.updateJob(jid, { total: ids.length })
+  const n = await replaceExcludedThumbs(ids, added, (done) => st.updateJob(jid, { done }))
+  st.endJob(jid, { status: 'done', detail: n ? `썸네일 ${n}개 교체` : '교체할 썸네일 없음' })
+  if (n) st.bumpThumbNonce() // cards reload their thumbs
+}
 
 export default function Settings(): JSX.Element {
   const settings = useStore((s) => s.settings)
@@ -107,6 +121,7 @@ export default function Settings(): JSX.Element {
   // Persist the draft. Per-mode keys (SPLIT_SETTING_KEYS) go into this mode's
   // overlay so the other library mode keeps its own values.
   const persist = async (): Promise<SettingsT> => {
+    const before = useStore.getState().settings
     const overlay = Object.fromEntries(SPLIT_SETTING_KEYS.map((k) => [k, draft[k]])) as Partial<SettingsT>
     const saved = await window.api.saveSettings({
       ...draft,
@@ -117,6 +132,8 @@ export default function Settings(): JSX.Element {
     // check settles instead of flagging the perMode difference.
     setDraft(useStore.getState().settings)
     setExcluded(saved.excludedImageHashes)
+    const added = saved.excludedImageHashes.filter((h) => !before.excludedImageHashes.includes(h))
+    if (added.length) void replaceExcluded(added)
     clearTranslation() // engine/translator may have changed → drop cached pages
     setSettingsDirty(false)
     return saved

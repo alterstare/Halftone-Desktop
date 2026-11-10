@@ -97,13 +97,18 @@ function hamming(a: string, b: string): number {
 
 const THRESHOLD = 10 // out of 64 bits
 
+// True if `hash` looks like one of `list`.
+export function matchesAny(hash: string, list: string[]): boolean {
+  return list.some((e) => hamming(hash, e) <= THRESHOLD)
+}
+
 // Returns the subset of urls that are NOT similar to any excluded hash.
 export async function filterExcluded(urls: string[], excluded: string[]): Promise<string[]> {
   if (!excluded.length) return urls
   const keep: string[] = []
   for (const url of urls) {
     const h = await dHashFromUrl(url)
-    if (h && excluded.some((e) => hamming(h, e) <= THRESHOLD)) continue
+    if (h && matchesAny(h, excluded)) continue
     keep.push(url)
   }
   return keep
