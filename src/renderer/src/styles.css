@@ -2855,11 +2855,10 @@ body.resizing {
   font-size: 12px;
   color: var(--text-dim);
 }
-/* Groups are split by divider lines, not boxes. */
+/* Groups are split by divider lines, not boxes — a line above each, so the
+   first one is set off from the buttons above it too. */
 .dup-group {
   padding: 16px 0;
-}
-.dup-group + .dup-group {
   border-top: 1px solid var(--line);
 }
 .dup-group-head {
