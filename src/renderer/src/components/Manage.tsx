@@ -649,7 +649,7 @@ function Collections(): JSX.Element {
               </div>
             )}
             {isOpen && (
-              <div className="dup-row">
+              <div className="dup-row coll-row">
                 {g.works.map((w) => (
                   <ManageCard
                     key={w.id}
