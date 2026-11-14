@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import type { Work } from '../../../shared/types'
 import { useStore, useSeriesRoots } from '../store'
@@ -196,7 +196,24 @@ function Duplicates(): JSX.Element {
   const [confirmBulk, setConfirmBulk] = useState(false)
   const [pendingDel, setPendingDel] = useState<Work | null>(null)
 
-  const groups = useMemo(() => findDuplicateGroups(works), [works])
+  // Found off the first paint, in slices (findDuplicateGroups yields), so the
+  // screen opens at once with "찾는 중" and never looks frozen. While a new
+  // search runs after a change (a delete, new hashes) the old groups stay.
+  const [found, setFound] = useState<Work[][] | null>(null)
+  const [findProg, setFindProg] = useState(0)
+  useEffect(() => {
+    let stop = false
+    const t = setTimeout(() => {
+      void findDuplicateGroups(works, setFindProg, () => stop).then((g) => {
+        if (g && !stop) setFound(g)
+      })
+    }, 30)
+    return () => {
+      stop = true
+      clearTimeout(t)
+    }
+  }, [works])
+  const groups = useMemo(() => found ?? [], [found])
   const missing = useMemo(() => works.filter((w) => !w.coverHash).length, [works])
 
   // Pre-select every non-keeper for deletion whenever the groups change.
@@ -270,10 +287,13 @@ function Duplicates(): JSX.Element {
             전체 {selected.size}개 삭제
           </button>
         </div>
-        <span className="manage-count">중복 그룹 {groups.length}개</span>
+        <span className="manage-count">{found ? `중복 그룹 ${groups.length}개` : ''}</span>
       </div>
 
-      {groups.length === 0 && (scanned || missing === 0) && (
+      {!found && (
+        <div className="reader-loading">중복 작품을 찾는 중… {Math.round(findProg * 100)}%</div>
+      )}
+      {found && groups.length === 0 && (scanned || missing === 0) && (
         <div className="empty">중복으로 보이는 작품이 없습니다.</div>
       )}
 
@@ -649,8 +669,8 @@ function Collections(): JSX.Element {
               </div>
             )}
             {isOpen && (
-              <div className="dup-row coll-row">
-                {g.works.map((w) => (
+              <StepList className="dup-row coll-row" items={g.works}>
+                {(w) => (
                   <ManageCard
                     key={w.id}
                     work={w}
@@ -658,8 +678,8 @@ function Collections(): JSX.Element {
                     merging={selected.has(w.id)}
                     onMerge={() => toggle(w.id)}
                   />
-                ))}
-              </div>
+                )}
+              </StepList>
             )}
           </div>
         )
@@ -668,6 +688,45 @@ function Collections(): JSX.Element {
         <div className="empty">병합할 작가 폴더가 없습니다.</div>
       )}
     </div>
+  )
+}
+
+// A long card list drawn STEP items at a time: the next step when the end
+// comes near (an artist folder can hold 600+ works — all at once froze it).
+const STEP = 60
+function StepList<T>({
+  items,
+  className,
+  children
+}: {
+  items: T[]
+  className: string
+  children: (item: T) => JSX.Element
+}): JSX.Element {
+  const [shown, setShown] = useState(STEP)
+  const end = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = end.current
+    if (!el || shown >= items.length) return
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) setShown((n) => n + STEP)
+      },
+      // the page scrolls inside .manage — margin counts only on the real scroller
+      { root: el.closest('.manage'), rootMargin: '600px 0px' }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [shown, items.length])
+  return (
+    <>
+      <div className={className}>{items.slice(0, shown).map(children)}</div>
+      {shown < items.length && (
+        <div ref={end} className="reader-loading">
+          불러오는 중… {shown}/{items.length}
+        </div>
+      )}
+    </>
   )
 }
 

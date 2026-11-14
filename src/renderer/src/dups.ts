@@ -88,7 +88,23 @@ class DSU {
 // OR near-identical cover dHash corroborated by title similarity). The title
 // check on cover matches stops a series (same artist, similar art) from being
 // collapsed into one group, and stops style-similar different works.
-export function findDuplicateGroups(works: Work[]): Work[][] {
+// Bits set in a 32-bit int.
+function popcount32(x: number): number {
+  x -= (x >>> 1) & 0x55555555
+  x = (x & 0x33333333) + ((x >>> 2) & 0x33333333)
+  return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24
+}
+const nextFrame = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
+
+// Runs in slices of ~12 ms that hand the thread back between them, so the
+// screen keeps drawing (a library of ~5000 works with empty folder artists —
+// pixiv folders — has millions of cover pairs in one artist). `onProgress`
+// gets 0..1; a true `cancelled()` stops it (returns null).
+export async function findDuplicateGroups(
+  works: Work[],
+  onProgress?: (f: number) => void,
+  cancelled?: () => boolean
+): Promise<Work[][] | null> {
   const n = works.length
   const dsu = new DSU(n)
   const norms = works.map((w) => titleNorm(w.title))
@@ -103,18 +119,36 @@ export function findDuplicateGroups(works: Work[]): Work[][] {
     if (prev !== undefined) dsu.union(prev, i)
     else byKey.set(key, i)
   }
-  // Same artist + similar cover + similar title (O(n^2) over hashed works only).
-  const hashed = works
-    .map((w, i) => ({ i, h: w.coverHash }))
-    .filter((x) => x.h) as { i: number; h: string }[]
-  for (let a = 0; a < hashed.length; a++) {
-    for (let b = a + 1; b < hashed.length; b++) {
-      const ia = hashed[a].i
-      const ib = hashed[b].i
-      if (akeys[ia] !== akeys[ib]) continue
-      if (hamming(hashed[a].h, hashed[b].h) > COVER_THRESHOLD) continue
-      if (titleSim(works[ia].title, works[ib].title) < 0.6) continue
-      dsu.union(ia, ib)
+  // Same artist + similar cover + similar title: pairs within each artist's
+  // hashed works; the 64-bit dHash as two 32-bit halves.
+  const buckets = new Map<string, { i: number; hi: number; lo: number }[]>()
+  for (let i = 0; i < n; i++) {
+    const h = works[i].coverHash
+    if (!h || h.length !== 16) continue
+    const arr = buckets.get(akeys[i]) ?? []
+    arr.push({ i, hi: parseInt(h.slice(0, 8), 16) | 0, lo: parseInt(h.slice(8), 16) | 0 })
+    buckets.set(akeys[i], arr)
+  }
+  let total = 0
+  for (const b of buckets.values()) total += (b.length * (b.length - 1)) / 2
+  let done = 0
+  let t0 = performance.now()
+  for (const b of buckets.values()) {
+    for (let x = 0; x < b.length; x++) {
+      const p = b[x]
+      for (let y = x + 1; y < b.length; y++) {
+        const q = b[y]
+        if (popcount32(p.hi ^ q.hi) + popcount32(p.lo ^ q.lo) > COVER_THRESHOLD) continue
+        if (titleSim(works[p.i].title, works[q.i].title) < 0.6) continue
+        dsu.union(p.i, q.i)
+      }
+      done += b.length - 1 - x
+      if (performance.now() - t0 > 12) {
+        onProgress?.(total ? done / total : 1)
+        await nextFrame()
+        if (cancelled?.()) return null
+        t0 = performance.now()
+      }
     }
   }
 
@@ -123,6 +157,7 @@ export function findDuplicateGroups(works: Work[]): Work[][] {
     const r = dsu.find(i)
     ;(groups.get(r) ?? groups.set(r, []).get(r)!).push(works[i])
   }
+  onProgress?.(1)
   return [...groups.values()].filter((g) => g.length >= 2)
 }
 

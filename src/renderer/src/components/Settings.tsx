@@ -118,6 +118,27 @@ export default function Settings(): JSX.Element {
     }
   }
 
+  // Every folder a scan walks, with its library (main's effectiveRoots +
+  // flattenRoots + normalRoots).
+  const scanDirsOf = (s: SettingsT): [string, 'doujin' | 'normal'][] => [
+    ...[
+      ...s.libraryRoots,
+      ...(s.flattenRoots ?? []),
+      s.favoritesDir,
+      s.downloadDir,
+      s.langDirs?.english,
+      s.langDirs?.japanese,
+      s.langDirs?.other
+    ]
+      .filter((d): d is string => !!d)
+      .map((d): [string, 'doujin'] => [d, 'doujin']),
+    ...[...(s.normalRoots ?? []), s.normalDownloadDir]
+      .filter((d): d is string => !!d)
+      .map((d): [string, 'normal'] => [d, 'normal'])
+  ]
+  const sameDir = (a: string, b: string): boolean =>
+    a.replace(/[\\/]+$/, '').toLowerCase() === b.replace(/[\\/]+$/, '').toLowerCase()
+
   // Persist the draft. Per-mode keys (SPLIT_SETTING_KEYS) go into this mode's
   // overlay so the other library mode keeps its own values.
   const persist = async (): Promise<SettingsT> => {
@@ -134,6 +155,14 @@ export default function Settings(): JSX.Element {
     setExcluded(saved.excludedImageHashes)
     const added = saved.excludedImageHashes.filter((h) => !before.excludedImageHashes.includes(h))
     if (added.length) void replaceExcluded(added)
+    // Folders added (library / 작가 / language / download / favorites, either
+    // mode) are scanned now — before, their works only came in with the next
+    // 라이브러리 갱신, so a new 작가 폴더 or 영어 폴더 showed nothing.
+    const newDirs = scanDirsOf(saved).filter(([d]) => !scanDirsOf(before).some(([b]) => sameDir(b, d)))
+    if (newDirs.length)
+      void (async () => {
+        for (const [d, mode] of newDirs) await useStore.getState().scanFolderJob(d, mode)
+      })()
     clearTranslation() // engine/translator may have changed → drop cached pages
     setSettingsDirty(false)
     return saved
