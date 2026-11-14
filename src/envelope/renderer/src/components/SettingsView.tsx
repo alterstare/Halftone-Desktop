@@ -100,6 +100,7 @@ function Groups(): JSX.Element {
       ))}
       {del !== null && (
         <Confirm
+          danger
           title="그룹을 삭제할까요?"
           body="작품과 파일은 그대로이고 그룹 표시만 사라집니다."
           ok="삭제"
@@ -294,8 +295,8 @@ export default function SettingsView(): JSX.Element | null {
           <Row label="이어 듣기" hint="켜면 작품 · 트랙을 마지막으로 듣던 곳부터 재생합니다. 끄면 항상 첫 트랙의 처음부터 재생합니다(들은 위치 기록은 그대로 남습니다).">
             <Seg value={s.resume ? 'on' : 'off'} options={[['on', '켜기'], ['off', '끄기']]} onChange={(v) => void save({ resume: v === 'on' })} />
           </Row>
-          <Row label="건너뛰기 간격">
-            <Seg value={s.seekStep} options={[[5, '5초'], [10, '10초'], [15, '15초'], [30, '30초']]} onChange={(v) => void save({ seekStep: v })} />
+          <Row label="건너뛰기 간격" hint="초 단위입니다.">
+            <Stepper value={s.seekStep ?? 5} min={1} max={60} step={5} onChange={(v) => void save({ seekStep: v })} />
           </Row>
         </section>
         <section>
@@ -354,7 +355,7 @@ export default function SettingsView(): JSX.Element | null {
             body={
               <>
                 <span className="selectable">{removing.dir}</span>
-                <br />이 폴더의 작품 {removing.works}개도 목록에서 빠지고, 즐겨찾기 · 별점 · 이어 듣기 · 북마크 같은 기록도 함께 지워집니다. 파일은 그대로 둡니다.
+                <br />이 폴더의 작품 {removing.works}개도 목록에서 빠지고, 즐겨찾기 · 평점 · 이어 듣기 · 북마크 같은 기록도 함께 지워집니다. 파일은 그대로 둡니다.
               </>
             }
             ok="빼기"

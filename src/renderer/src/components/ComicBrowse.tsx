@@ -597,6 +597,7 @@ export default function ComicBrowse(): JSX.Element {
             <div
               key={g.url}
               className="gcard"
+              data-card-tip={g.title}
               onContextMenu={(e) => {
                 e.preventDefault()
                 setCardMenu({ x: e.clientX, y: e.clientY, g })

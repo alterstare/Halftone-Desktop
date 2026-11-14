@@ -180,7 +180,10 @@ type DownloadSpec =
 | `--panel` | `#ffffff` | `#14161d` | modal/panel surface |
 
 - Shadows: `--shadow-subtle`, `--shadow-micro`. Radius scale: `--r1`=4 `--r2`=6
-  `--r3`=8 `--r4`/`--r5`=12 `--r6`=16. **Buttons cap at 12px radius — no pills.** Exception: icon-only
+  `--r3`=8 `--r4`/`--r5`=12 `--r6`=16. **Default round radius = 999px** (round ends)
+  for search boxes, order dropdowns, chips, toggles and search / toolbar-row
+  buttons, as the library search row (controls in one row share it). Other
+  boxes: 12px (`--r4`). Exception: icon-only
   buttons (`.mini.icon`) are circles (`aspect-ratio: 1; border-radius: 50%`).
 
 Scrollbars: thumb = `--scroll-thumb` (translucent black in light, white in
@@ -197,10 +200,22 @@ In `src/renderer/src/components/`:
 - **`RadioCards`** (`settings/parts.tsx`) — mutually-exclusive description cards.
 - **`Pager`**, **`ContextMenu`**, **`ConfirmModal`**, **`Stars`**, **`CopyCode`**,
   **`Caret`**, **`TagPickInput`**.
+- **Toggle** (a filter on/off) = `FavDlToggle` pill switch (GreenTunnel /
+  받은 것만 style). **오름/내림차순** = `chip layout-toggle` + `<Caret up={asc} />`.
+  Never another arrow icon or a label-flipping button.
 - Buttons: `.btn` (`.btn.primary`, `.btn.block`, `.btn.danger`) and `.mini` (compact,
   e.g. list actions). **Custom checkboxes** use the `.pat-check` pattern (a `<button>`
   styled as a box with `.on` state + `::after` checkmark) — never a native checkbox
   when UI consistency matters.
+
+### Confirm / notice dialogs
+`ConfirmModal` / `ExitModal` (`.exit-modal`) look like Halftone mobile's
+compact dialog in every app (rule in `~/.claude/CLAUDE.md`): no icon, title
+and text left-aligned, small text buttons bottom right in the order action ·
+middle · close. Only the main action is coloured: purple when positive,
+red (`danger` prop) when negative (삭제 / 제거 / 덮어쓰기 / 초기화). Popup
+footers with form buttons (`mini on` + 취소) also put the action first.
+The style block is the last one in `styles.css`.
 
 ### Korean UI copy
 All user-facing strings are Korean. Match surrounding tone (terse, `…` for
@@ -541,6 +556,27 @@ the same balloon come out differently on every page):
    with such a column is read column by column, right to left. Lines are read
    to their own ends, not clipped to the block box (it stopped ~200 px short
    of a text box's line). The test sets (484 / neon) are unchanged.
+   **The block itself is grown to its lines too** (`ocrPage` `add`: box ∪
+   its own lines = lines whose centre is in the detector's box; only those
+   are passed on, so the grown box can't take a neighbour's line) — else the
+   erase / bubble search / room stopped at the detector's edge and a wide
+   (or tall) text box's ends (♥♥ at a line's end) stayed. With the bigger box,
+   erase on the art is bounded by the lines (`cols`) ± its pad, `maskReach`
+   starts its runs only within `COL_PAD` 0.5 em of them (from a sound
+   effect's stroke inside the grown box it ran effect to effect across the
+   page) and returns what it reached past them as one more `cols` rect;
+   `eraseBubble` counts as own text only strokes in the balloon (± reach).
+   Test: `../fix/杏山カズサ  公認浮気` 2BKI… / 2XaU… (VN text box).
+   **Rays start from the text when the box is the balloon** (`rayBox`): the
+   detector can box a whole balloon (2BKI's tall "いぎっ♡"); `castRays`' fill
+   ring (3–8 px round the box) then lay on the art past the outline, the rays
+   started out there, it read plain and no balloon → the art erase smeared
+   the white fill dark. When the ring's colour (`ringFill`) is off the seed's
+   fill by > BG_TOL, the rays start from the seed's glyph extent instead.
+   And an outlined find turns see-through only by what its extension adds
+   past the fill *and what the fill encloses* (`withHoles`): big bright
+   glyphs (pink, lum > the floor) made a small opaque balloon "grow" 28%.
+   Both leave 484 / neon pixel-identical.
    Two boxes of one balloon (the detector can box it twice) then read the
    same text: `oneSpeech` merges blocks with the same text overlapping by
    ≥ 25% of the smaller into one over their union.
@@ -696,9 +732,22 @@ the same balloon come out differently on every page):
    row's right end (`transModelLabel`). Header 초기화 = `rebuild` from
    `TransDoc.orig` (the recognition the doc was built from; older docs: their
    blocks minus the edit fields): auto layers only, one undo step. Harness
-   t9.js. The 번역 편집기 list (TransWork.tsx) has a per-work 초기화 too
-   (`resetWorkEdits`: `saveTransDoc(src, null)` + cache drop for every page,
-   project back to page 1 / 작업 중; 인물 메모 kept; confirm first — no undo).
+   t9.js. The 번역 편집기 list (TransWork.tsx, 2026-11-12 layout: order
+   dropdown + search (the library .search box), then 작업 중 ⇄ 전체 보기
+   (`FavDlToggle`, the GreenTunnel pill) · 오름/내림차순 (`chip layout-toggle`
+   + `Caret`) · 언어 chips, all in a `.chips` row like the library's, a round + under the last card
+   opens the picker, whose search box ends in a sort button for order +
+   language checkboxes): card buttons 인물 메모 / 폴더 열기 / 삭제 / 저장 ▾. 삭제 = remove from the list, with a 번역 진행도 초기화 checkbox
+   (`resetWorkEdits`: `saveTransDoc(src, null)` + cache drop for every page;
+   인물 메모 kept). Done is automatic (every page edited; synced into
+   `TransProject.done` for the 작업 중 filter). 저장 ▾: 사본으로 저장
+   (`saveWorkCopy`: rendered pages into "<title> (번역)" beside the work, then
+   `transCopyDone` scans it in — not the folder name: a coded name would share
+   the gallery id `h:<code>` and replace the original work), 원본 덮어쓰기
+   (`overwriteWorkPages`: pages with a translation drawn → `transReplacePage`:
+   original to the recycle bin, new `<name>.webp` (`_ko.webp` if the same name —
+   `mangaimg://` responses are cached immutable), those pages' edits dropped),
+   이미지 / 텍스트 내보내기.
 
 ## 12. 캐릭터 분류 mode (Sorta, embedded)
 

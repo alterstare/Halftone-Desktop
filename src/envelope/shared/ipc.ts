@@ -24,6 +24,7 @@ export const IPC = {
   deleteBookmark: 'env:bookmark:delete',
   setFavorite: 'env:collect:favorite',
   setRank: 'env:collect:rank',
+  countPlay: 'env:collect:count-play',
   groups: 'env:collect:groups',
   createGroup: 'env:collect:createGroup',
   renameGroup: 'env:collect:renameGroup',
@@ -170,6 +171,7 @@ export interface Api {
   // 즐겨찾기 · 별점 · 그룹
   setFavorite: (ids: number[], on: boolean) => Promise<void>
   setRank: (ids: number[], rank: number) => Promise<void>
+  countPlay: (id: number) => Promise<number> // 감상 횟수 +1 → the new count
   groups: () => Promise<Group[]>
   createGroup: (name: string, ids?: number[]) => Promise<number>
   renameGroup: (id: number, name: string) => Promise<void>

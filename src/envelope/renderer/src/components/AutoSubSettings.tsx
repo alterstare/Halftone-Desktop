@@ -7,7 +7,7 @@ import { useStore } from '../store'
 import type { EngineStatus, GlossaryEntry, Settings, WhisperModelId } from '../../../shared/types'
 import { Dropdown } from './ui'
 import { useDraft } from './settingsDraft'
-import { AddIcon, CheckIcon, CloudDownloadIcon, DeleteIcon, FileOpenIcon, FolderOpenIcon } from './icons'
+import { AddIcon, CheckIcon, CloudDownloadIcon, DeleteIcon, FileOpenIcon, FolderOpenIcon, ArrowForwardIcon } from './icons'
 
 const MODELS: [WhisperModelId, string, number][] = [
   ['large-v3-turbo-q5_0', 'large-v3-turbo (받아쓰기 기본)', 574],
@@ -72,7 +72,9 @@ export function Glossary({ workId = null }: { workId?: number | null }): JSX.Ele
       {rows.map((r, i) => (
         <div key={i} className="gloss-row">
           <Field value={r.source} placeholder="원문 (예: お兄ちゃん)" onSave={(v) => store(rows.map((x, j) => (j === i ? { ...x, source: v } : x)))} />
-          <span className="hint">→</span>
+          <span className="hint">
+            <ArrowForwardIcon />
+          </span>
           <Field value={r.target} placeholder="번역 (예: 오빠)" onSave={(v) => store(rows.map((x, j) => (j === i ? { ...x, target: v } : x)))} />
           <button className="mini icon" title="빼기" onClick={() => store(rows.filter((_, j) => j !== i))}>
             <DeleteIcon />

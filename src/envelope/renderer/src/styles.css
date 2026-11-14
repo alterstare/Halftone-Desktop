@@ -8,6 +8,7 @@
   --line: #dedee5;
   --text: #101114;
   --text-dim: #686b82;
+  --text-tag: #474a5c; /* tag + button text — a step darker than --text-dim */
   --text-hover: #000000;
   --muted: #9497a9;
   --accent: #7132f5;
@@ -32,6 +33,7 @@
   --line: #2b3040;
   --text: #eceef4;
   --text-dim: #9aa0b2;
+  --text-tag: #c3c7d3; /* tag + button text — a step brighter than --text-dim */
   --text-hover: #ffffff;
   --muted: #6f7484;
   --accent: #8b5cf6;
@@ -62,9 +64,17 @@ body {
      (a URL, a title with no spaces) still breaks rather than overflow */
   word-break: keep-all;
   overflow-wrap: break-word;
-  font-family: 'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, 'Yu Gothic UI', 'Meiryo UI', 'Malgun Gothic', sans-serif;
+  font-family: 'Noto Sans KR Variable', 'Noto Sans JP Variable', 'Noto Sans KR', 'Noto Sans JP', 'Noto Sans', 'Malgun Gothic', sans-serif;
   font-size: 14px;
   user-select: none;
+}
+/* Noto Sans everywhere (2026-11-13, bundled — main.tsx), buttons and fields included — they
+   don't inherit the page font by default */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 h1,
 h2 {
@@ -103,7 +113,7 @@ h2 {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--r4);
-  color: var(--text-dim);
+  color: var(--text-tag);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -136,7 +146,7 @@ h2 {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--r4);
-  color: var(--text-dim);
+  color: var(--text-tag);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -179,8 +189,8 @@ h2 {
    2. Solid controls that are already filled (purple play / search buttons,
       selected items, Halftone nav tabs): a brightness change only
       (--hover-filter), no colour or outline change.
-   3. Work tiles / library rows (작품 칸): purple outline only, no fill — the
-      same as Halftone and Sorta.
+   3. Work tiles (작품 카드): purple outline only, no fill — the same as
+      Halftone and Sorta. Library list rows have no box, so they take rule 1.
    4. Press: brightness only (--press-filter), never a size change.
    Nothing else in env.css sets a hover fill or outline. */
 :is(
@@ -193,6 +203,7 @@ h2 {
     .search-filter:not(.on),
     .lline,
     .trow,
+    .lrow,
     .trow-tool:not(.off),
     .se-row:not(.on)
   ):hover:not(:disabled),
@@ -216,7 +227,7 @@ h2 {
   ):hover:not(:active):not(:disabled) {
   filter: var(--hover-filter);
 }
-:is(.tile, .lrow):hover {
+.tile:hover {
   border-color: var(--accent);
 }
 :is(button, .chip, .dd-opt, .menu-item, .trow, .trow-tool, .lrow, .tile):active:not(:disabled) {
@@ -286,4 +297,18 @@ h2 {
 .hero-icon {
   font-size: 56px;
   color: var(--accent);
+}
+
+/* Arrow icons in UI text (arrowText): sized and set on the text's baseline */
+.micon.txt-arrow {
+  width: 1.05em;
+  height: 1.05em;
+  margin: 0 0.12em;
+  vertical-align: -0.16em;
+}
+.micon.txt-key {
+  width: 1.25em;
+  height: 1.25em;
+  margin: 0 -0.1em;
+  vertical-align: -0.3em;
 }

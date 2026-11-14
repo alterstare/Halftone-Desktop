@@ -12,7 +12,7 @@ import { RateControl, SeekBar, SleepControl, Volume } from './NowBar'
 import SubEditor from './SubEditor'
 import { BookmarkButton } from './Bookmarks'
 import { FavButton, GroupButton, Popover, SHEET_MS, useAnchor, useExit, useCoverColour } from './ui'
-import { lyricsTheme } from '../workInfo'
+import { lyricsTheme, trackLabel } from '../workInfo'
 import {
   BedtimeIcon,
   EditIcon,
@@ -38,6 +38,8 @@ function collapse(): void {
   if (st.historyAt > 0) st.navBack()
   else st.setView('library')
 }
+
+const seLabel = (se?: string): string => (se === 'on' ? 'SE 포함' : se === 'off' ? 'SE 제외' : '')
 
 function PlayBig(): JSX.Element {
   const playing = useStore((s) => s.playing)
@@ -289,10 +291,10 @@ export default function MobileNow(): JSX.Element {
 
         <div className="mn-meta">
           <div className="mn-titles">
+            {/* above the title: the track's number and its version ("트랙 1 · SE 포함") */}
+            <div className="mn-no">{[trackLabel(w, now.groupKey), seLabel(g?.versions.find((v) => v.id === now.trackId)?.se)].filter(Boolean).join(' · ')}</div>
+            {/* no work name under it: it's in the header (작품에서 재생 중 · 작품) */}
             <div className="mn-title">{g?.title}</div>
-            <button className="mn-work" onClick={() => void useStore.getState().openWork(w.id)}>
-              {w.title}
-            </button>
           </div>
         </div>
 

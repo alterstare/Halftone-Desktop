@@ -17,7 +17,7 @@ import { replaceExcludedThumbs } from '../thumbs'
 import { clearTranslation } from '../translate'
 import ConfirmModal from './ConfirmModal'
 import SearchClear from './SearchClear'
-import { SearchIcon } from './icons'
+import { SearchIcon, MenuIcon } from './icons'
 import { SettingsContext, type SettingsCtl } from './settings/context'
 import FolderSection from './settings/FolderSection'
 import TagSection from './settings/TagSection'
@@ -221,7 +221,7 @@ export default function Settings(): JSX.Element {
         <div className={`settings-inner ${q.trim() ? 'searching' : ''}`} data-show={q.trim() ? 'search' : cat} ref={innerRef}>
           <h1>설정 · {modeName}</h1>
           <p className="hint">
-            이 화면은 현재 <b>{modeName}</b> 모드 설정입니다. 모드는 ☰ 메뉴에서 전환할 수 있습니다.
+            이 화면은 현재 <b>{modeName}</b> 모드 설정입니다. 모드는 <MenuIcon className="txt-arrow" /> 메뉴에서 전환할 수 있습니다.
           </p>
 
           <div className="settings-search">

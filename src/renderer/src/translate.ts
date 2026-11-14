@@ -250,10 +250,13 @@ export async function saveTransDoc(src: string, doc: TransDoc | null, images: Re
 // 번역 편집기 목록's 초기화: every page of the work back to the auto translation
 // (documents, edits, painted layers, kept masks all go; pages re-translate).
 export async function resetWorkEdits(workId: string): Promise<void> {
-  for (const src of await getImages(workId)) {
-    await saveTransDoc(src, null, {})
-    clearTranslation(src)
-  }
+  for (const src of await getImages(workId)) await clearPageEdits(src)
+}
+
+// Drop one page's saved edit and translation.
+export async function clearPageEdits(src: string): Promise<void> {
+  await saveTransDoc(src, null, {})
+  clearTranslation(src)
 }
 
 // Pages (image src) that carry a saved manual edit.

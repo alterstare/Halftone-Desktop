@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { JSX } from 'react'
+import { CheckMarkIcon } from './icons'
 
 // Clickable [code] that copies to clipboard and briefly shows a check.
 export default function CopyCode({ code, className = '' }: { code: string; className?: string }): JSX.Element {
@@ -14,7 +15,8 @@ export default function CopyCode({ code, className = '' }: { code: string; class
         setTimeout(() => setCopied(false), 1000)
       }}
     >
-      [{code}]{copied ? ' ✓' : ''}
+      [{code}]
+      {copied && <CheckMarkIcon className="txt-arrow" />}
     </span>
   )
 }

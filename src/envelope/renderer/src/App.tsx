@@ -23,8 +23,8 @@ import { CleaningServicesIcon, CloseIcon, LibraryMusicIcon, PauseIcon, PlayArrow
 import ToolsView from './components/ToolsView'
 import MiniMode from './components/MiniMode'
 import TitleStrip from './components/TitleStrip'
-import logo from './assets/logo.png'
 import { NARROW, SHEET_MS, useExit, useNarrow } from './components/ui'
+import { arrowText } from './arrowText'
 
 // The data folder is shared with the other app (standalone Env / Halftone):
 // while that one has it open, show who and offer a retry.
@@ -57,11 +57,10 @@ export default function App(): JSX.Element | null {
   return <Main />
 }
 
-// Top bar: flat buttons with icon + label on the left (after the name),
-// 설정 icon-only on the right.
+// Top bar (big window only): flat buttons with icon + label on the left,
+// 설정 icon-only on the right. 지금 재생 opens from the bottom bar (Ctrl+2).
 const NAV_LEFT: [View, string, string, typeof SettingsIcon][] = [
   ['library', '라이브러리', 'Ctrl+1', LibraryMusicIcon],
-  ['now', '지금 재생', 'Ctrl+2', PlayArrowIcon],
   ['tools', '파일 정리', 'Ctrl+E', CleaningServicesIcon]
 ]
 
@@ -318,33 +317,31 @@ function Main(): JSX.Element {
   return (
     <div className={`app view-${view} ${now ? 'has-now' : ''} ${hosted ? '' : 'framed'}`}>
       {!hosted && <TitleStrip />}
-      <nav className="topbar">
-        <div className="topbar-left">
-          <span className="brand">
-            <img className="brand-logo" src={logo} alt="" draggable={false} />
-            <span className="brand-name">Env/</span>
-          </span>
-          <div className="flat-group">
-            {NAV_LEFT.filter(([k]) => !(narrow && k === 'tools')).map(([k, label, key, Icon]) => (
-              <button
-                key={k}
-                className={`mini ${navView === k ? 'on' : ''}`}
-                title={`${label} (${key})`}
-                disabled={k === 'now' && !now}
-                onClick={() => (k === 'tools' && useStore.setState({ toolsScope: null }), setView(k))}
-              >
-                <Icon /> <span className="nav-label">{label}</span>
-              </button>
-            ))}
+      {/* small window: no top bar (설정 sits in the LP bar, above 최소화 모드) */}
+      {!narrow && (
+        <nav className="topbar">
+          <div className="topbar-left">
+            <div className="flat-group">
+              {NAV_LEFT.map(([k, label, key, Icon]) => (
+                <button
+                  key={k}
+                  className={`mini ${navView === k ? 'on' : ''}`}
+                  title={`${label} (${key})`}
+                  onClick={() => (k === 'tools' && useStore.setState({ toolsScope: null }), setView(k))}
+                >
+                  <Icon /> <span className="nav-label">{label}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-        <JobPill />
-        <div className="flat-group">
-          <button className={`mini icon topbar-settings ${navView === 'settings' ? 'on' : ''}`} title="설정 (Ctrl+,)" onClick={() => setView(navView === 'settings' ? 'library' : 'settings')}>
-            <SettingsIcon />
-          </button>
-        </div>
-      </nav>
+          <JobPill />
+          <div className="flat-group">
+            <button className={`mini icon topbar-settings ${navView === 'settings' ? 'on' : ''}`} title="설정 (Ctrl+,)" onClick={() => setView(navView === 'settings' ? 'library' : 'settings')}>
+              <SettingsIcon />
+            </button>
+          </div>
+        </nav>
+      )}
       <div className={`middle tabs-${settings?.tabSide ?? 'right'}`}>
         <main className="content" key={view === 'work' ? `work-${shownId}` : view}>
           {view === 'library' && <Library />}
@@ -362,7 +359,7 @@ function Main(): JSX.Element {
         <SubStrip />
       </div>
       <NowBar />
-      {toast && <div className={`toast ${toast.ok ? '' : 'bad'}`}>{toast.message}</div>}
+      {toast && <div className={`toast ${toast.ok ? '' : 'bad'}`}>{arrowText(toast.message)}</div>}
     </div>
   )
 }

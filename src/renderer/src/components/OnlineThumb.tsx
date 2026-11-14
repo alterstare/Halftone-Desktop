@@ -26,7 +26,7 @@ export default function OnlineThumb({
   const { handlers, portal } = useHoverPreview(ref, getImgs)
   const shown = localSrc ?? thumbUrl
   return (
-    <div className={className} ref={ref} {...handlers}>
+    <div className={className} ref={ref} {...handlers} data-tip-off>
       {shown ? <img src={shown} loading="lazy" alt="" /> : <div className="thumb-ph" />}
       {children}
       {portal}

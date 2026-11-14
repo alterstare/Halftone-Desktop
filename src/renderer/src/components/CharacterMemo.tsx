@@ -48,7 +48,7 @@ export default function CharacterMemo({ work, onClose }: { work: Work; onClose: 
           className="memo-text"
           value={text}
           placeholder={
-            '예:\n- 사쿠라이 모모카(櫻井桃華): 아가씨 말투, 모두에게 존댓말(～ですわ → ~해요/~랍니다)\n- 트레이너: 모모카에게 반말\n- 「プロデューサー」는 「프로듀서」로'
+            '예:\n- 사쿠라이 모모카(櫻井桃華): 아가씨 말투, 모두에게 존댓말(～ですわ는 ~해요/~랍니다로)\n- 트레이너: 모모카에게 반말\n- 「プロデューサー」는 「프로듀서」로'
           }
           onChange={(e) => setText(e.target.value)}
         />
@@ -63,9 +63,6 @@ export default function CharacterMemo({ work, onClose }: { work: Work; onClose: 
               (prog ? '앞 페이지를 인식해 인물과 말투를 정리합니다' : 'AI 초안: 앞 8쪽 대사로 인물·말투 초안 작성')}
           </span>
           <div className="flat-group">
-            <button className="mini" onClick={onClose}>
-              취소
-            </button>
             <button
               className="mini on"
               onClick={() => {
@@ -74,6 +71,9 @@ export default function CharacterMemo({ work, onClose }: { work: Work; onClose: 
               }}
             >
               저장
+            </button>
+            <button className="mini" onClick={onClose}>
+              취소
             </button>
           </div>
         </div>

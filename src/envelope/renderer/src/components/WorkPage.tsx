@@ -232,7 +232,7 @@ export default function WorkPage(): JSX.Element | null {
       </span>
     </>
   )
-  const kind = [w.code, ...contentLabels(w.content, w.lang)].filter(Boolean).join(' · ')
+  const kind = [w.code, ...contentLabels(w.content)].filter(Boolean).join(' · ')
   const prefs = (
     <>
       {w.hasSeChoice && (
@@ -286,7 +286,7 @@ export default function WorkPage(): JSX.Element | null {
   )
 
   // narrow window (Halftone side panel): Spotify's album page on mobile —
-  // centred cover, title, people, meta; ♥ · 그룹 · 별점 left and shuffle +
+  // centred cover, title, people, meta; ♥ · 그룹 · 평점 left and shuffle +
   // the big play right; then SE / 판 and the track list.
   if (narrow)
     return (

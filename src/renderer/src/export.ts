@@ -1,8 +1,9 @@
 import type { Work } from '../../shared/types'
 import type { TransBlock, TransResult } from '../../shared/ipc'
-import { getImages } from './images'
+import { getImages, invalidate } from './images'
 import { workLanguage } from './util'
-import { getTranslation, getTransDoc, getTransPaint } from './translate'
+import { getTranslation, getTransDoc, getTransPaint, clearPageEdits } from './translate'
+import { useStore } from './store'
 import { isSfx, loadImage, drawTranslation, healPage, renderDoc } from './inpaint'
 
 // Reading order for exported text. Manga is drawn right-to-left, but the user asked
@@ -72,9 +73,29 @@ export async function buildWorkText(
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n'
 }
 
-// Render every page with its translation drawn in (same as the in-viewer overlay)
-// and save each as an image into a fresh <exportDir>/<title>/ folder. Pages with no
-// translation are saved as the plain original. Returns the folder path.
+// One page with its translation drawn in (same as the in-viewer overlay), as
+// base64 webp. Edited in the layered editor: its document; else original +
+// translation overlay (SFX skipped), with the old editor's painted layer.
+// `changed` is false for a page with nothing drawn on it (the plain original).
+async function renderPage(src: string, langHint?: string): Promise<{ b64: string; changed: boolean }> {
+  const img = await loadImage(src)
+  let res: TransResult = { ok: true, w: 0, h: 0, blocks: [] }
+  try {
+    const r = await getTranslation(src, langHint)
+    if (r.ok) res = r
+  } catch {
+    /* no translation for this page → the original */
+  }
+  const canvas = document.createElement('canvas')
+  const doc = await getTransDoc(src)
+  if (doc) renderDoc(canvas, img, doc.doc, doc.images)
+  else drawTranslation(canvas, img, res, { heal: await healPage(img, res), paint: res.blocks.length ? await getTransPaint(src) : null })
+  return { b64: canvas.toDataURL('image/webp', 0.9).split(',')[1], changed: !!doc || res.blocks.length > 0 }
+}
+
+// Render every page and save each as an image into a fresh <exportDir>/<title>/
+// folder. Pages with no translation are saved as the plain original. Returns
+// the folder path.
 export async function exportWorkImages(
   work: Work,
   onProgress?: (p: ExportProgress) => void
@@ -85,24 +106,48 @@ export async function exportWorkImages(
   const dir = await window.api.exportImageDir(work.title)
   for (let i = 0; i < srcs.length; i++) {
     onProgress?.({ page: i + 1, total: srcs.length })
-    const img = await loadImage(srcs[i])
-    let res: TransResult = { ok: true, w: 0, h: 0, blocks: [] }
-    try {
-      const r = await getTranslation(srcs[i], langHint)
-      if (r.ok) res = r
-    } catch {
-      /* no translation for this page → save the original */
-    }
-    const canvas = document.createElement('canvas')
-    // Edited in the layered editor: its document; else original + translation
-    // overlay (SFX skipped), with the old editor's painted layer.
-    const doc = await getTransDoc(srcs[i])
-    if (doc) renderDoc(canvas, img, doc.doc, doc.images)
-    else drawTranslation(canvas, img, res, { heal: await healPage(img, res), paint: res.blocks.length ? await getTransPaint(srcs[i]) : null })
-    const b64 = canvas.toDataURL('image/webp', 0.9).split(',')[1]
+    const { b64 } = await renderPage(srcs[i], langHint)
     await window.api.writeImageFile(dir, `${String(i + 1).padStart(3, '0')}.webp`, b64)
   }
   return dir
+}
+
+// 사본으로 저장: the same pages into a new "<title> (번역)" folder beside the
+// work, then scanned in as its own library work. Returns the folder path.
+export async function saveWorkCopy(work: Work, onProgress?: (p: ExportProgress) => void): Promise<string> {
+  const srcs = await getImages(work.id)
+  const langHint = workLanguage(work) ?? undefined
+  const dir = await window.api.transCopyDir(work.id)
+  for (let i = 0; i < srcs.length; i++) {
+    onProgress?.({ page: i + 1, total: srcs.length })
+    const { b64 } = await renderPage(srcs[i], langHint)
+    await window.api.writeImageFile(dir, `${String(i + 1).padStart(3, '0')}.webp`, b64)
+  }
+  useStore.getState().setWorks(await window.api.transCopyDone(dir))
+  return dir
+}
+
+// 원본 덮어쓰기: every page with a translation drawn on it replaces its original
+// (the original goes to the recycle bin). The edits are in the new images now,
+// so the replaced pages' edit records are dropped. Returns the pages replaced.
+export async function overwriteWorkPages(work: Work, onProgress?: (p: ExportProgress) => void): Promise<number> {
+  const srcs = await getImages(work.id)
+  const langHint = workLanguage(work) ?? undefined
+  let n = 0
+  try {
+    for (let i = 0; i < srcs.length; i++) {
+      onProgress?.({ page: i + 1, total: srcs.length })
+      const { b64, changed } = await renderPage(srcs[i], langHint)
+      if (!changed) continue
+      await window.api.transReplacePage(work.id, srcs[i], b64)
+      await clearPageEdits(srcs[i])
+      n++
+    }
+  } finally {
+    invalidate(work.id)
+    useStore.getState().bumpThumbNonce()
+  }
+  return n
 }
 
 // Build the document and write it to <textExportDir>/<title>.txt. Returns the path.

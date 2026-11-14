@@ -176,6 +176,7 @@ interface WorkRow {
   dl_tags: string | null
   dl_lang: string | null
   content_json: string | null
+  play_count: number
   dl_age: string | null
   dl_cover: string | null
   cover_pref: string | null
@@ -192,13 +193,23 @@ export function parseAppSubPath(p: string): { lang: SubLang; trackPath: string }
   const at = rest.indexOf(':')
   return at < 0 ? null : { lang: rest.slice(0, at) as SubLang, trackPath: rest.slice(at + 1) }
 }
+// The voice's language (언어 분류 › 음성): 한국어 음성 as workLang, other
+// languages from the folder / DLsite title, else Japanese.
+export function voiceLang(w: { title: string; dl_title?: string | null; dl_lang?: string | null }): string {
+  if (workLang(w) === 'ko-voice') return 'ko'
+  const titles = `${w.title} ${w.dl_title ?? ''}`
+  if (/中文音声|中国語音声|中文配音|중국어\s*음성|chinese\s*(voice|dub)/i.test(titles)) return 'zh'
+  if (/英語音声|영어\s*음성|english\s*(voice|dub)/i.test(titles)) return 'en'
+  return 'ja'
+}
+
 // 언어 분류: what the scan found in the folder, plus the program's own
 // subtitles ([자체 생성] unless the folder has that language too).
 function contentOf(w: WorkRow, appLangs: Set<string> | undefined): WorkContent {
-  const c = (w.content_json ? JSON.parse(w.content_json) : { scripts: [], subs: {} }) as WorkContent
+  const c = (w.content_json ? JSON.parse(w.content_json) : {}) as Partial<WorkContent>
   const subs = { ...c.subs }
-  for (const l of ['ja', 'ko'] as const) if (appLangs?.has(l) && !subs[l]) subs[l] = 'app'
-  return { scripts: c.scripts ?? [], subs }
+  for (const l of appLangs ?? []) if (l !== 'other' && !subs[l]) subs[l] = 'app'
+  return { scripts: c.scripts ?? [], subs, voice: voiceLang(w) }
 }
 function appLangsOf(db: Db, id?: number): Map<number, Set<string>> {
   const rows = db
@@ -356,6 +367,17 @@ export function titleToTranslate(w: { title: string; code: string | null; dl_tit
   return w.dl_title && needsTranslation(w.dl_title) ? w.dl_title : w.title
 }
 
+// 무작위: one order per pick (kept while the list reloads), a new one each
+// time 무작위 is chosen again
+let shuffleSeed = (Math.random() * 2 ** 32) >>> 0
+let lastSort: Settings['libSort'] | null = null
+function shuffleKey(id: number): number {
+  let h = (id ^ shuffleSeed) >>> 0
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b)
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b)
+  return (h ^ (h >>> 16)) >>> 0
+}
+
 export function listWorks(db: Db, s: Settings): WorkSummary[] {
   const works = db.prepare('SELECT * FROM works').all() as WorkRow[]
   const names = shownNames(db, s)
@@ -383,6 +405,7 @@ export function listWorks(db: Db, s: Settings): WorkSummary[] {
       mojibake: !!w.mojibake,
       favorite: !!w.favorite,
       rank: w.rank,
+      plays: w.play_count,
       groupIds: groupIds.get(w.id) ?? [],
       lang: workLang(w),
       subtitled: main.filter((g) => g.versions.some((v) => v.subs.length)).length,
@@ -407,8 +430,12 @@ export function listWorks(db: Db, s: Settings): WorkSummary[] {
     title: (a, b) => naturalCompare(a.title, b.title),
     code: (a, b) => naturalCompare(a.code ?? '~', b.code ?? '~'),
     length: (a, b) => (a.duration ?? 0) - (b.duration ?? 0),
-    rank: (a, b) => a.rank - b.rank || naturalCompare(b.title, a.title)
+    rank: (a, b) => a.rank - b.rank || naturalCompare(b.title, a.title),
+    plays: (a, b) => a.plays - b.plays || (a.lastPlayedAt ?? 0) - (b.lastPlayedAt ?? 0),
+    random: (a, b) => shuffleKey(a.id) - shuffleKey(b.id)
   }
+  if (s.libSort === 'random' && lastSort !== 'random') shuffleSeed = (Math.random() * 2 ** 32) >>> 0
+  lastSort = s.libSort
   out.sort(by[s.libSort] ?? by.recent)
   return s.libDir === 'desc' ? out.reverse() : out
 }
@@ -528,6 +555,12 @@ export function deleteBookmark(db: Db, id: number): void {
 export function setFavorite(db: Db, ids: number[], on: boolean): void {
   const st = db.prepare('UPDATE works SET favorite = ? WHERE id = ?')
   db.transaction(() => ids.forEach((id) => st.run(on ? 1 : 0, id)))()
+}
+
+// 감상 횟수: one more listen of the work
+export function countPlay(db: Db, id: number): number {
+  db.prepare('UPDATE works SET play_count = play_count + 1 WHERE id = ?').run(id)
+  return (db.prepare('SELECT play_count AS n FROM works WHERE id = ?').get(id) as { n: number } | undefined)?.n ?? 0
 }
 
 export function setRank(db: Db, ids: number[], rank: number): void {

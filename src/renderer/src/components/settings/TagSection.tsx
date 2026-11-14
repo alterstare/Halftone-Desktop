@@ -16,6 +16,7 @@ import TagSearchInput from "../TagSearchInput";
 import { useSettings } from "./context";
 import { ChipList, FolderRow } from "./parts";
 import ConfirmModal from "../ConfirmModal";
+import { StarIcon, FavoriteFilledIcon, ArrowDropDownIcon } from "../icons";
 
 const WATCH_LANGS: [WatchLanguage, string][] = [
   ["korean", "한국어"],
@@ -361,7 +362,12 @@ function Favorites(): JSX.Element {
       <div className="set-block">
         <SettingRow
           title="즐겨찾기 목록"
-          desc="작품 번호가 담긴 JSON 파일을 이름 붙은 목록으로 추가합니다. 온라인에서는 목록 전체를, 라이브러리에서는 받은 작품을 ♥ 옆 ▾에서 골라 볼 수 있습니다."
+          desc={
+            <>
+              작품 번호가 담긴 JSON 파일을 이름 붙은 목록으로 추가합니다. 온라인에서는 목록 전체를, 라이브러리에서는 받은 작품을{' '}
+              <FavoriteFilledIcon className="txt-arrow" /> 옆 <ArrowDropDownIcon className="txt-arrow" />에서 골라 볼 수 있습니다.
+            </>
+          }
         >
           <button
             className="mini"
@@ -383,7 +389,7 @@ function Favorites(): JSX.Element {
         {lists.map((l) => (
           <div className="path-item" key={l.name}>
             <code>
-              ★ {l.name} · {l.codes.length}개
+              <StarIcon className="txt-arrow" /> {l.name} · {l.codes.length}개
             </code>
             <button
               className="mini danger"

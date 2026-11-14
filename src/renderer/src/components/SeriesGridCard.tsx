@@ -2,7 +2,7 @@ import type { JSX } from 'react'
 import { useStore } from '../store'
 import { tagToken, type SeriesGroup } from '../util'
 import Thumb from './Thumb'
-import { ArtistLinks } from './ArtistLinks'
+import { ArtistLine } from './ArtistLinks'
 import Stars from './Stars'
 import TagList from './TagList'
 import FavGroup from './FavGroup'
@@ -18,8 +18,8 @@ export default function SeriesGridCard({ series }: { series: SeriesGroup }): JSX
   const c = useSeriesCard(series)
 
   return (
-    <div className={`gtile series ${c.selected ? 'selected' : ''}`} {...c.cardEvents}>
-      <div className="gtile-thumb">
+    <div className={`gtile series ${c.selected ? 'selected' : ''}`} {...c.cardEvents} data-card-tip={series.title}>
+      <div className="gtile-thumb" data-tip-off>
         <Thumb workId={c.rep?.id ?? ''} />
       </div>
       <div className="gtile-foot" onClick={(e) => e.stopPropagation()}>
@@ -27,16 +27,16 @@ export default function SeriesGridCard({ series }: { series: SeriesGroup }): JSX
         {c.rep && <FavGroup favorite={c.isFav} onToggle={c.toggleFav} work={c.rep} applyTo={c.chapters} />}
       </div>
       <div className="gtile-title selectable">{series.title}</div>
-      <div className="gtile-meta">
-        전체 {c.chapters.length}화{c.artist && ' · '}
-        {c.artist && (
-          <ArtistLinks
-            artist={c.artist}
-            onPick={(a) => addSearchToken(tagToken(`artist:${a}`))}
-            onMenu={(a, e) => c.openTagMenu(e, tagToken(`artist:${a}`), a)}
-          />
-        )}
-      </div>
+      {c.artist ? (
+        <ArtistLine
+          artist={c.artist}
+          prefix={`전체 ${c.chapters.length}화 · `}
+          onPick={(a) => addSearchToken(tagToken(`artist:${a}`))}
+          onMenu={(a, e) => c.openTagMenu(e, tagToken(`artist:${a}`), a)}
+        />
+      ) : (
+        <div className="gtile-meta">전체 {c.chapters.length}화</div>
+      )}
       <div className="gtile-tags">
         <TagList
           tags={c.seriesTags}

@@ -51,6 +51,36 @@ export function langOfName(name: string): SubLang | null {
   return (m && LANG_TAG[m[1]]) || null
 }
 
+// 언어 분류 (any language, not only ja / ko): ISO 639-1 codes
+const CONTENT_TAG: Record<string, string> = {
+  ...LANG_TAG,
+  en: 'en', eng: 'en', english: 'en',
+  zh: 'zh', chs: 'zh', cht: 'zh', chi: 'zh', zho: 'zh', cn: 'zh', tw: 'zh', sc: 'zh', tc: 'zh', chinese: 'zh',
+  es: 'es', spa: 'es', fr: 'fr', fre: 'fr', fra: 'fr', de: 'de', ger: 'de', deu: 'de', ru: 'ru', rus: 'ru',
+  th: 'th', tha: 'th', vi: 'vi', vie: 'vi', id: 'id', ind: 'id', pt: 'pt', por: 'pt', it: 'it', ita: 'it'
+}
+// "x.en" (a subtitle's name without its extension) → "x"
+export const LANG_SUFFIX = new RegExp(`\\.(${Object.keys(CONTENT_TAG).join('|')})$`, 'i')
+export function contentLangOfName(name: string): string | null {
+  const m = name.toLowerCase().match(/\.([a-z]{2,8})\.(?:vtt|srt|lrc|ass|ssa|txt)$/)
+  return (m && CONTENT_TAG[m[1]]) || null
+}
+// by script: Hangul / kana as langOfText, then Han only = Chinese, Thai,
+// Cyrillic, Latin letters = English; null = no letters
+export function contentLangOfText(s: string): string | null {
+  const l = langOfText(s)
+  if (l !== 'other') return l
+  const n = (re: RegExp): number => (s.match(re) ?? []).length
+  const counts: [string, number][] = [
+    ['zh', n(/[一-鿿]/g)],
+    ['th', n(/[฀-๿]/g)],
+    ['ru', n(/[Ѐ-ӿ]/g)],
+    ['en', n(/[a-z]/gi)]
+  ]
+  const best = counts.reduce((a, b) => (b[1] > a[1] ? b : a))
+  return best[1] >= 20 ? best[0] : null
+}
+
 // ---- parsing ----
 
 function time(s: string): number {

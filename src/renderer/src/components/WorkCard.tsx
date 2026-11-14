@@ -15,6 +15,7 @@ import ConfirmModal from './ConfirmModal'
 import TrashConfirm from './TrashConfirm'
 import WorkTransEditor from './WorkTransEditor'
 import Caret from './Caret'
+import { CheckMarkIcon } from './icons'
 
 // List row for a local work on the home library: thumb, title + favorite,
 // meta line (pages · code · language · artist), tags, and the action row
@@ -113,7 +114,13 @@ export default function WorkCard({ work }: { work: Work }): JSX.Element {
             <>
               {' · '}
               <span className="code copyable" onClick={copyCode}>
-                [{work.code}]{copied ? ' ✓복사 완료' : ''}
+                [{work.code}]
+                {copied && (
+                  <>
+                    {' '}
+                    <CheckMarkIcon className="txt-arrow" />복사 완료
+                  </>
+                )}
               </span>
             </>
           )}

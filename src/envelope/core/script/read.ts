@@ -4,7 +4,7 @@
 import { promises as fsp } from 'fs'
 import { basename, dirname, extname, join, relative } from 'path'
 import type { ScriptSource, TrackGroup, WorkDetail } from '../../shared/types'
-import { decodeText, langOfText } from '../subtitle'
+import { contentLangOfText, decodeText, langOfText } from '../subtitle'
 import { stem, trackKey, trackNumber } from '../names/normalize'
 
 const SCRIPT_NAME = /台本|daihon|シナリオ|scenario|script|대본|recording|セリフ|せりふ|脚本/i
@@ -61,6 +61,16 @@ function groupOf(file: string, groups: TrackGroup[]): TrackGroup | undefined {
 export async function scriptFromFile(path: string): Promise<ScriptSource | null> {
   if (!EXTS.has(extname(path).toLowerCase())) return null
   return { id: `file:${path}`, kind: 'whole', path, label: basename(path), lang: await sampleLang(path) }
+}
+
+// 언어 분류: a script's language beyond ja / ko (null = can't tell)
+export async function scriptContentLang(path: string): Promise<string | null> {
+  try {
+    const text = extname(path).toLowerCase() === '.txt' ? decodeText(await fsp.readFile(path)) : await readScript(path)
+    return contentLangOfText(text.slice(0, 6000))
+  } catch {
+    return null
+  }
 }
 
 async function sampleLang(path: string): Promise<'ja' | 'ko' | 'other'> {

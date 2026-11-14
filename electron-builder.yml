@@ -32,6 +32,11 @@ extraResources:
     to: .
     filter:
       - '**/*'
+  # Noto Sans (bundled in the renderer) — its OFL-1.1 licence ships with the app
+  - from: node_modules/@fontsource-variable/noto-sans-kr/LICENSE
+    to: licenses/NotoSansKR-OFL.txt
+  - from: node_modules/@fontsource-variable/noto-sans-jp/LICENSE
+    to: licenses/NotoSansJP-OFL.txt
 win:
   # Multi-size icon pre-rendered by scripts/make-ico.cjs (crisp taskbar/desktop sizes).
   icon: build/icon.ico

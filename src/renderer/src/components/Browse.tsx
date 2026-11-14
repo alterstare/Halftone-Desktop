@@ -16,11 +16,12 @@ import { favMeta, tagTokens, tagToken, tokenLabel, FAV_BASE } from '../util'
 import { useFavSummaries, fetchSummaries } from '../favSummaries'
 import Caret from './Caret'
 import Dropdown from './Dropdown'
-import { CheckIcon, CloseIcon, DownloadIcon, FavoriteIcon, GridIcon, MenuIcon, PauseIcon, PlayIcon, SearchIcon, SyncIcon, ContentCopyIcon, OpenInNewIcon, TabIcon, VerticalSplitIcon } from './icons'
+import { CheckIcon, CloseIcon, DownloadIcon, FavoriteIcon, GridIcon, MenuIcon, PauseIcon, PlayIcon, SearchIcon, SyncIcon, ContentCopyIcon, OpenInNewIcon, TabIcon, VerticalSplitIcon, StarIcon } from './icons'
 import { OnlineOnlyToggle, FavSortSelect, type FavSort } from './FavDlToggle'
 import { doujinFavCodes, doujinFavGalleries } from '../favorites'
 import type { OnlineGallery } from '../store'
 import EditionsPanel from './EditionsPanel'
+import { ArtistLine } from './ArtistLinks'
 
 const LANGS = [
   ['all', '전체'],
@@ -176,6 +177,7 @@ export default function Browse(): JSX.Element {
     const ss: SearchSort = sort === 'date' ? 'date' : 'popular'
     setBrowseSource({ kind: 'search', query: t, language: lang === 'all' ? null : lang, sort: ss })
   }
+  const searchArtist = (a: string): void => runSearch(a.includes(' ') ? `artist:"${a}"` : `artist:${a}`)
   // Individual chips for the current search's tokens (comma-separated), shown above
   // the results like the local library's active-filter chip. Removing a chip
   // re-runs the search without it.
@@ -415,7 +417,7 @@ export default function Browse(): JSX.Element {
                         setFavMode(true)
                       }}
                     />
-                    ★ {l.name}
+                    <StarIcon className="txt-arrow" /> {l.name}
                     {l.name !== FAV_BASE && ` · ${l.codes.length}`}
                   </label>
                 ))}
@@ -466,7 +468,8 @@ export default function Browse(): JSX.Element {
           return (
           <Fragment key={g.code}>
           <div
-            className="gcard"
+            className="gcard doujin"
+            data-card-tip={g.title}
             onClickCapture={(e) => {
               if (window.getSelection()?.toString()) return e.stopPropagation()
               if (e.altKey) {
@@ -562,14 +565,13 @@ export default function Browse(): JSX.Element {
             <div className="gcard-meta">
               {g.pageCount}p · <CopyCode code={g.code} />
               {g.language && ` · ${g.language}`}
-              {g.artists.length > 0 && ' · '}
-              {g.artists.length > 0 && (
+              {browseLayout === 'list' && g.artists.length > 0 && ' · '}
+              {browseLayout === 'list' && g.artists.length > 0 && (
                 <div
                   className="gcard-artist"
                   onClick={(e) => {
                     e.stopPropagation()
-                    const a = g.artists[0]
-                    runSearch(a.includes(' ') ? `artist:"${a}"` : `artist:${a}`)
+                    searchArtist(g.artists[0])
                   }}
                   onContextMenu={(e) => {
                     e.preventDefault()
@@ -581,13 +583,21 @@ export default function Browse(): JSX.Element {
                 </div>
               )}
             </div>
+            {/* Grid: artists on their own line (one line, +N), left out when none. */}
+            {browseLayout === 'grid' && g.artists.length > 0 && (
+              <ArtistLine
+                artist={g.artists.join(', ')}
+                onPick={searchArtist}
+                onMenu={(a, e) => openTagMenu(e, tagToken(`artist:${a}`), a)}
+              />
+            )}
             <div className="gcard-tags">
               <TagList
                 tags={g.tags.filter((t) => !t.startsWith('language:'))}
                 favoriteTags={favoriteTags}
                 onTagClick={(t) => addToken(tagToken(t))}
                 onTagContext={(t, e) => openTagMenu(e, tagToken(t), t)}
-                lines={browseLayout === 'grid' ? 5 : undefined}
+                lines={browseLayout === 'grid' ? 6 : undefined}
               />
             </div>
           </div>

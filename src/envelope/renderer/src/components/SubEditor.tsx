@@ -282,7 +282,11 @@ export default function SubEditor({ sheet = false }: { sheet?: boolean }): JSX.E
       {ask === 'close' && (
         <Confirm
           title="저장하지 않고 닫을까요?"
-          body="이번에 고친 내용이 사라집니다. 이어서 고치려면 취소하고 ▾로 잠시 나가거나, 저장하세요."
+          body={
+            <>
+              이번에 고친 내용이 사라집니다. 이어서 고치려면 취소하고 <KeyboardArrowDownIcon className="txt-arrow" />로 잠시 나가거나, 저장하세요.
+            </>
+          }
           ok="저장하지 않고 닫기"
           danger
           onCancel={() => setAsk(null)}

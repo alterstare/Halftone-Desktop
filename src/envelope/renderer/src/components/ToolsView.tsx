@@ -13,26 +13,7 @@ import { useStore } from '../store'
 import type { ToolTab, ToolsMode } from '../store'
 import type { CoverItem, CoverSaveItem, DupGroup, HistoryEntry, SetAsideItem, NameStatus, ProgressEvent, RenameItem, ScriptSource, SubExportItem, ToolResult, WavItem, WorkSummary } from '../../../shared/types'
 import { clock } from '../format'
-import {
-  KeyboardArrowLeftIcon,
-  AudioFileIcon,
-  CancelIcon,
-  CloseIcon,
-  CloudDownloadIcon,
-  ContentCopyIcon,
-  DriveFileRenameOutlineIcon,
-  EditIcon,
-  FileOpenIcon,
-  FolderOpenIcon,
-  ImageIcon,
-  LibraryMusicIcon,
-  PauseIcon,
-  PlayArrowIcon,
-  ScheduleIcon,
-  SearchIcon,
-  SubtitlesIcon,
-  UndoIcon
-} from './icons'
+import { KeyboardArrowLeftIcon, AudioFileIcon, CancelIcon, CloseIcon, CloudDownloadIcon, ContentCopyIcon, DriveFileRenameOutlineIcon, EditIcon, FileOpenIcon, FolderOpenIcon, ImageIcon, LibraryMusicIcon, PauseIcon, PlayArrowIcon, ScheduleIcon, SearchIcon, SubtitlesIcon, UndoIcon, ArrowForwardIcon } from './icons'
 import { Confirm, Dropdown, Toggle } from './ui'
 
 type Item = CoverItem | WavItem | RenameItem | CoverSaveItem | SubExportItem
@@ -96,7 +77,11 @@ function Row({ tab, it, root, onEdit }: { tab: ToolTab; it: Item; root: string; 
         <span className="tr-main">
           <span className="tr-name">{rel(w.wav, root)}</span>
           <span className="tr-sub hint">
-            {w.kind === 'convert' && `→ ${name(w.mp3)} · ${clock(w.wavSeconds)}`}
+            {w.kind === 'convert' && (
+              <>
+                <ArrowForwardIcon className="txt-arrow" /> {name(w.mp3)} · {clock(w.wavSeconds)}
+              </>
+            )}
             {(w.kind === 'delete' || w.kind === 'check') && `mp3: ${name(w.mp3)} · ${clock(w.wavSeconds)} / ${clock(w.mp3Seconds)}`}
             {w.kind === 'skip' && w.reason}
           </span>

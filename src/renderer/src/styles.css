@@ -13,6 +13,7 @@
   --line: #dedee5; /* divider borders */
   --text: #101114; /* near black */
   --text-dim: #686b82; /* cool gray secondary text */
+  --text-tag: #474a5c; /* tag + button text — a step darker than --text-dim */
   --text-hover: #000000; /* hover: text goes a step darker (light theme) */
   --muted: #9497a9; /* silver blue, muted */
   --accent: #7132f5; /* Kraken Purple — primary CTA, links, brand */
@@ -56,6 +57,7 @@
   --line: #2b3040;
   --text: #eceef4;
   --text-dim: #9aa0b2;
+  --text-tag: #c3c7d3; /* tag + button text — a step brighter than --text-dim */
   --text-hover: #ffffff; /* hover: text goes a step brighter (dark theme) */
   --muted: #6f7484;
   --accent: #8b5cf6; /* slightly brighter purple for contrast on dark */
@@ -89,12 +91,18 @@ body {
      (a URL, a title with no spaces) still breaks rather than overflow */
   word-break: keep-all;
   overflow-wrap: break-word;
-  /* Kraken-Product (UI) → IBM Plex Sans / Helvetica fallbacks; Malgun Gothic for
-     Korean. The proprietary Kraken fonts aren't bundled, so we ride the fallbacks. */
-  font-family: 'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, 'Malgun Gothic', sans-serif;
+  font-family: 'Noto Sans KR Variable', 'Noto Sans JP Variable', 'Noto Sans KR', 'Noto Sans JP', 'Noto Sans', 'Malgun Gothic', sans-serif;
   font-size: 14px;
   -webkit-user-select: none;
   user-select: none;
+}
+/* Noto Sans everywhere (2026-11-13, bundled — main.tsx), buttons and fields included — they
+   don't inherit the page font by default */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 /* Kraken-Brand display feel: bold headings with tight negative tracking. */
 h1,
@@ -159,7 +167,7 @@ img {
   border: 1px solid transparent;
   border-bottom: none;
   border-radius: var(--r5) var(--r5) 0 0;
-  color: var(--text-dim);
+  color: var(--text-tag);
   cursor: pointer;
   font-size: 13px;
   white-space: nowrap;
@@ -579,7 +587,7 @@ select {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0 14px;
-  color: var(--text-dim);
+  color: var(--text-tag);
   cursor: pointer;
   font-size: 13px;
   font-weight: 600; /* constant so .active doesn't change the chip's size */
@@ -883,6 +891,17 @@ select {
   gap: 8px;
   min-width: 0;
 }
+/* 즐겨찾기 / 그룹 (.seg, 28px) stay at the top whatever the title's line count —
+   centred on the first line (20.8px), not on a two-line title's middle. */
+.work-title-row:has(> .seg) {
+  align-items: flex-start;
+}
+.work-title-row:has(> .seg) > .work-title {
+  margin-top: 3.6px;
+}
+.work-title-row > .seg {
+  align-self: flex-start;
+}
 .work-title {
   flex: 1;
   font-size: 16px;
@@ -896,7 +915,7 @@ select {
 }
 .heart {
   font-size: 20px;
-  color: var(--text-dim);
+  color: var(--text-tag);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -947,7 +966,7 @@ select {
 }
 .tag {
   background: var(--bg-3);
-  color: var(--text-dim);
+  color: var(--text-tag);
   border: 1px solid transparent;
   border-radius: var(--r3);
   padding: 0 8px;
@@ -1003,7 +1022,7 @@ select {
   border: 1px solid var(--line);
   border-radius: var(--r4);
   padding: 0 10px;
-  color: var(--text-dim);
+  color: var(--text-tag);
   cursor: pointer;
   font-size: 12px;
   flex-shrink: 0;
@@ -1248,7 +1267,7 @@ select {
   /* Blends into the bar: no outline, bar-coloured; the arrow flips when open. */
   border-color: transparent;
   background: var(--bg-1);
-  color: var(--text-dim);
+  color: var(--text-tag);
 }
 .reader-bottom .mini.reader-bar-toggle:hover {
   color: var(--text);
@@ -1865,7 +1884,10 @@ input[type='checkbox']:checked::after {
   text-shadow: 0 1px 4px #000;
 }
 .gtile-title {
-  padding: 8px 10px 2px;
+  /* Bottom gap as margin, not padding: a clamped box paints overflow into its
+     padding, so the top of a third line showed there. */
+  padding: 8px 10px 0;
+  margin-bottom: 2px;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.3;
@@ -1874,7 +1896,7 @@ input[type='checkbox']:checked::after {
   -webkit-box-orient: vertical;
   overflow: hidden;
   /* At most two lines; tile height (on .gtile) budgets for both. */
-  max-height: calc(13px * 1.3 * 2 + 10px);
+  max-height: calc(13px * 1.3 * 2 + 8px);
   flex: none;
 }
 .gtile-meta {
@@ -1897,20 +1919,65 @@ input[type='checkbox']:checked::after {
   padding: 6px 10px 12px;
   /* Fixed 5 tag rows (24px tags, 4px gaps) + padding — identical tile heights in
      every view regardless of how many tags a work has. */
-  /* Basis = 5 tag rows; may shrink (min 0) when a multi-line artist list needs the
-     room — TagList then fits fewer rows. */
-  flex: 0 1 auto;
+  /* Basis = 5 tag rows; grows into the room a 1-line title / missing artist
+     leaves — TagList fits a 6th row when it's tall enough. */
+  flex: 1 1 auto;
   min-height: 0;
   height: calc(24px * 5 + 4px * 4 + 18px);
   overflow: hidden;
 }
-/* Every artist is shown, wrapping onto extra lines (eats tag rows instead). */
-.gtile-meta.gtile-artist,
-.gtile.series .gtile-meta {
+/* Artist line (ArtistLine): one line of whole artists, the rest behind a "+N"
+   chip at the right end; a first artist too long alone is ellipsized. */
+.gtile-meta.gtile-artist {
+  display: flex;
+  align-items: center;
+  text-overflow: clip;
+}
+.gtile-artist > * {
+  flex: none;
+}
+.gtile-artist .artist-item.lead {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gtile-artist .artist-item.clipped {
+  display: none;
+}
+.gtile-artist .artist-more {
+  padding-left: 6px;
+  display: inline-flex;
+}
+.gtile-artist .artist-more .tag {
+  height: 16px;
+  font-size: 10px;
+  padding: 0 5px;
+}
+.gtile-artist .artist-measure {
+  position: absolute;
+  visibility: hidden;
+  display: none;
+}
+.gtile-artist.measuring .artist-item {
+  flex: none;
+}
+.gtile-artist.measuring .artist-item.clipped,
+.gtile-artist.measuring .artist-measure {
+  display: inline-flex;
+}
+/* "+N" pressed: every artist as wrapping text (a line never starts with ", ");
+   the tile grows like an expanded tag list. */
+.gtile-meta.gtile-artist.expanded {
+  display: block;
   height: auto;
-  min-height: 16px;
   white-space: normal;
-  overflow: visible;
+}
+.gtile-artist.expanded .artist-more {
+  vertical-align: middle;
+}
+.gtile:has(.gtile-artist.expanded) {
+  height: auto;
 }
 .gtile-tags .tag {
   font-size: 10px;
@@ -1926,7 +1993,7 @@ input[type='checkbox']:checked::after {
 }
 .gtile-foot .heart {
   font-size: 20px;
-  color: var(--text-dim);
+  color: var(--text-tag);
   cursor: pointer;
 }
 .gtile-foot .heart.on {
@@ -1992,7 +2059,7 @@ body.resizing .list-pane {
   border-left: none;
   border-radius: 0 var(--r4) var(--r4) 0;
   background: var(--bg-2);
-  color: var(--text-dim);
+  color: var(--text-tag);
   font-size: 10px;
   cursor: pointer;
 }
@@ -2164,7 +2231,7 @@ body.resizing {
 /* Force monochrome (text) presentation for drawer glyphs. */
 .menu-item-ico {
   font-variant-emoji: text;
-  color: var(--text-dim);
+  color: var(--text-tag);
 }
 .menu-mode .menu-item-ico {
   color: var(--text);
@@ -2264,7 +2331,7 @@ body.resizing {
 .ch-heart {
   cursor: pointer;
   font-size: 15px;
-  color: var(--text-dim);
+  color: var(--text-tag);
 }
 .ch-heart.on {
   color: var(--danger);
@@ -2428,7 +2495,7 @@ body.resizing {
 .chip-mini {
   background: var(--bg-3);
   border: 1px solid var(--line);
-  color: var(--text-dim);
+  color: var(--text-tag);
   border-radius: var(--r3);
   padding: 1px 7px;
   font-size: 10px;
@@ -2473,7 +2540,7 @@ body.resizing {
 .lib-heart {
   margin-left: auto;
   font-size: 18px;
-  color: var(--text-dim);
+  color: var(--text-tag);
   cursor: pointer;
   line-height: 1;
 }
@@ -2650,7 +2717,7 @@ body.resizing {
 .gcard-heart {
   margin-left: auto;
   font-size: 20px;
-  color: var(--text-dim);
+  color: var(--text-tag);
   cursor: pointer;
   line-height: 1;
 }
@@ -2663,7 +2730,8 @@ body.resizing {
   object-fit: contain;
 }
 .gcard-title {
-  padding: 8px 10px 2px;
+  padding: 8px 10px 0; /* bottom gap as margin — see .gtile-title */
+  margin-bottom: 2px;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.3;
@@ -2910,7 +2978,7 @@ body.resizing {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--text-dim);
+  color: var(--text-tag);
   font-size: 15px;
   line-height: 1;
   background: transparent;
@@ -3069,7 +3137,7 @@ button:active,
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
-  color: var(--text-dim);
+  color: var(--text-tag);
   opacity: 1;
   transition: opacity 0.15s;
   pointer-events: none;
@@ -3099,7 +3167,7 @@ button:active,
   background: var(--bg-2);
   font-size: 17px;
   line-height: 1;
-  color: var(--text-dim);
+  color: var(--text-tag);
 }
 .grp-btn:hover,
 .grp-btn.on {
@@ -3133,7 +3201,7 @@ button:active,
   display: inline-flex;
   align-items: center;
   cursor: pointer;
-  color: var(--text-dim);
+  color: var(--text-tag);
   font-size: 14px;
   line-height: 1;
   padding: 2px;
@@ -3761,7 +3829,7 @@ button:active,
   flex: 0 0 auto;
   min-width: 64px;
   background: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
 }
 .exit-btn.ghost:hover {
   background: var(--bg-3);
@@ -4054,7 +4122,7 @@ button:active,
 .dropdown-arrow {
   flex: 0 0 auto;
   display: inline-block;
-  color: var(--text-dim);
+  color: var(--text-tag);
   font-size: 18px;
   font-weight: 700;
   line-height: 1;
@@ -4116,7 +4184,7 @@ button:active,
 }
 .lib-dl {
   font-size: 14px;
-  color: var(--text-dim);
+  color: var(--text-tag);
   cursor: pointer;
   line-height: 1;
   min-width: 26px;
@@ -4238,7 +4306,7 @@ button:active,
 .modal-x {
   background: none;
   border: none;
-  color: var(--text-dim);
+  color: var(--text-tag);
   font-size: 16px;
   cursor: pointer;
 }
@@ -4955,7 +5023,7 @@ select:focus {
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5021,7 +5089,7 @@ select:focus {
 .chips .chip:not(.active) {
   background: transparent;
   border-color: transparent;
-  color: var(--text-dim); /* hover steps up to --text-hover */
+  color: var(--text-tag); /* hover steps up to --text-hover */
 }
 .chips .chip:hover:not(.active):not(:disabled) {
   background: var(--accent-hover);
@@ -5067,7 +5135,7 @@ select:focus {
 .work-actions .mini:not(.on) {
   background: transparent;
   border-color: transparent;
-  color: var(--text-dim); /* hover steps up to --text-hover */
+  color: var(--text-tag); /* hover steps up to --text-hover */
 }
 .work-actions .mini:not(.on):hover {
   background: var(--accent-hover);
@@ -5117,7 +5185,7 @@ select:focus {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  color: var(--text-dim);
+  color: var(--text-tag);
   font-size: 14px;
   padding: 2px;
   margin-left: -4px; /* sit right next to the name */
@@ -5177,7 +5245,7 @@ select:focus {
 .cat-panel-actions .mini {
   background: transparent;
   border-color: transparent;
-  color: var(--text-dim); /* hover steps up to --text-hover */
+  color: var(--text-tag); /* hover steps up to --text-hover */
 }
 .cat-panel-actions .mini + .mini {
   position: relative;
@@ -5225,7 +5293,7 @@ select:focus {
   border: none;
   border-radius: 0;
   background: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
 }
 .grp-panel .grp-create .mini.icon::before {
   content: '';
@@ -5550,6 +5618,36 @@ textarea {
 .browse-grid:not(.list) {
   align-items: start;
 }
+/* Online doujin grid cards: the meta line is one line (ellipsis) and artists
+   sit on their own one-line ArtistLine (+N). Fixed card height = border + thumb
+   + foot + 2 title lines + meta + artist + 5 tag rows; a 1-line title / no
+   artist doesn't reserve its space — the spare space ends up at the bottom
+   (like the local tiles). */
+.browse-grid:not(.list) .gcard.doujin {
+  height: calc(2px + 260px + 36px + 13px * 1.3 * 2 + 8px + 16px + 16px + 24px * 5 + 4px * 4 + 16px);
+}
+.browse-grid:not(.list) .gcard.doujin > * {
+  flex: none;
+}
+/* Tags take the spare room (6th row when it fits — see .gtile-tags). */
+.browse-grid:not(.list) .gcard.doujin .gcard-tags {
+  flex: 1 1 auto;
+}
+.browse-grid:not(.list) .gcard.doujin .gcard-title {
+  min-height: 0;
+}
+.browse-grid:not(.list) .gcard.doujin .gcard-meta {
+  margin-bottom: 0;
+  height: 16px;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.browse-grid:not(.list) .gcard.doujin:has(.taglist-grid.expanded),
+.gcard.doujin:has(.gtile-artist.expanded) {
+  height: auto;
+}
 
 /* 설정 › 단축키 rows: combo chips (<kbd>) with ×, then + (record) and 기본값. */
 .key-combos {
@@ -5580,7 +5678,7 @@ textarea {
   align-items: center;
   padding: 2px;
   border-radius: var(--r2);
-  color: var(--text-dim);
+  color: var(--text-tag);
   font-size: 12px;
   cursor: pointer;
 }
@@ -5635,7 +5733,7 @@ textarea {
 .flat-group .mini:not(.on) {
   background: transparent;
   border-color: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
 }
 .flat-group .mini:not(.on):hover:not(:disabled) {
   background: var(--accent-hover);
@@ -5724,7 +5822,7 @@ textarea {
 .reader-head-btns .mini {
   background: transparent;
   border-color: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
 }
 .reader-head .reader-back:hover,
 .reader-head-btns .mini:hover:not(:disabled) {
@@ -5784,7 +5882,7 @@ textarea {
 .lib-search-row > .dropdown .mini {
   background: transparent;
   border-color: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
 }
 .lib-search-row > .mini:hover,
 .lib-search-row > .grp-filter .mini:hover,
@@ -5856,7 +5954,7 @@ textarea {
 .search-row > .dropdown .dropdown-btn {
   background: transparent;
   border-color: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
   height: 44px;
 }
 .search-row > .dropdown .dropdown-btn:hover {
@@ -6008,7 +6106,7 @@ textarea {
 .gcard-foot .ko-toggle:not(.on) {
   background: transparent;
   border-color: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
 }
 .gcard-foot .ko-toggle:not(.on):hover {
   background: var(--accent-hover);
@@ -6039,7 +6137,7 @@ textarea {
   align-self: center;
   background: transparent;
   border-color: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
   font-size: 15px;
 }
 .edition-dl:hover:not(:disabled) {
@@ -6115,7 +6213,7 @@ textarea {
   height: 24px;
   padding: 0;
   margin: 0;
-  color: var(--text-dim);
+  color: var(--text-tag);
   background: transparent;
   border-color: transparent;
   font-size: 15px;
@@ -6277,15 +6375,16 @@ textarea {
   margin-top: 4px;
 }
 .tw-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
+  margin-top: 10px;
 }
-.tw-toolbar .mini {
-  gap: 4px;
+/* The count sits at the row's right end, without the chips' divider. */
+.chips > .tw-count {
+  margin-left: auto;
+}
+.chips > .tw-count::before {
+  display: none;
 }
 .tw-count {
-  margin-left: auto;
   font-size: 12px;
   color: var(--text-dim);
 }
@@ -6349,13 +6448,21 @@ textarea {
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  height: 38px;
-  border-radius: 19px;
+  /* Same box as the library search (.search): round ends like the order
+     dropdown beside it (the search rows' 999px). */
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
   background: var(--bg-2);
   color: var(--text-dim);
+  position: relative;
 }
-.tw-search input {
+.tw-search:focus-within {
+  border-color: var(--accent);
+}
+.tw-search > input {
   flex: 1;
+  min-width: 0;
   border: none;
   outline: none;
   background: transparent;
@@ -6422,15 +6529,15 @@ textarea {
 .tw-pick-state {
   flex: 0 0 auto;
   font-size: 12px;
-  color: var(--accent);
+  color: var(--text);
+}
+.tw-pick-state .micon {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 .tw-pick-row:disabled .tw-pick-state {
   color: var(--text-dim);
-}
-.tw-pick-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 
 /* Picker: sort dropdown · search · direction toggle on one row. */
@@ -6443,34 +6550,117 @@ textarea {
   flex: 1;
   min-width: 0;
 }
-.tw-search-row .mini.tw-dir {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  background: transparent;
-  border-color: transparent;
-}
-.tw-search-row .mini.tw-dir:hover {
-  background: var(--accent-hover);
-}
 
 .tw-search-row > .dropdown .dropdown-btn {
+  width: auto;
+  height: 44px;
+  border-radius: 999px;
   background: transparent;
   border-color: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
 }
 .tw-search-row > .dropdown .dropdown-btn:hover {
   background: var(--accent-hover);
   color: var(--text-hover);
 }
 
-.tw-pick-foot {
-  gap: 10px;
+/* Picker: + at the search box's end → order / language choices. */
+.tw-opt-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-right: -6px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-tag);
+  cursor: pointer;
 }
-.tw-pick-foot .hint {
-  flex: 1;
-  text-align: center;
+.tw-opt-btn:hover,
+.tw-opt-btn.open {
+  background: var(--accent-hover);
+  color: var(--text-hover);
+}
+.tw-opt-btn .micon {
+  width: 20px;
+  height: 20px;
+}
+.cat-panel.tw-opt-panel {
+  top: calc(100% + 6px);
+  left: auto;
+  right: 0;
+  min-width: 150px;
+  color: var(--text);
+}
+.tw-opt-label {
   font-size: 11.5px;
+  color: var(--text-dim);
+}
+.tw-opt-label + label {
+  margin-top: -2px;
+}
+.tw-opt-label:not(:first-child) {
+  margin-top: 4px;
+}
+/* Picker bottom bar: count · languages · order. */
+.tw-pick-bar {
+  padding: 8px 2px 0;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.tw-pick-list {
+  margin-bottom: 8px;
+}
+
+/* Work list: sort + search row, and the + under the last work. */
+.tw-search-row > .dropdown {
+  flex: 0 0 auto;
+  margin-right: -4px;
+}
+.tw-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  margin: 16px auto 24px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-tag);
+  cursor: pointer;
+}
+.tw-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tw-add .micon {
+  width: 30px;
+  height: 30px;
+}
+/* A short list: render every card, so the 저장 drop-down isn't clipped by
+   content-visibility's paint containment. */
+.tw .work-card.tw-card {
+  content-visibility: visible;
+}
+.tw-save .dropdown-panel {
+  right: auto;
+  min-width: 100%;
+  white-space: nowrap;
+}
+/* 삭제 confirm: 번역 진행도 초기화 checkbox. */
+.tw-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  cursor: pointer;
 }
 
 /* Picker shows every match: let the browser skip off-screen rows. */
@@ -6586,7 +6776,7 @@ textarea {
   height: 12px;
   padding: 0;
   border-radius: 3px;
-  color: var(--text-dim);
+  color: var(--text-tag);
   transition: background 0.12s, color 0.12s;
 }
 .stepper .stepper-btn .micon {
@@ -6996,7 +7186,7 @@ textarea {
   border: 1px solid transparent;
   border-radius: 50%;
   background: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
   font-size: 20px;
   cursor: pointer;
   transition: background-color 0.12s ease-out, border-color 0.12s ease-out, color 0.12s ease-out, filter 0.08s ease-out;
@@ -7025,7 +7215,7 @@ textarea {
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
   font-size: 28px;
   cursor: pointer;
   transition: background-color 0.12s ease-out, color 0.12s ease-out, filter 0.08s ease-out;
@@ -7061,7 +7251,7 @@ textarea {
   border-top: 1px solid var(--line);
   border-radius: 0;
   background: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
   justify-content: center;
   transition: background-color 0.12s ease-out, color 0.12s ease-out, filter 0.08s ease-out;
 }
@@ -7150,7 +7340,7 @@ textarea {
   position: relative;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
   transition: background-color 0.12s ease-out, border-color 0.12s ease-out, color 0.12s ease-out;
 }
 .exit-actions .exit-btn + .exit-btn {
@@ -7224,7 +7414,7 @@ textarea {
 .comic-filter > .chip {
   background: transparent;
   border-color: transparent;
-  color: var(--text-dim);
+  color: var(--text-tag);
 }
 .comic-filter > .chip:hover:not(:disabled),
 .comic-filter > .chip.open {
@@ -7749,7 +7939,7 @@ polyline.ted-ants {
   justify-content: center;
   border: none;
   background: none;
-  color: var(--text-dim);
+  color: var(--text-tag);
   border-radius: var(--r2);
   cursor: pointer;
   padding: 0;
@@ -7974,7 +8164,7 @@ polyline.ted-ants {
   justify-content: center;
   border: none;
   background: none;
-  color: var(--text-dim);
+  color: var(--text-tag);
   cursor: pointer;
   padding: 0;
 }
@@ -8199,4 +8389,98 @@ polyline.ted-ants {
   bottom: 3px;
   height: 3px;
   border-radius: 2px;
+}
+
+/* Arrow icons in UI text (arrowText): sized and set on the text's baseline */
+.micon.txt-arrow {
+  width: 1.05em;
+  height: 1.05em;
+  margin: 0 0.12em;
+  vertical-align: -0.16em;
+}
+.micon.txt-key {
+  width: 1.25em;
+  height: 1.25em;
+  margin: 0 -0.1em;
+  vertical-align: -0.3em;
+}
+
+/* ===== Confirm / notice dialogs — Halftone mobile style (every app; rule in
+   ~/.claude/CLAUDE.md): the title big and left-aligned at the top, the
+   explanation small and left-aligned under it, small text buttons at the
+   bottom right in the order action (저장 / 삭제) · middle (저장 안 함) · close.
+   Colour: nothing is coloured except the main action — purple when it is
+   positive (저장 / 확인), red when it loses something (삭제 / 덮어쓰기).
+   Last in the file so it beats the older dialog rules above. ===== */
+.exit-backdrop .exit-modal {
+  text-align: left;
+  padding: 22px 22px 12px;
+  border: none;
+  background: var(--bg-1);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+}
+.exit-modal .exit-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--text);
+  text-align: left;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.exit-modal .exit-desc {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-dim);
+  text-align: left;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.exit-modal .exit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-right: -8px;
+}
+.exit-modal .exit-actions .exit-btn {
+  flex: none;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--r3);
+  background: transparent;
+  box-shadow: none;
+  filter: none;
+  transform: none;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.exit-modal .exit-actions .exit-btn::before {
+  display: none;
+}
+.exit-modal .exit-actions .exit-btn:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--text);
+  filter: none;
+}
+.exit-modal .exit-actions .exit-btn.primary,
+.exit-modal .exit-actions .exit-btn.primary:hover:not(:disabled) {
+  color: var(--accent);
+}
+.exit-modal .exit-actions .exit-btn.danger,
+.exit-modal .exit-actions .exit-btn.danger:hover:not(:disabled) {
+  color: var(--danger);
+}
+.exit-modal .exit-actions .exit-btn:active:not(:disabled) {
+  background: var(--bg-3);
+}
+.exit-modal .exit-icon {
+  display: none;
 }

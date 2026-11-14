@@ -8,7 +8,7 @@ import type { EncodeFn, TrashFn } from './tools'
 import { encodeWavToMp3 } from './tools/wav'
 import { fetchBytes, fetchDlsite } from './dlsite'
 import type { BytesFetch, JsonFetch } from './dlsite'
-import { decodeText, isEnvMade, langOfName, langOfText, parseSubtitle, toVtt } from './subtitle'
+import { contentLangOfName, contentLangOfText, decodeText, isEnvMade, langOfName, langOfText, parseSubtitle, toVtt } from './subtitle'
 import { openDb, schemaVersion } from './db'
 import type { Db } from './db'
 import { loadSettings, saveSettings } from './settings'
@@ -28,6 +28,7 @@ import type { AutoSubOptions, AutoSubResult, DecodeFn } from './autosub'
 import { autoSubWork } from './autosub'
 import { namesMap, needsTranslation, translateNames } from './names/translate'
 import { findScripts, previewScript, scriptFromFile, scriptSubWork } from './script'
+import { scriptContentLang } from './script/read'
 import type { NameStatus, ScriptPreview, ScriptSource, ScriptSubOptions, WorkContent } from '../shared/types'
 import { existsSync } from 'fs'
 import * as originals from './originals'
@@ -219,7 +220,11 @@ export class EnvCore {
   private async scanContent(id: number): Promise<void> {
     const d = this.work(id)
     if (!d) return
-    const scripts = [...new Set((await findScripts(d)).map((s) => s.lang))].filter((l): l is 'ja' | 'ko' => l === 'ja' || l === 'ko')
+    const scripts = new Set<string>()
+    for (const s of await findScripts(d)) {
+      const lang = s.lang !== 'other' ? s.lang : await scriptContentLang(s.kind === 'perTrack' ? (s.files?.[0]?.path ?? '') : s.path)
+      if (lang) scripts.add(lang)
+    }
     const subs: WorkContent['subs'] = {}
     const seen = new Set<string>()
     for (const g of d.groups)
@@ -233,11 +238,11 @@ export class EnvCore {
           } catch {
             continue
           }
-          const lang = f.lang === 'ja' || f.lang === 'ko' ? f.lang : langOfText(parseSubtitle(text, extname(f.path)).map((c) => c.text).join(' '))
-          if (lang !== 'ja' && lang !== 'ko') continue
+          const lang = contentLangOfName(basename(f.path)) ?? contentLangOfText(parseSubtitle(text, extname(f.path)).map((c) => c.text).join(' '))
+          if (!lang) continue
           subs[lang] = subs[lang] === 'user' || !isEnvMade(text) ? 'user' : 'app'
         }
-    this.db.prepare('UPDATE works SET content_json = ? WHERE id = ?').run(JSON.stringify({ scripts, subs }), id)
+    this.db.prepare('UPDATE works SET content_json = ? WHERE id = ?').run(JSON.stringify({ scripts: [...scripts], subs }), id)
   }
 
   works(): WorkSummary[] {
@@ -578,6 +583,9 @@ export class EnvCore {
   }
   setRank(ids: number[], rank: number): void {
     library.setRank(this.db, ids, rank)
+  }
+  countPlay(id: number): number {
+    return library.countPlay(this.db, id)
   }
   // 파일 정리 › 썸네일: the folder's or DLsite's cover for these works (null = the setting)
   setCoverPref(ids: number[], pref: 'folder' | 'dlsite' | null): void {

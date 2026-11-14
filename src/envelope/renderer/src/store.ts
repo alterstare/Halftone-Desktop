@@ -32,7 +32,8 @@ export interface Subs {
 export interface LibFilter {
   favorites: boolean
   listen: Record<ListenState, boolean>
-  content: Record<ContentKey, boolean> // 언어 분류
+  content: Record<ContentKey, boolean> // 언어 분류 › 자막 · 대본 (missing = shown)
+  voice: Record<string, boolean> // 언어 분류 › 음성 (missing = shown)
   age: Record<'r18' | 'general' | 'unknown', boolean> // 연령 분류
   groups: number[] | null // null = all; [] + ungrouped
   ungrouped: boolean
@@ -41,7 +42,8 @@ export interface LibFilter {
 export const ALL_FILTER: LibFilter = {
   favorites: false,
   listen: { new: true, listening: true, done: true },
-  content: { none: true, 'ja-script': true, 'ko-script': true, 'ja-sub': true, 'ko-sub': true },
+  content: {},
+  voice: {},
   age: { r18: true, general: true, unknown: true },
   groups: null,
   ungrouped: true

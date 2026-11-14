@@ -3,6 +3,7 @@ import type { JSX } from 'react'
 import { useStore } from '../store'
 import type { ComicChapter, DoujinProgress } from '../../../shared/ipc'
 import { ChapterPicker, DownloadStatus } from './DownloadParts'
+import { CloseIcon } from './icons'
 
 // Backup (gnuboard-style) site downloader. The site isn't scraped into our
 // browse UI — the user opens it as a plain web page, navigates to a chapter LIST
@@ -81,8 +82,8 @@ export default function ComicBackupModal({ onClose }: { onClose: () => void }): 
       <div className="modal dl-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>비상용 사이트 다운로드</h2>
-          <button className="modal-x" onClick={onClose}>
-            ✕
+          <button className="modal-x" title="닫기" onClick={onClose}>
+            <CloseIcon />
           </button>
         </div>
 

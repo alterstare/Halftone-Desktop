@@ -31,7 +31,7 @@ import EnvelopeDock from './components/EnvelopeDock'
 import { softReload, restoreSoftReload } from './softReload'
 import { startTranslationWatch } from './translate'
 import { runWatchCheck } from './watch'
-import { KeyboardArrowLeftIcon, KeyboardArrowRightIcon } from './components/icons'
+import { KeyboardArrowLeftIcon, KeyboardArrowRightIcon, LockIcon } from './components/icons'
 
 export default function App(): JSX.Element {
   const view = useStore((s) => s.view)
@@ -384,7 +384,7 @@ export default function App(): JSX.Element {
       {cfChallenge && (
         <div className="cf-banner">
           <span>
-            🔒 사이트 인증이 필요합니다. 방금 뜬 창에서 “사람인지 확인”을 완료해 주세요. 완료되면 자동으로 진행됩니다.
+            <LockIcon className="txt-arrow" /> 사이트 인증이 필요합니다. 방금 뜬 창에서 “사람인지 확인”을 완료해 주세요. 완료되면 자동으로 진행됩니다.
           </span>
           {tunnelOn && (
             <span className="cf-banner-warn">

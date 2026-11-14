@@ -96,7 +96,7 @@ export function Cover({ path, className, full }: { path: string | null; classNam
   )
 }
 
-// 별점: click a star to set, the same star again to clear.
+// 평점: click a star to set, the same star again to clear.
 export function Stars({ id, rank }: { id: number; rank: number }): JSX.Element {
   const [hover, setHover] = useState(0)
   const set = (n: number): void => {
@@ -107,7 +107,7 @@ export function Stars({ id, rank }: { id: number; rank: number }): JSX.Element {
   return (
     <span className="stars" onMouseLeave={() => setHover(0)} onClick={(e) => e.stopPropagation()}>
       {[1, 2, 3, 4, 5].map((n) => (
-        <button key={n} className={`star ${n <= (hover || rank) ? 'on' : ''}`} onMouseEnter={() => setHover(n)} onClick={() => set(n)} title={`별점 ${n}`}>
+        <button key={n} className={`star ${n <= (hover || rank) ? 'on' : ''}`} onMouseEnter={() => setHover(n)} onClick={() => set(n)} title={`평점 ${n}`}>
           <StarIcon />
         </button>
       ))}

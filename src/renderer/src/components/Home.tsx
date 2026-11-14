@@ -6,7 +6,7 @@ import type { SortMode, Work } from '../../../shared/types'
 import type { Filter } from '../store'
 import { langCategory, LANG_CAT_LABELS, type LangCat } from '../../../shared/lang'
 import Caret from './Caret'
-import { SearchIcon, SyncIcon, GridIcon, MenuIcon, FavoriteIcon, AddIcon, CloseIcon } from './icons'
+import { SearchIcon, SyncIcon, GridIcon, MenuIcon, FavoriteIcon, AddIcon, CloseIcon, StarIcon, SettingsIcon } from './icons'
 import Dropdown from './Dropdown'
 import WorkCard from './WorkCard'
 import WorkGridCard from './WorkGridCard'
@@ -584,7 +584,7 @@ export default function Home(): JSX.Element {
                         setFilter(favFilterFor(sel))
                       }}
                     />
-                    ★ {n}
+                    <StarIcon className="txt-arrow" /> {n}
                   </label>
                 ))}
               </div>
@@ -751,12 +751,12 @@ export default function Home(): JSX.Element {
           {sort === 'popular' && loadingPopular && <span className="chip-stat">인기순 불러오는 중…</span>}
           {filter.kind === 'artist' && (
             <Chip active onClick={() => setFilter({ kind: 'all' })}>
-              작가: {filter.value} ✕
+              작가: {filter.value} <CloseIcon className="txt-arrow" />
             </Chip>
           )}
           {filter.kind === 'tag' && (
             <Chip active onClick={() => setFilter({ kind: 'all' })}>
-              태그: {filter.value} ✕
+              태그: {filter.value} <CloseIcon className="txt-arrow" />
             </Chip>
           )}
         </div>
@@ -799,12 +799,12 @@ export default function Home(): JSX.Element {
         <div className="empty">
           {libraryMode === 'normal' ? (
             <>
-              일반 만화 라이브러리가 비어 있습니다. <b>설정 ⚙</b>에서 <b>일반 만화 폴더</b>를 추가하고{' '}
+              일반 만화 라이브러리가 비어 있습니다. <b>설정 <SettingsIcon className="txt-arrow" /></b>에서 <b>일반 만화 폴더</b>를 추가하고{' '}
               <b>라이브러리 스캔</b>을 누르세요.
             </>
           ) : (
             <>
-              라이브러리가 비어 있습니다. <b>설정 ⚙</b>에서 폴더를 추가하고 <b>라이브러리 스캔</b>을
+              라이브러리가 비어 있습니다. <b>설정 <SettingsIcon className="txt-arrow" /></b>에서 폴더를 추가하고 <b>라이브러리 스캔</b>을
               누르세요.
             </>
           )}

@@ -1,4 +1,5 @@
 import type { JSX } from 'react'
+import { StarIcon } from './icons'
 
 interface Props {
   rank: number
@@ -19,7 +20,7 @@ export default function Stars({ rank, onChange, size = 16 }: Props): JSX.Element
             onChange(n === rank ? 0 : n)
           }}
         >
-          ★
+          <StarIcon />
         </span>
       ))}
     </span>

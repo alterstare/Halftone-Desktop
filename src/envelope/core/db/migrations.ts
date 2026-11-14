@@ -200,6 +200,10 @@ export const MIGRATIONS: string[] = [
     key TEXT PRIMARY KEY,
     created_at INTEGER NOT NULL
   );
+  `,
+  // v16: 감상 횟수 — playback of the work started (정렬 › 감상 횟수)
+  `
+  ALTER TABLE works ADD COLUMN play_count INTEGER NOT NULL DEFAULT 0;
   `
 ]
 

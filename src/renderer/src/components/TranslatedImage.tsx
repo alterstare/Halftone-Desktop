@@ -5,6 +5,7 @@ import { getTranslation, getTransDoc, getTransPaint, saveTransDoc } from '../tra
 import { loadImage, drawTranslation, healPage, renderDoc } from '../inpaint'
 import TransEditor from './TransEditor'
 import { useStore } from '../store'
+import { EditIcon } from './icons'
 
 // An image that, when `translate` is on, is replaced by an in-place translated
 // version: the original speech-bubble text is erased and the Korean translation
@@ -121,7 +122,7 @@ export default function TranslatedImage({
             setEditing(true)
           }}
         >
-          ✎ 편집
+          <EditIcon /> 편집
         </button>
       )}
       {editing && res?.ok && (

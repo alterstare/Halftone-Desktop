@@ -23,7 +23,7 @@ import { lamaInstalled, downloadLama, deleteLama, lamaPatch, LAMA_MB } from '../
 import { sanitize } from '../lib/doujin'
 import { applyNetwork } from '../lib/network'
 import { applyQuitShortcut } from '../lib/quitShortcut'
-import { encodeImg, thumbFile, isRawThumb } from '../lib/media'
+import { encodeImg, decodeB64Path, thumbFile, isRawThumb } from '../lib/media'
 
 const allWorks = (): Work[] => [...store.works.values()]
 
@@ -608,6 +608,44 @@ export function registerLibraryIpc(): void {
     return dir
   })
   ipcMain.handle(IPC.writeImageFile, async (_e, dir: string, name: string, base64: string) => {
+    await fs.writeFile(join(dir, name), Buffer.from(base64, 'base64'))
+  })
+
+  // 번역 편집기 › 저장 › 사본으로 저장: the copy sits beside the work's folder (a
+  // merged work: beside its first folder), so it lands in the same library.
+  // Named "<title> (번역)", not after the folder: a coded folder name would give
+  // the copy the same gallery id, and one id = one work (the original vanished).
+  ipcMain.handle(IPC.transCopyDir, async (_e, workId: string) => {
+    const w = store.get(workId)
+    if (!w) throw new Error('작품을 찾을 수 없습니다')
+    const src = w.sources?.[0] ?? w.path
+    const name = (sanitize(w.title).trim() || 'copy').slice(0, 150)
+    const dir = await freePath(dirname(src), `${name} (번역)`)
+    await fs.mkdir(dir, { recursive: true })
+    return dir
+  })
+  ipcMain.handle(IPC.transCopyDone, async (_e, dir: string) => {
+    store.mergeScanPartial(await scanDirs([dir], store.settings))
+    await store.flushWorks()
+    return allWorks()
+  })
+
+  // 번역 편집기 › 저장 › 원본 덮어쓰기, one page: the original goes to the recycle
+  // bin (never deleted) and the translated page is written under a new name —
+  // page urls are cached as immutable, so the same name would keep showing the
+  // old image. Only a page inside one of the work's own folders is touched.
+  ipcMain.handle(IPC.transReplacePage, async (_e, workId: string, src: string, base64: string) => {
+    const w = store.get(workId)
+    if (!w) throw new Error('작품을 찾을 수 없습니다')
+    const file = resolve(decodeB64Path(src))
+    const dir = dirname(file)
+    const key = (p: string): string => resolve(p).toLowerCase()
+    if (!(w.sources?.length ? w.sources : [w.path]).some((d) => key(d) === key(dir)))
+      throw new Error('작품 폴더 밖의 파일입니다')
+    const base = basename(file).replace(/\.[^.]+$/, '')
+    let name = `${base}.webp`
+    if (key(join(dir, name)) === key(file)) name = `${base}_ko.webp`
+    await shell.trashItem(file)
     await fs.writeFile(join(dir, name), Buffer.from(base64, 'base64'))
   })
 

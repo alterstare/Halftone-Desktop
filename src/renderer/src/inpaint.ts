@@ -597,6 +597,36 @@ interface Rays {
 const chDist = (d: Uint8ClampedArray, o: number, c: RGB): number =>
   Math.max(Math.abs(d[o] - c[0]), Math.abs(d[o + 1] - c[1]), Math.abs(d[o + 2] - c[2]))
 
+// The fill: the most common colour in a ring 3–8 px around the box (the
+// colour right around the glyphs is often their own outline or halo).
+function ringFill(d: Uint8ClampedArray, W: number, H: number, b: Rect | TransBlock): RGB | null {
+  const [bx, by, bw, bh] = 'x0' in b ? [b.x0, b.y0, b.w, b.h] : [b.x, b.y, b.w, b.h]
+  const clear: number[] = []
+  for (let y = Math.max(0, Math.floor(by) - 8); y < Math.min(H, by + bh + 8); y++)
+    for (let x = Math.max(0, Math.floor(bx) - 8); x < Math.min(W, bx + bw + 8); x++)
+      if (Math.max(bx - x, x - bx - bw, by - y, y - by - bh) >= 3) clear.push(y * W + x)
+  return clear.length >= 30 ? dominant(d, clear) : null
+}
+
+// The box the rays start from: the OCR box, or — when the ring round it isn't
+// the fill round the text (the box as big as its balloon: the ring lies on the
+// art past the outline, the rays start out there and the balloon reads as no
+// balloon) — the text's own extent (its seed's glyph pixels).
+function rayBox(d: Uint8ClampedArray, W: number, H: number, b: TransBlock, s: Seed): TransBlock {
+  const ring = ringFill(d, W, H, b)
+  if (!ring || Math.max(...ring.map((v, c) => Math.abs(v - s.fill[c]))) <= BG_TOL) return b
+  let [x0, y0, x1, y1] = [W, H, 0, 0]
+  for (const i of s.px) {
+    const x = i % W
+    const y = (i - x) / W
+    x0 = Math.min(x0, x)
+    y0 = Math.min(y0, y)
+    x1 = Math.max(x1, x + 1)
+    y1 = Math.max(y1, y + 1)
+  }
+  return x1 > x0 && y1 > y0 ? { ...b, x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : b
+}
+
 function castRays(d: Uint8ClampedArray, W: number, H: number, b: TransBlock, seedFill: RGB, tm: TextMask | undefined): Rays {
   const cx = b.x + b.w / 2
   const cy = b.y + b.h / 2
@@ -609,13 +639,7 @@ function castRays(d: Uint8ClampedArray, W: number, H: number, b: TransBlock, see
       [0, -3],
       [0, 3]
     ].some(([ox, oy]) => maskAt(tm, x + ox, y + oy))
-  // The fill: the most common colour in a ring 3–8 px around the box (the
-  // colour right around the glyphs is often their own outline or halo).
-  const clear: number[] = []
-  for (let y = Math.max(0, Math.floor(b.y) - 8); y < Math.min(H, b.y + b.h + 8); y++)
-    for (let x = Math.max(0, Math.floor(b.x) - 8); x < Math.min(W, b.x + b.w + 8); x++)
-      if (Math.max(b.x - x, x - b.x - b.w, b.y - y, y - b.y - b.h) >= 3) clear.push(y * W + x)
-  const fill = clear.length >= 30 ? dominant(d, clear) : seedFill
+  const fill = ringFill(d, W, H, b) ?? seedFill
   const lumF = luminance(fill)
   const reach = Math.max(b.w, b.h) * 1.5 + 40
   const glyph = Math.max(6, Math.round((b.size ?? 16) * 0.6))
@@ -922,8 +946,19 @@ function makeBubble(
     ` floor ${Math.round(used)}`
   if (ext && !leaked) {
     // An outlined fill whose outline holds more than it: see-through after all
-    // (a white part next to the text, the art showing past it).
-    if (ext.area > fl.area * SEE_THROUGH_GROWTH) kind = 'see-through'
+    // (a white part next to the text, the art showing past it). What the fill
+    // encloses doesn't count: big bright glyphs (pink over white) pass the
+    // floor too, and a small opaque balloon grew 28% by its own text.
+    const held = withHoles(fl.m, r.w, r.h)
+    let grown = 0
+    for (let y = 0; y < ext.r.h; y++)
+      for (let x = 0; x < ext.r.w; x++) {
+        if (!ext.m[y * ext.r.w + x]) continue
+        const X = ext.r.x0 + x - r.x0
+        const Y = ext.r.y0 + y - r.y0
+        if (X < 0 || Y < 0 || X >= r.w || Y >= r.h || !held[Y * r.w + X]) grown++
+      }
+    if (fl.area + grown > fl.area * SEE_THROUGH_GROWTH) kind = 'see-through'
     const u = union(r, ext.r)
     const all = remap(inside, r, u)
     const more = withHoles(ext.m, ext.r.w, ext.r.h)
@@ -1112,7 +1147,7 @@ function findBubbles(
   }[] = []
   blocks.forEach((b, k) => {
     for (const s of seedsOf(d, W, H, b, inks[k])) {
-      const rays = castRays(d, W, H, b, s.fill, tm)
+      const rays = castRays(d, W, H, rayBox(d, W, H, b, s), s.fill, tm)
       // Text already in a find is found again only as plain, against a plain
       // find: joined plain balloons have no outline to stop one find at, so
       // each balloon traces its own and they are told apart below.
@@ -1312,9 +1347,11 @@ function eraseBubble(
   if (tm) markMasked(tm, r, allow, text)
   // Past the balloon's inside or on its rim, only strokes near its boxes' own
   // text: the detector can take an outline, or the focus lines round a burst
-  // balloon, for text too (and the fill took them in as its holes).
+  // balloon, for text too (and the fill took them in as its holes). Its own
+  // text = the boxes' strokes in the balloon or poking out of it: a box grown
+  // to its lines can run on past the outline onto a sound effect below.
   const own = new Uint8Array(n)
-  for (let i = 0; i < n; i++) own[i] = text[i] & inBoxes[i]
+  for (let i = 0; i < n; i++) own[i] = text[i] & inBoxes[i] & zone[i]
   grow(own, r.w, r.h, R, null)
   const deep = new Uint8Array(n)
   for (let i = 0; i < n; i++) deep[i] = inB[i] ^ 1
@@ -1416,10 +1453,14 @@ function eraseOnArt(
   const img = ctx.getImageData(r.x0, r.y0, r.w, r.h)
   const d = img.data
   const n = r.w * r.h
+  // With the OCR's lines, only near them (a box grown to long lines spans art
+  // and other text between them); `maskReach` adds what runs on past them.
+  const cols = manual ? undefined : b.cols
   const inBox = new Uint8Array(n)
   let boxCount = 0
   for (let y = Math.max(0, Math.floor(b.y - pad) - r.y0); y < Math.min(r.h, Math.ceil(b.y + b.h + pad) - r.y0); y++)
     for (let x = Math.max(0, Math.floor(b.x - pad) - r.x0); x < Math.min(r.w, Math.ceil(b.x + b.w + pad) - r.x0); x++) {
+      if (cols && !nearCols(cols, x + r.x0, y + r.y0, pad)) continue
       inBox[y * r.w + x] = 1
       boxCount++
     }
@@ -2977,9 +3018,17 @@ function eraseAll(
 // detector's box can stop a few glyphs short of a column's end (a big bold line,
 // "!!") while its mask goes on. Mask strokes within REACH_GAP ems of each other
 // are one run; the runs that start in the box are followed up to REACH_MAX ems
-// past it, never into another block's box.
+// past it, never into another block's box. With the OCR's lines (`cols`) the
+// runs start only near them (`COL_PAD` ems): a box grown to its lines can hold
+// a sound effect's stroke between them, and following that ran from effect to
+// effect across the art. The strokes reached past the lines come back as one
+// more `cols` rect, which bounds the erase (`eraseOnArt`) with the lines.
 const REACH_GAP = 0.6
 const REACH_MAX = 4
+const COL_PAD = 0.5
+// Is (x, y) within `p` px of one of a block's lines?
+const nearCols = (cols: number[][], x: number, y: number, p: number): boolean =>
+  cols.some(([cx, cy, cw, ch]) => x >= cx - p && y >= cy - p && x < cx + cw + p && y < cy + ch + p)
 function maskReach(tm: TextMask | undefined, b: TransBlock, others: TransBlock[], W: number, H: number): TransBlock {
   if (!tm) return b
   const em = b.size ?? Math.min(b.w, b.h)
@@ -3005,10 +3054,12 @@ function maskReach(tm: TextMask | undefined, b: TransBlock, others: TransBlock[]
   // Runs: the mask with its gaps closed.
   const joined = m.slice()
   grow(joined, cw, ch, Math.max(1, Math.round((em * REACH_GAP) / 2 / STEP)), null)
+  const cols = b.cols
+  const pad = em * COL_PAD
   const inBox = (cx: number, cy: number): boolean => {
     const px = x0 + cx * STEP
     const py = y0 + cy * STEP
-    return px >= b.x && py >= b.y && px < b.x + b.w && py < b.y + b.h
+    return cols ? nearCols(cols, px, py, pad) : px >= b.x && py >= b.y && px < b.x + b.w && py < b.y + b.h
   }
   const seen = new Uint8Array(cw * ch)
   const stack: number[] = []
@@ -3021,6 +3072,8 @@ function maskReach(tm: TextMask | undefined, b: TransBlock, others: TransBlock[]
       }
     }
   let [l, t, r, bt] = [b.x, b.y, b.x + b.w, b.y + b.h]
+  // The strokes reached away from the lines.
+  let [el, et, er, eb] = [Infinity, Infinity, -Infinity, -Infinity]
   while (stack.length) {
     const i = stack.pop()!
     const cx = i % cw
@@ -3030,6 +3083,12 @@ function maskReach(tm: TextMask | undefined, b: TransBlock, others: TransBlock[]
       t = Math.min(t, y0 + cy * STEP)
       r = Math.max(r, x0 + (cx + 1) * STEP)
       bt = Math.max(bt, y0 + (cy + 1) * STEP)
+      if (cols && !inBox(cx, cy)) {
+        el = Math.min(el, x0 + cx * STEP)
+        et = Math.min(et, y0 + cy * STEP)
+        er = Math.max(er, x0 + (cx + 1) * STEP)
+        eb = Math.max(eb, y0 + (cy + 1) * STEP)
+      }
     }
     for (let dy = -1; dy <= 1; dy++)
       for (let dx = -1; dx <= 1; dx++) {
@@ -3042,7 +3101,8 @@ function maskReach(tm: TextMask | undefined, b: TransBlock, others: TransBlock[]
         stack.push(j)
       }
   }
-  return l < b.x || t < b.y || r > b.x + b.w || bt > b.y + b.h ? { ...b, x: l, y: t, w: r - l, h: bt - t } : b
+  const out = l < b.x || t < b.y || r > b.x + b.w || bt > b.y + b.h ? { ...b, x: l, y: t, w: r - l, h: bt - t } : b
+  return cols && er > el ? { ...out, cols: [...cols, [el, et, er - el, eb - et]] } : out
 }
 
 // The page's key for the work-wide text colours ('' for a page given as data).

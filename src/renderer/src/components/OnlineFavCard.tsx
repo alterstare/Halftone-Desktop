@@ -1,4 +1,4 @@
-import type { JSX } from 'react'
+import type { JSX, MouseEvent } from 'react'
 import type { OnlineFav } from '../../../shared/types'
 import { useStore } from '../store'
 import { getOnlineImages } from '../images'
@@ -8,7 +8,7 @@ import TagList from './TagList'
 import { useFavSummaries, getFavSummary } from '../favSummaries'
 import { tagToken, isComicCode } from '../util'
 import { CheckIcon, PauseIcon, PlayIcon, DownloadIcon, SyncIcon, FavoriteIcon } from './icons'
-import { ArtistLinks } from './ArtistLinks'
+import { ArtistLine, ArtistLinks } from './ArtistLinks'
 import { useTagMenu } from './useTagMenu'
 
 // A favorite that isn't downloaded yet (doujin numeric code or manga-site http url),
@@ -44,13 +44,11 @@ export default function OnlineFavCard({ fav: entry, layout }: { fav: OnlineFav; 
   const { openTagMenu, tagMenu } = useTagMenu()
   // Artist names are links like on the local cards: click = search by that
   // artist, right-click = the usual tag menu.
-  const artistLinks = (a: string): JSX.Element => (
-    <ArtistLinks
-      artist={a}
-      onPick={(x) => addSearchToken(tagToken(`artist:${x}`))}
-      onMenu={(x, e) => openTagMenu(e, tagToken(`artist:${x}`), x)}
-    />
-  )
+  const pickArtist = (x: string): void => addSearchToken(tagToken(`artist:${x}`))
+  const artistMenu = (x: string, e: MouseEvent): void => openTagMenu(e, tagToken(`artist:${x}`), x)
+  const artistLinks = (a: string): JSX.Element => <ArtistLinks artist={a} onPick={pickArtist} onMenu={artistMenu} />
+  // Grid meta line: pages · language (series tiles put the artists after it).
+  const metaText = [fav.pageCount ? `${fav.pageCount}p` : '', fav.language ?? ''].filter(Boolean).join(' · ')
   // Stored favorites carry no tags → from the cached gallery summary (doujin only).
   const tags = (sum?.tags ?? []).filter((t) => !t.startsWith('language:'))
 
@@ -131,8 +129,8 @@ export default function OnlineFavCard({ fav: entry, layout }: { fav: OnlineFav; 
   }
 
   return (
-    <div className={`gtile online-fav ${layout}${isComic ? ' series' : ''}`} onClick={open}>
-      <div className="gtile-thumb">
+    <div className={`gtile online-fav ${layout}${isComic ? ' series' : ''}`} onClick={open} data-card-tip={fav.title}>
+      <div className="gtile-thumb" data-tip-off>
         <OnlineThumb getImgs={() => getOnlineImages(fav.code)} thumbUrl={fav.thumbUrl} className="gtile-thumb-inner" />
         <span className="online-fav-badge">온라인</span>
       </div>
@@ -141,17 +139,17 @@ export default function OnlineFavCard({ fav: entry, layout }: { fav: OnlineFav; 
         <span style={{ marginLeft: 'auto' }}>{heartDl}</span>
       </div>
       <div className="gtile-title selectable">{fav.title}</div>
-      <div className="gtile-meta">
-        {fav.pageCount ? `${fav.pageCount}p` : ''}
-        {fav.language && `${fav.pageCount ? ' · ' : ''}${fav.language}`}
-        {isComic && fav.artist && (
-          <>
-            {fav.pageCount || fav.language ? ' · ' : ''}
-            {artistLinks(fav.artist)}
-          </>
-        )}
-      </div>
-      {!isComic && <div className="gtile-meta gtile-artist">{fav.artist ? artistLinks(fav.artist) : ''}</div>}
+      {isComic && fav.artist ? (
+        <ArtistLine
+          artist={fav.artist}
+          prefix={metaText ? `${metaText} · ` : undefined}
+          onPick={pickArtist}
+          onMenu={artistMenu}
+        />
+      ) : (
+        <div className="gtile-meta">{metaText}</div>
+      )}
+      {!isComic && fav.artist && <ArtistLine artist={fav.artist} onPick={pickArtist} onMenu={artistMenu} />}
       {/* Always present (flex:1) so the card stretches like the local tiles. */}
       <div className="gtile-tags" onClick={(e) => e.stopPropagation()}>
         {tags.length > 0 && (
@@ -159,7 +157,7 @@ export default function OnlineFavCard({ fav: entry, layout }: { fav: OnlineFav; 
             tags={tags}
             favoriteTags={favoriteTags}
             onTagClick={(t) => addSearchToken(tagToken(t))}
-            lines={isComic ? 2 : 5}
+            lines={isComic ? 2 : 6}
           />
         )}
       </div>

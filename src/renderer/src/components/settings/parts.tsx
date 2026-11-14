@@ -181,11 +181,11 @@ function NasDialog({ onClose, onAdded }: { onClose: () => void; onAdded: (path: 
         <div className="nas-foot">
           <span className={`hint ${err ? 'nas-err' : ''}`}>{busy ? '연결하는 중…' : (err ?? '')}</span>
           <div className="flat-group">
-            <button className="mini" onClick={onClose}>
-              취소
-            </button>
             <button className="mini on" onClick={() => void connect()} disabled={busy || !address.trim()}>
               연결하고 추가
+            </button>
+            <button className="mini" onClick={onClose}>
+              취소
             </button>
           </div>
         </div>

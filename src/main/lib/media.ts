@@ -45,7 +45,7 @@ export function encodeComic(url: string): string {
   return 'mangaimg://comic/' + b64(url)
 }
 
-function decodeB64Path(url: string): string {
+export function decodeB64Path(url: string): string {
   const seg = new URL(url).pathname.replace(/^\//, '')
   return Buffer.from(seg, 'base64url').toString('utf-8')
 }

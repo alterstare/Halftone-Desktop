@@ -158,6 +158,7 @@ function registerIpc(): void {
   ipcMain.handle(IPC.deleteBookmark, (_e, id: number) => core.deleteBookmark(id))
   ipcMain.handle(IPC.setFavorite, (_e, ids: number[], on: boolean) => core.setFavorite(ids, on))
   ipcMain.handle(IPC.setRank, (_e, ids: number[], r: number) => core.setRank(ids, r))
+  ipcMain.handle(IPC.countPlay, (_e, id: number) => core.countPlay(id))
   ipcMain.handle(IPC.groups, () => core.groups())
   ipcMain.handle(IPC.createGroup, (_e, n: string, ids?: number[]) => core.createGroup(n, ids))
   ipcMain.handle(IPC.renameGroup, (_e, id: number, n: string) => core.renameGroup(id, n))

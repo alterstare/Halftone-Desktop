@@ -16,6 +16,7 @@ import Stepper from '../Stepper'
 import Toggle from '../Toggle'
 import { useSettings } from './context'
 import { RadioCards } from './parts'
+import { ArrowForwardIcon, StopIcon } from '../icons'
 
 type Prog = { done: number; total: number }
 
@@ -327,7 +328,13 @@ export default function ManageSection(): JSX.Element {
             {scanRow}
             <SettingRow title="전체 메타 채우기" desc="코드가 있는 작품의 작가·태그·언어를 온라인에서 일괄로 채웁니다.">
               <button className={`btn ${enriching ? 'danger' : ''}`} onClick={enrichAll}>
-                {enriching ? '■ 중지' : '실행'}
+                {enriching ? (
+                  <>
+                    <StopIcon /> 중지
+                  </>
+                ) : (
+                  '실행'
+                )}
               </button>
             </SettingRow>
             <SettingRow title="언어 정리" desc="한국어가 아닌 작품을 언어별 폴더로 이동합니다.">
@@ -370,7 +377,7 @@ export default function ManageSection(): JSX.Element {
               {chapterPreview && (
                 <p className="hint" style={{ marginTop: 8 }}>
                   예: <b>{chapterPreview.title}</b> — 현재 <b>{chapterPreview.eff === 'token' ? '화 토큰' : '앞 번호'}</b>로
-                  인식 → {chapterPreview.labels.join(', ')}
+                  인식 <ArrowForwardIcon className="txt-arrow" /> {chapterPreview.labels.join(', ')}
                   {chapterPreview.more ? ' …' : ''}
                 </p>
               )}

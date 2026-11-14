@@ -90,6 +90,17 @@ export async function play(work: WorkDetail, groupKey: string, opts: { versionId
   if (opts.autoplay !== false) await el.play().catch(() => set({ playing: false }))
 }
 
+// 감상 횟수 (Halftone viewCount): +1 when a work starts playing; pausing,
+// seeking and the next tracks of the same work don't count again — only
+// after another work played (or the app restarted)
+let counted: number | null = null
+function countPlay(): void {
+  const id = st().now?.work.id
+  if (id === undefined || id === counted) return
+  counted = id
+  void window.api.countPlay(id).then((n) => st().patchWork(id, { plays: n }))
+}
+
 // 설정 › 재생 › 이어 듣기 (off: every track from the top, every work from its first track)
 export const resumeOn = (): boolean => st().settings?.resume ?? true
 
@@ -264,7 +275,11 @@ function wire(m: HTMLMediaElement): void {
     if ('mediaSession' in navigator && isFinite(m.duration))
       navigator.mediaSession.setPositionState({ duration: m.duration, position: Math.min(m.currentTime, m.duration), playbackRate: m.playbackRate })
   })
-  m.addEventListener('play', () => m === el && set({ playing: true }))
+  m.addEventListener('play', () => {
+    if (m !== el) return
+    set({ playing: true })
+    countPlay()
+  })
   m.addEventListener('pause', () => {
     if (m !== el) return
     set({ playing: false })

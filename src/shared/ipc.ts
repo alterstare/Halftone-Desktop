@@ -128,6 +128,9 @@ export const IPC = {
   exportText: 'text:export', // OCR/translation → .txt in the export folder
   exportImageDir: 'text:exportImageDir', // create/return a fresh per-work image folder
   writeImageFile: 'text:writeImageFile', // write one rendered page image into that folder
+  transCopyDir: 'trans:copyDir', // 사본으로 저장: create the copy folder next to the work
+  transCopyDone: 'trans:copyDone', // register the filled copy folder as a library work
+  transReplacePage: 'trans:replacePage', // 원본 덮어쓰기: one page's original → recycle bin, translated image in its place
   addManualTag: 'works:addManualTag',
   removeManualTag: 'works:removeManualTag',
   incrementView: 'works:incrementView',
@@ -515,6 +518,13 @@ export interface Api {
   exportImageDir: (title: string) => Promise<string>
   // Write one rendered page image (base64, webp) into a folder from exportImageDir.
   writeImageFile: (dir: string, name: string, base64: string) => Promise<void>
+  // 사본으로 저장: create a fresh "<title> (번역)[ (n)]" folder beside the work; returns its path.
+  transCopyDir: (workId: string) => Promise<string>
+  // Scan the filled copy folder into the library; returns every work.
+  transCopyDone: (dir: string) => Promise<Work[]>
+  // 원본 덮어쓰기: move one page (its mangaimg src) of the work to the recycle bin and
+  // write the translated image (base64, webp) as <name>.webp in its folder.
+  transReplacePage: (workId: string, src: string, base64: string) => Promise<void>
   addManualTag: (workId: string, tag: string) => Promise<Work>
   removeManualTag: (workId: string, tag: string) => Promise<Work>
   incrementView: (workId: string) => Promise<Work>

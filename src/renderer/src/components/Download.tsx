@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react'
-import type { JSX } from 'react'
+import type { JSX, ReactNode } from 'react'
 import { useStore, downloadMode } from '../store'
-import type { Job } from '../store'
 import { useLock } from '../lock'
-import { PauseIcon, PlayIcon } from './icons'
+import { KIND_ICON } from './ActivityBar'
+import { ArrowForwardIcon, Download2Icon, PauseIcon, PlayIcon, CheckMarkIcon, CloseIcon, StopIcon, WarningIcon } from './icons'
 import type { DoujinMeta } from '../../../shared/types'
 import type { DoujinProgress } from '../../../shared/ipc'
 
 // One merged activity entry: background jobs (export/scan) + online downloads.
 interface Row {
   id: string
-  icon: string
+  icon: ReactNode
   title: string
   status: 'running' | 'done' | 'error'
   done: number
@@ -20,16 +20,6 @@ interface Row {
   // Set only for online-download rows — drives the phase label + stop/retry
   // controls. Jobs (export/scan) leave it undefined.
   dl?: { code: string; phase: DoujinProgress['phase']; canRetry: boolean }
-}
-const KIND_ICON: Record<Job['kind'], string> = {
-  export: '📄',
-  scan: '🔄',
-  meta: '🖋',
-  thumb: '🖼',
-  organize: '🗂',
-  convert: '♻',
-  sorta: '🏷',
-  envelope: '🎧'
 }
 const rowPct = (done: number, total: number): number =>
   total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0
@@ -74,7 +64,7 @@ export default function Download(): JSX.Element {
       })),
     ...downloads.map((d) => ({
       id: `dl:${d.code}`,
-      icon: '⬇',
+      icon: <Download2Icon />,
       title: d.title || d.code,
       status: (d.phase === 'done' ? 'done' : d.phase === 'error' ? 'error' : 'running') as Row['status'],
       done: d.done,
@@ -168,15 +158,15 @@ export default function Download(): JSX.Element {
           // back to the coarse running/done/error status.
           const status =
             phase === 'stopped'
-              ? { cls: 'stopped', label: '⏸ 정지' }
+              ? { cls: 'stopped', label: <><PauseIcon /> 정지</> }
               : phase === 'queued'
                 ? { cls: 'busy', label: '대기 중' }
                 : phase === 'converting'
                   ? { cls: 'busy', label: r.total > 0 ? `webp 변환 ${pct}%` : 'webp 변환 중' }
                   : r.status === 'done'
-                    ? { cls: 'ok', label: '✓ 완료' }
+                    ? { cls: 'ok', label: <><CheckMarkIcon /> 완료</> }
                     : r.status === 'error'
-                      ? { cls: 'err', label: '✗ 실패' }
+                      ? { cls: 'err', label: <><CloseIcon /> 실패</> }
                       : { cls: 'busy', label: r.total > 0 ? `${pct}%` : '진행 중' }
           const active = phase ? activePhase.has(phase) : false
           const canRetry = r.dl?.canRetry && (phase === 'stopped' || phase === 'error')
@@ -212,12 +202,12 @@ export default function Download(): JSX.Element {
                   <span className="dl-item-actions">
                     {active && (
                       <button className="mini" onClick={() => stopDownload(r.dl!.code)}>
-                        ■ 정지
+                        <StopIcon /> 정지
                       </button>
                     )}
                     {canRetry && (
                       <button className="mini" onClick={() => retryDownload(r.dl!.code)}>
-                        ▶ 재시도
+                        <PlayIcon /> 재시도
                       </button>
                     )}
                   </span>
@@ -233,9 +223,13 @@ export default function Download(): JSX.Element {
           <div className="badge">MANGA&amp;WEBTOON</div>
           <h1>일반 만화 다운로드</h1>
           <p className="sub">
-            온라인 둘러보기의 작품 카드 <b>⬇ 다운로드</b> 버튼에서 <b>시리즈 전체 / 선택 화 / 자동 이어서</b>
-            받기를 고를 수 있습니다. 감상창 상단의 <b>⬇ 전체 다운로드</b>로도 저장됩니다. 진행 상황은 왼쪽
-            목록에 표시됩니다. (저장 위치: 설정 · 일반 만화의 <b>다운로드 폴더</b> → 즐겨찾기 폴더 → 첫 번째
+            온라인 둘러보기의 작품 카드 <b>
+              <Download2Icon className="txt-arrow" /> 다운로드
+            </b> 버튼에서 <b>시리즈 전체 / 선택 화 / 자동 이어서</b>
+            받기를 고를 수 있습니다. 감상창 상단의 <b>
+              <Download2Icon className="txt-arrow" /> 전체 다운로드
+            </b>로도 저장됩니다. 진행 상황은 왼쪽
+            목록에 표시됩니다. (저장 위치: 설정 · 일반 만화의 <b>다운로드 폴더</b> <ArrowForwardIcon className="txt-arrow" /> 즐겨찾기 폴더 <ArrowForwardIcon className="txt-arrow" /> 첫 번째
             일반 만화 폴더 순.)
           </p>
           <div className="flat-group">
@@ -251,7 +245,7 @@ export default function Download(): JSX.Element {
         <p className="sub">갤러리 코드 또는 주소를 붙여넣으세요. 메타데이터(작가·태그·언어)도 함께 저장됩니다.</p>
 
         {!destReady && (
-          <div className="warn">⚠ 설정에서 다운로드 폴더(또는 라이브러리 폴더)를 먼저 지정하세요.</div>
+          <div className="warn"><WarningIcon className="txt-arrow" /> 설정에서 다운로드 폴더(또는 라이브러리 폴더)를 먼저 지정하세요.</div>
         )}
 
         <div className="search-row">
@@ -287,7 +281,7 @@ export default function Download(): JSX.Element {
               {progress.phase === 'fetching' && '메타데이터 가져오는 중…'}
               {progress.phase === 'downloading' &&
                 `${progress.title} — ${progress.done}/${progress.total}`}
-              {progress.phase === 'done' && '완료 ✓'}
+              {progress.phase === 'done' && <>완료 <CheckMarkIcon className="txt-arrow" /></>}
             </div>
           </div>
         )}

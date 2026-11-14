@@ -5,6 +5,7 @@ import { groupSeries, chapterNum } from '../util'
 import type { ComicChapter } from '../../../shared/ipc'
 import { ChapterPicker, DownloadStatus } from './DownloadParts'
 import type { DoujinProgress } from '../../../shared/ipc'
+import { CloseIcon } from './icons'
 
 // Normalize a title to a comparison key (drop spaces + punctuation, lowercase),
 // matching the clustering used by the series-merge tool.
@@ -121,8 +122,8 @@ export default function ComicDownloadModal({
       <div className="modal dl-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>{series.title}</h2>
-          <button className="modal-x" onClick={onClose}>
-            ✕
+          <button className="modal-x" title="닫기" onClick={onClose}>
+            <CloseIcon />
           </button>
         </div>
 

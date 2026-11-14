@@ -177,6 +177,7 @@ export const KeyboardArrowDownIcon = mkIcon('m12 15.4l-6-6L7.4 8l4.6 4.6L16.6 8L
 export const KeyboardArrowLeftIcon = mkIcon('m14 18l-6-6l6-6l1.4 1.4l-4.6 4.6l4.6 4.6z')
 export const KeyboardArrowRightIcon = mkIcon('M12.6 12L8 7.4L9.4 6l6 6l-6 6L8 16.6z')
 export const ArrowUpwardIcon = mkIcon('M11 20V7.825l-5.6 5.6L4 12l8-8l8 8l-1.4 1.425l-5.6-5.6V20z')
+export const SortIcon = mkIcon('M3 18v-2h6v2zm0-5v-2h12v2zm0-5V6h18v2z')
 export const AddIcon = mkIcon('M11 13H5v-2h6V5h2v6h6v2h-6v6h-2z')
 // Context menu items (Material Symbols, filled — same choices as Sorta's menus)
 export const OpenInNewIcon = mkIcon('M5 21q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h7v2H5v14h14v-7h2v7q0 .825-.587 1.413T19 21zm4.7-5.3l-1.4-1.4L17.6 5H14V3h7v7h-2V6.4z')
@@ -296,3 +297,12 @@ export const ChatBubbleIcon = mkIcon('M2 22V4q0-.825.588-1.412T4 2h16q.825 0 1.4
 export const InvertColorsIcon = mkIcon('M12 21q-3.325 0-5.663-2.3T4 13.125q0-1.65.625-3.062T6.35 7.55L12 2l5.65 5.55q1.1 1.1 1.725 2.513T20 13.125q0 3.275-2.337 5.575T12 21m0-2V4.8L7.75 9q-.875.825-1.312 1.875T6 13.125q0 2.425 1.75 4.15T12 19') // invert-colors
 export const TextFieldsIcon = mkIcon('M7 20V7H2V4h13v3h-5v13zm9 0v-8h-3V9h9v3h-3v8z') // text-fields
 export const StarOutlineIcon = mkIcon('m8.85 16.825l3.15-1.9l3.15 1.925l-.825-3.6l2.775-2.4l-3.65-.325l-1.45-3.4l-1.45 3.375l-3.65.325l2.775 2.425zM5.825 21l1.625-7.025L2 9.25l7.2-.625L12 2l2.8 6.625l7.2.625l-5.45 4.725L18.175 21L12 17.275zM12 12.25') // star-outline
+// Monochrome stand-ins for the emoji / symbol glyphs the UI used
+export const LockIcon = mkIcon('M6 22q-.825 0-1.412-.587T4 20V10q0-.825.588-1.412T6 8h1V6q0-2.075 1.463-3.537T12 1t3.538 1.463T17 6v2h1q.825 0 1.413.588T20 10v10q0 .825-.587 1.413T18 22zm6-5q.825 0 1.413-.587T14 15t-.587-1.412T12 13t-1.412.588T10 15t.588 1.413T12 17M9 8h6V6q0-1.25-.875-2.125T12 3t-2.125.875T9 6z')
+export const StopIcon = mkIcon('M6 18V6h12v12z')
+export const WarningIcon = mkIcon('M1 21L12 2l11 19zm11-3q.425 0 .713-.288T13 17t-.288-.712T12 16t-.712.288T11 17t.288.713T12 18m-1-3h2v-5h-2z')
+export const ArrowDropDownIcon = mkIcon('m12 15l-5-5h10z')
+export const FavoriteFilledIcon = mkIcon('m12 21l-1.45-1.3q-2.525-2.275-4.175-3.925T3.75 12.812T2.388 10.4T2 8.15Q2 5.8 3.575 4.225T7.5 2.65q1.3 0 2.475.55T12 4.75q.85-1 2.025-1.55t2.475-.55q2.35 0 3.925 1.575T22 8.15q0 1.15-.387 2.25t-1.363 2.412t-2.625 2.963T13.45 19.7z')
+// Arrows drawn in UI text (arrowText.tsx)
+export const ArrowForwardIcon = mkIcon('M16.175 13H4v-2h12.175l-5.6-5.6L12 4l8 8l-8 8l-1.425-1.4z')
+export const KeyboardArrowUpIcon = mkIcon('m12 10.8l-4.6 4.6L6 14l6-6l6 6l-1.4 1.4z')

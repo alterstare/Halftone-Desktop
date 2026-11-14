@@ -1,38 +1,56 @@
 import type React from 'react'
 // Short facts about a work shown in several places: what it has to read
 // along (언어 분류), and a track named by its place ("트랙 3" / "부록 1").
-import type { WorkContent, WorkDetail, WorkLang } from '../../shared/types'
+import type { WorkContent, WorkDetail } from '../../shared/types'
 
-// 언어 분류 keys: nothing to read along, or a script / subtitles by language
-export type ContentKey = 'none' | 'ja-script' | 'ko-script' | 'ja-sub' | 'ko-sub'
-export const CONTENT_KEYS: [ContentKey, string][] = [
-  ['none', '자막 · 대본 없는 작품'],
-  ['ja-script', '일본어 대본'],
-  ['ko-script', '한국어 대본'],
-  ['ja-sub', '일본어 자막'],
-  ['ko-sub', '한국어 자막']
-]
+// Language names (ISO 639-1); an unknown code shows as itself
+const LANG_NAME: Record<string, string> = {
+  ja: '일본어', ko: '한국어', en: '영어', zh: '중국어', es: '스페인어', fr: '프랑스어', de: '독일어',
+  ru: '러시아어', th: '태국어', vi: '베트남어', id: '인도네시아어', pt: '포르투갈어', it: '이탈리아어'
+}
+const LANG_ORDER = Object.keys(LANG_NAME)
+export const langName = (l: string): string => LANG_NAME[l] ?? l.toUpperCase()
+const byLang = (a: string, b: string): number =>
+  (LANG_ORDER.indexOf(a) + 1 || 99) - (LANG_ORDER.indexOf(b) + 1 || 99) || a.localeCompare(b)
 
+// 언어 분류 keys: nothing to read along ('none'), or a script / subtitles by
+// language ('script:ja', 'sub:en' …) — the list grows with what the library holds
+export type ContentKey = string
 export function contentKeys(c: WorkContent): ContentKey[] {
-  const out: ContentKey[] = []
-  if (c.scripts.includes('ja')) out.push('ja-script')
-  if (c.scripts.includes('ko')) out.push('ko-script')
-  if (c.subs.ja) out.push('ja-sub')
-  if (c.subs.ko) out.push('ko-sub')
+  const out = [...c.scripts.map((l) => `script:${l}`), ...Object.keys(c.subs).filter((l) => c.subs[l]).map((l) => `sub:${l}`)]
   return out.length ? out : ['none']
 }
+export function contentKeyLabel(k: ContentKey): string {
+  if (k === 'none') return '자막 · 대본 없는 작품'
+  const [kind, l] = k.split(':')
+  return `${langName(l)} ${kind === 'script' ? '대본' : '자막'}`
+}
+// every 언어 분류 option some work has: [음성 languages, 자막 · 대본 keys]
+export function langOptions(works: { content: WorkContent }[]): { voices: string[]; content: ContentKey[] } {
+  const voices = new Set<string>(['ja'])
+  const keys = new Set<string>()
+  for (const w of works) {
+    voices.add(w.content.voice)
+    for (const k of contentKeys(w.content)) keys.add(k)
+  }
+  const rank = (k: string): number => (k === 'none' ? 0 : k.startsWith('script:') ? 1 : 2)
+  return {
+    voices: [...voices].sort(byLang),
+    content: [...keys].sort((a, b) => rank(a) - rank(b) || byLang(a.split(':')[1] ?? '', b.split(':')[1] ?? ''))
+  }
+}
 
-// "일본어 대본 · 한국어 자막 [자체 생성]"; nothing for a work of audio only
-export function contentLabels(c: WorkContent, lang?: WorkLang): string[] {
+// "한국어 음성 · 일본어 대본 · 한국어 자막 [자체 생성]"; nothing for a
+// Japanese work of audio only
+export function contentLabels(c: WorkContent): string[] {
   const out: string[] = []
-  if (lang === 'ko-voice') out.push('한국어 음성')
-  if (c.scripts.includes('ja')) out.push('일본어 대본')
-  if (c.scripts.includes('ko')) out.push('한국어 대본')
-  for (const [l, name] of [
-    ['ja', '일본어 자막'],
-    ['ko', '한국어 자막']
-  ] as const)
-    if (c.subs[l]) out.push(c.subs[l] === 'app' ? `${name} [자체 생성]` : name)
+  if (c.voice !== 'ja') out.push(`${langName(c.voice)} 음성`)
+  for (const l of [...c.scripts].sort(byLang)) out.push(`${langName(l)} 대본`)
+  for (const l of Object.keys(c.subs).sort(byLang)) {
+    if (!c.subs[l]) continue
+    const name = `${langName(l)} 자막`
+    out.push(c.subs[l] === 'app' ? `${name} [자체 생성]` : name)
+  }
   return out
 }
 

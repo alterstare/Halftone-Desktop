@@ -3,7 +3,7 @@
 export type SePref = 'on' | 'off'
 export type FormatPref = 'lossless' | 'mp3' // wav/flac first, or mp3 first
 export type Repeat = 'off' | 'all' | 'one'
-export type LibSort = 'recent' | 'title' | 'added' | 'code' | 'length' | 'rank'
+export type LibSort = 'recent' | 'title' | 'added' | 'code' | 'length' | 'rank' | 'plays' | 'random'
 export type SubMode = 'both' | 'original' | 'translation' | 'off'
 
 export interface Settings {
@@ -91,11 +91,14 @@ export type Se = 'on' | 'off' | 'unknown'
 // ja = Japanese original, ko-sub = Korean subtitled release, ko-voice = Korean voice
 export type WorkLang = 'ja' | 'ko-sub' | 'ko-voice'
 
-// What a work has to read along (언어 분류): scripts and subtitles by language.
-// A subtitle language is 'app' when only Envelope made it ([자체 생성]).
+// What a work has to read along (언어 분류): scripts and subtitles by
+// language (ISO 639-1: ja, ko, en, zh …, whatever the folder holds), and the
+// voice's language. A subtitle language is 'app' when only Envelope made it
+// ([자체 생성]).
 export interface WorkContent {
-  scripts: ('ja' | 'ko')[]
-  subs: { ja?: 'user' | 'app'; ko?: 'user' | 'app' }
+  scripts: string[]
+  subs: Record<string, 'user' | 'app' | undefined>
+  voice: string
 }
 export type WorkAge = 'r18' | 'general' | null // DLsite (null: not known)
 
@@ -126,7 +129,8 @@ export interface WorkSummary {
   lastPlayedAt: number | null
   mojibake: boolean // some names in it were 뷁어 (shown repaired)
   favorite: boolean
-  rank: number // 0–5 stars
+  rank: number // 0–5 stars (평점)
+  plays: number // 감상 횟수: playback of the work started
   groupIds: number[] // 그룹
   lang: WorkLang
   subtitled: number // main tracks with a subtitle file

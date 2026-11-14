@@ -11,7 +11,7 @@ import { naturalCompare, nfkc, stem, trackKey, trackNumber } from '../names/norm
 import { folderRole, isSampleName, labelKey, seOf } from './roles'
 import type { FolderRole } from './roles'
 import { probe } from './probe'
-import { SUB_EXTS, langOfName } from '../subtitle'
+import { LANG_SUFFIX, SUB_EXTS, langOfName } from '../subtitle'
 import type { SubFile } from '../../shared/types'
 import { DUP_DIR } from '../dupes'
 
@@ -164,7 +164,7 @@ export async function scanWork(dir: string, known: KnownProbes = new Map()): Pro
     if (!SUB_EXTS.has(extname(f.name).toLowerCase())) continue
     const base = f.name.slice(0, -extname(f.name).length)
     const inner = extname(base).toLowerCase() // ".mp3" in "x.mp3.vtt"
-    const k = subKey(f.segs, stem(f.name).replace(/\.(ja|jp|jpn|ko|kr|kor)$/i, ''))
+    const k = subKey(f.segs, stem(f.name).replace(LANG_SUFFIX, ''))
     subs.set(k, [...(subs.get(k) ?? []), { file: f, inner }])
   }
 

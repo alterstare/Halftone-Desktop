@@ -15,6 +15,7 @@ import {
   EditIcon,
   AddPhotoIcon,
   FolderIcon, ArrowUpwardIcon, ArrowUpIcon, ArrowDownIcon, CategoryIcon, HeadphonesIcon } from './icons'
+import { arrowText } from '../arrowText'
 
 // Unified row for the activity list: background jobs (export/scan) merged with the
 // online downloads (which also carry the avif→webp conversion on the same row).
@@ -40,7 +41,7 @@ function cancelSortaJob(id: number): void {
   void w?.api?.cancelJob(id)
 }
 
-const KIND_ICON: Record<Job['kind'], ReactNode> = {
+export const KIND_ICON: Record<Job['kind'], ReactNode> = {
   export: <DescriptionIcon />,
   scan: <ScanIcon />,
   meta: <EditIcon />,
@@ -313,7 +314,7 @@ export default function ActivityBar(): JSX.Element | null {
         </div>
       )}
       <div className="activity-bar" onClick={() => toggle()}>
-        <span className="activity-bar-summary">{summary}</span>
+        <span className="activity-bar-summary">{arrowText(summary)}</span>
         {running.length > 0 && <span className="activity-bar-count">{running.length}개 진행</span>}
         <span className="activity-bar-btns" onClick={(e) => e.stopPropagation()}>
           {update?.state === 'downloaded' && (

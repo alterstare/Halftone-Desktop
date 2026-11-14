@@ -8,7 +8,7 @@ import { useMemo } from 'react'
 import type { Work, Settings, SortMode, SessionState, OnlineFav, FitMode, ReadProgress, TransProject } from '../../shared/types'
 import { DEFAULT_SETTINGS, SPLIT_SETTING_KEYS } from '../../shared/types'
 import type { DoujinListSource, DoujinProgress, ComicChapter, UpdateStatus } from '../../shared/ipc'
-import { exportWorkText, exportWorkImages } from './export'
+import { exportWorkText, exportWorkImages, saveWorkCopy, overwriteWorkPages } from './export'
 import { clearTranslation } from './translate'
 import { warmThumbs, invalidateThumb } from './thumbs'
 import { convertWorkToWebp } from './convert'
@@ -277,6 +277,9 @@ interface AppState {
   endJob: (id: string, patch: Partial<Job>) => void
   exportWorkJob: (workId: string, withTr: boolean) => Promise<void>
   exportImagesJob: (workId: string) => Promise<void>
+  // 번역 편집기 › 저장: 사본으로 저장 / 원본 덮어쓰기.
+  saveCopyJob: (workId: string) => Promise<void>
+  overwriteJob: (workId: string) => Promise<void>
   scanFolderJob: (path: string, mode: Job['mode']) => Promise<void>
   scanLibraryJob: () => Promise<void>
 
@@ -1688,6 +1691,30 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       const dir = await exportWorkImages(work, (pr) => updateJob(id, { done: pr.page, total: pr.total }))
       endJob(id, { status: 'done', detail: dir })
+    } catch (e: any) {
+      endJob(id, { status: 'error', error: String(e?.message ?? e) })
+    }
+  },
+  saveCopyJob: async (workId) => {
+    const work = get().works.find((w) => w.id === workId)
+    if (!work) return
+    const { startJob, updateJob, endJob } = get()
+    const id = startJob('export', work.library ?? 'doujin', `사본으로 저장 · ${work.title}`, '번역 이미지')
+    try {
+      const dir = await saveWorkCopy(work, (pr) => updateJob(id, { done: pr.page, total: pr.total }))
+      endJob(id, { status: 'done', detail: dir })
+    } catch (e: any) {
+      endJob(id, { status: 'error', error: String(e?.message ?? e) })
+    }
+  },
+  overwriteJob: async (workId) => {
+    const work = get().works.find((w) => w.id === workId)
+    if (!work) return
+    const { startJob, updateJob, endJob } = get()
+    const id = startJob('export', work.library ?? 'doujin', `원본 덮어쓰기 · ${work.title}`, '번역 이미지')
+    try {
+      const n = await overwriteWorkPages(work, (pr) => updateJob(id, { done: pr.page, total: pr.total }))
+      endJob(id, { status: 'done', detail: `${n}쪽 교체` })
     } catch (e: any) {
       endJob(id, { status: 'error', error: String(e?.message ?? e) })
     }

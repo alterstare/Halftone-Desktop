@@ -4,6 +4,8 @@ import { useStore } from '../store'
 import type { Tab, PaneSrc } from '../store'
 import Reader from './Reader'
 import Thumb from './Thumb'
+import { arrowText } from '../arrowText'
+import { LanguageIcon } from './icons'
 
 // Renders a split tab: two reader panes with a draggable divider. An empty right
 // pane shows a picker of the other open tabs (Chrome-style).
@@ -74,7 +76,7 @@ function SplitPicker({ tab, onPick }: { tab: Tab; onPick: (src: PaneSrc) => void
       <h3>분할 뷰에 추가할 탭을 선택하세요</h3>
       {candidates.length === 0 && (
         <div className="hint">
-          열린 다른 탭이 없습니다. 작품 목록에서 우클릭 → ‘분할 뷰에서 열기’로 추가하세요.
+          {arrowText('열린 다른 탭이 없습니다. 작품 목록에서 우클릭 → ‘분할 뷰에서 열기’로 추가하세요.')}
         </div>
       )}
       <div className="split-pick-list">
@@ -92,7 +94,9 @@ function SplitPicker({ tab, onPick }: { tab: Tab; onPick: (src: PaneSrc) => void
               onClick={() => onPick(t.online ? { online: t.online } : { workId: t.workId })}
             >
               <div className="split-pick-thumb">
-                {work ? <Thumb workId={work.id} /> : <div className="thumb-ph">🌐</div>}
+                {work ? <Thumb workId={work.id} /> : <div className="thumb-ph">
+                    <LanguageIcon />
+                  </div>}
               </div>
               <div className="split-pick-info">
                 <div className="split-pick-title">{title}</div>

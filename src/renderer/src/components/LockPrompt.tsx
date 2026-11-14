@@ -79,11 +79,11 @@ export default function LockPrompt(): JSX.Element | null {
           {waiting ? `${Math.ceil((waitUntil - now) / 1000)}초 뒤에 다시 시도하세요` : (err ?? ' ')}
         </div>
         <div className="flat-group">
-          <button className="mini" onClick={cancelPin}>
-            취소
-          </button>
           <button className="mini on" onClick={() => void submit()} disabled={waiting || pin.length < 4}>
             확인
+          </button>
+          <button className="mini" onClick={cancelPin}>
+            취소
           </button>
         </div>
       </div>

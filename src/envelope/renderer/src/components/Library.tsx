@@ -4,7 +4,7 @@ import type { JSX } from 'react'
 import { ALL_FILTER, listenState, useStore } from '../store'
 import type { LibFilter } from '../store'
 import type { LibSort, WorkSummary } from '../../../shared/types'
-import { CONTENT_KEYS, contentKeys } from '../workInfo'
+import { contentKeyLabel, contentKeys, langName, langOptions } from '../workInfo'
 import { playWork } from '../player'
 import { length } from '../format'
 import {
@@ -17,7 +17,7 @@ import {
   PlayArrowIcon,
   SearchIcon,
   SubtitlesIcon,
-  ViewListIcon
+  ListIcon
 } from './icons'
 import { Caret, Check, ChipMenu, Cover, Dropdown, FavButton, GroupButton, Pager, Popover, Stars, TagLine, useAnchor, useNarrow } from './ui'
 
@@ -28,7 +28,9 @@ const SORTS: [LibSort, string][] = [
   ['title', '제목'],
   ['code', '작품 코드'],
   ['length', '재생 시간'],
-  ['rank', '별점']
+  ['rank', '평점'],
+  ['plays', '감상 횟수'],
+  ['random', '무작위']
 ]
 const AGES: ['r18' | 'general' | 'unknown', string][] = [
   ['r18', 'R18'],
@@ -71,10 +73,20 @@ function restoreAnchor(home: HTMLElement): void {
   home.scrollTop += el.getBoundingClientRect().top - home.getBoundingClientRect().top - libAnchor.offset
 }
 
+// a 언어 분류 tick: unticked keys are kept as false, ticked ones dropped
+// (missing = shown, so a language new to the library starts ticked)
+function tick(m: Record<string, boolean>, k: string, on: boolean): Record<string, boolean> {
+  const next = { ...m }
+  if (on) delete next[k]
+  else next[k] = false
+  return next
+}
+
 function passes(w: WorkSummary, f: LibFilter): boolean {
   if (f.favorites && !w.favorite) return false
   if (!f.listen[listenState(w)]) return false
-  if (!contentKeys(w.content).some((k) => f.content[k])) return false
+  if (f.voice[w.content.voice] === false) return false
+  if (!contentKeys(w.content).some((k) => f.content[k] !== false)) return false
   if (!f.age[w.age ?? 'unknown']) return false
   if (f.groups) {
     const inGroup = w.groupIds.some((g) => f.groups!.includes(g))
@@ -136,13 +148,17 @@ function Meta({ w }: { w: WorkSummary }): JSX.Element {
   )
 }
 
-// Card: picture (with 즐겨찾기 / 그룹 on its top edge) → title → meta → 별점 · 재생.
+// picture width of a card in the widest 2-column grid (845px window): the
+// reference for the card buttons' size (env.css --art-k)
+const ART_REF_W = 361.5
+
+// Card: picture (with 즐겨찾기 / 그룹 on its top edge, 재생 bottom right) → title → meta → tags → 평점.
 function Tile({ w, nowId }: { w: WorkSummary; nowId?: number }): JSX.Element {
   const open = useStore((s) => s.openWork)
   const { workMenu, openWorkMenu } = useWorkMenu()
   const done = listenState(w) === 'done'
   return (
-    <div data-wid={w.id} className={`tile ${nowId === w.id ? 'now' : ''}`} onClick={() => void open(w.id)} onContextMenu={(e) => openWorkMenu(e, w)} title={w.folderTitle && w.folderTitle !== w.title ? `${w.title}\n${w.folderTitle}` : w.title}>
+    <div data-wid={w.id} className={`tile ${nowId === w.id ? 'now' : ''} ${w.tags.length ? '' : 'no-tags'}`} onClick={() => void open(w.id)} onContextMenu={(e) => openWorkMenu(e, w)} title={w.folderTitle && w.folderTitle !== w.title ? `${w.title}\n${w.folderTitle}` : w.title}>
       <Art path={w.cover}>
         {done && (
           <span className="badge-done">
@@ -153,21 +169,25 @@ function Tile({ w, nowId }: { w: WorkSummary; nowId?: number }): JSX.Element {
           <GroupButton id={w.id} groupIds={w.groupIds} />
           <FavButton id={w.id} on={w.favorite} />
         </div>
+        {/* play: inside the picture, bottom right, shown on card hover */}
+        <div className="art-play" onClick={(e) => e.stopPropagation()}>
+          <PlayButton w={w} />
+        </div>
       </Art>
-      {/* 제목 / 메타 · 평점 (재생 버튼은 두 줄에 걸쳐 오른쪽) / 태그 */}
+      {/* 제목 / 메타 / 태그 / 평점 (평점은 카드 맨 아래, 2열 이하는 숨김) */}
       <div className="tile-body">
         <div className="tile-title">{w.title}</div>
         <div className="tile-mid">
           <div className="tile-meta">
             <Meta w={w} />
           </div>
-          <Stars id={w.id} rank={w.rank} />
-          <div className="flat-group tile-play" onClick={(e) => e.stopPropagation()}>
-            <PlayButton w={w} />
-          </div>
         </div>
-        {/* no tags: an empty line keeps every card's rows in the same place */}
-        {w.tags.length ? <TagLine tags={w.tags} /> : <div className="tag-line" />}
+        {/* no tags: the meta line moves down to the tag line's place and the
+            title takes the room it leaves (env.css .no-tags) */}
+        {w.tags.length > 0 && <TagLine tags={w.tags} />}
+        <div className="tile-stars">
+          <Stars id={w.id} rank={w.rank} />
+        </div>
       </div>
       {workMenu}
     </div>
@@ -180,9 +200,21 @@ function Row({ w, nowId }: { w: WorkSummary; nowId?: number }): JSX.Element {
   const st = listenState(w)
   return (
     <div data-wid={w.id} className={`lrow ${nowId === w.id ? 'now' : ''}`} onClick={() => void open(w.id)} onContextMenu={(e) => openWorkMenu(e, w)}>
-      <div className="lrow-cover">
+      {/* cover = the play button (row hover shows it, cover hover turns it purple);
+          the rest of the row opens the album */}
+      <button
+        className="lrow-cover"
+        title={listenState(w) === 'listening' && (useStore.getState().settings?.resume ?? true) ? '이어 듣기' : '재생'}
+        onClick={(e) => {
+          e.stopPropagation()
+          void playWork(w.id)
+        }}
+      >
         <Cover path={w.cover} />
-      </div>
+        <span className="lrow-play">
+          <PlayArrowIcon />
+        </span>
+      </button>
       <div className="lrow-main">
         <div className="lrow-title">{w.title}</div>
         <div className="lrow-meta">
@@ -208,7 +240,6 @@ function Row({ w, nowId }: { w: WorkSummary; nowId?: number }): JSX.Element {
         <span className="lrow-collect">
           <FavButton id={w.id} on={w.favorite} />
         </span>
-        <PlayButton w={w} />
       </div>
       {workMenu}
     </div>
@@ -303,6 +334,14 @@ export default function Library(): JSX.Element {
     const g = homeRef.current?.querySelector<HTMLElement>('.tiles, .shelf-row')
     const n = g ? getComputedStyle(g).gridTemplateColumns.split(' ').length : 4
     if (n !== cols) setCols(n)
+  })
+  // card buttons (재생 · 그룹 · ♥) keep the size they have against the picture
+  // in the widest 2-column grid (picture 361.5px) at every column count
+  useLayoutEffect(() => {
+    for (const g of homeRef.current?.querySelectorAll<HTMLElement>('.tiles, .shelf-row') ?? []) {
+      const art = g.querySelector<HTMLElement>('.tile .art')
+      if (art?.clientWidth) g.style.setProperty('--art-k', String(art.clientWidth / ART_REF_W))
+    }
   })
   const compactCards = cols <= 2
   const oneCol = compactCards && homeW > 0 && homeW <= oneColBelow
@@ -402,12 +441,20 @@ export default function Library(): JSX.Element {
       ))}
     </>
   )
-  // 언어 분류: by what the folder holds (and the program made — [자체 생성] counts)
+  // 언어 분류: the voice's language, then what the folder holds (and the
+  // program made — [자체 생성] counts); only languages some work has
+  const langs = langOptions(works)
   const langChecks = (
     <>
-      {CONTENT_KEYS.map(([k, label]) => (
-        <Check key={k} checked={filter.content[k]} onChange={(b) => setFilter({ content: { ...filter.content, [k]: b } })}>
-          {label}
+      {langs.voices.map((l) => (
+        <Check key={l} checked={filter.voice[l] !== false} onChange={(b) => setFilter({ voice: tick(filter.voice, l, b) })}>
+          {langName(l)} 음성
+        </Check>
+      ))}
+      <div className="check-sep" />
+      {langs.content.map((k) => (
+        <Check key={k} checked={filter.content[k] !== false} onChange={(b) => setFilter({ content: tick(filter.content, k, b) })}>
+          {contentKeyLabel(k)}
         </Check>
       ))}
     </>
@@ -445,7 +492,7 @@ export default function Library(): JSX.Element {
     </>
   )
   const listenActive = !Object.values(filter.listen).every(Boolean)
-  const langActive = !Object.values(filter.content).every(Boolean)
+  const langActive = Object.values(filter.content).includes(false) || Object.values(filter.voice).includes(false)
   const ageActive = !Object.values(filter.age).every(Boolean)
   const filterChips = (
     <>
@@ -513,7 +560,7 @@ export default function Library(): JSX.Element {
             title={layout === 'grid' ? '격자형' : '목록형'}
             onClick={() => void saveSettings({ libLayout: layout === 'grid' ? 'list' : 'grid' })}
           >
-            {layout === 'grid' ? <GridViewIcon /> : <ViewListIcon />}
+            {layout === 'grid' ? <GridViewIcon /> : <ListIcon />}
           </button>
           <button
             className="chip icon chip-arrow"

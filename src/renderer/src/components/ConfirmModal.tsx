@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { JSX } from 'react'
+import { arrowText } from '../arrowText'
 
 // Generic styled confirm dialog (shares the exit-modal look). Used for group
 // move (유지/옮기기) and group delete (삭제/취소).
@@ -39,7 +40,7 @@ export default function ConfirmModal({
     <div className="exit-backdrop" onClick={onCancel}>
       <div className="exit-modal" onClick={(e) => e.stopPropagation()}>
         <h3 className="exit-title">{title}</h3>
-        {desc && <p className="exit-desc">{desc}</p>}
+        {desc && <p className="exit-desc">{typeof desc === 'string' ? arrowText(desc) : desc}</p>}
         <div className="exit-actions">
           <button
             className={`exit-btn ${danger ? 'danger' : 'primary'}`}

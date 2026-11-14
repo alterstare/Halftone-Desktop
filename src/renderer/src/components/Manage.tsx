@@ -10,7 +10,8 @@ import { hashAndSize } from '../exclude'
 import Thumb from './Thumb'
 import ConfirmModal from './ConfirmModal'
 import Stepper from './Stepper'
-import { KeyboardArrowLeftIcon, KeyboardArrowRightIcon, ArrowDownIcon } from './icons'
+import { KeyboardArrowLeftIcon, KeyboardArrowRightIcon, ArrowDownIcon, SwapHorizIcon } from './icons'
+import { arrowText } from '../arrowText'
 
 export default function Manage(): JSX.Element {
   const storedMode = useStore((s) => s.manageMode)
@@ -338,7 +339,7 @@ function Translations(): JSX.Element {
   return (
     <div className="manage-body">
       <p className="hint">
-        라이브러리 안에서 (한국어가 아닌 작품 ↔ 같은 작품의 한국어 번역본)으로 보이는 쌍을 찾습니다.
+        라이브러리 안에서 (한국어가 아닌 작품 <SwapHorizIcon className="txt-arrow" /> 같은 작품의 한국어 번역본)으로 보이는 쌍을 찾습니다.
         작가 동일(작가 미상 작품 제외) + 제목 유사도 또는 같은 표지 기준. 표지 비교를 쓰려면 아래
         “표지 해시 생성”을 먼저 실행하세요.
       </p>
@@ -356,7 +357,7 @@ function Translations(): JSX.Element {
       {pairs.map((p, i) => (
         <div className="dup-group" key={i}>
           <div className="dup-group-head">
-            {p.source.language ?? '기타'} 원본 ↔ 한국어 번역본 {p.matches.length}개
+            {p.source.language ?? '기타'} 원본 <SwapHorizIcon className="txt-arrow" /> 한국어 번역본 {p.matches.length}개
           </div>
           <div className="dup-row">
             <ManageCard work={p.source} badge="원본" open={() => openTab(p.source.id)} onDelete={() => del(p.source.id, p.source.title)} />
@@ -554,7 +555,7 @@ function Collections(): JSX.Element {
         직접 폴더를 골라 합칠 수 있습니다. 실제 파일은 옮기지 않고 보기에서만 묶습니다.
       </p>
       {roots.length === 0 && (
-        <div className="empty">설정 → 동인지 → “작가 폴더”에서 폴더를 먼저 지정하세요.</div>
+        <div className="empty">{arrowText('설정 → 동인지 → “작가 폴더”에서 폴더를 먼저 지정하세요.')}</div>
       )}
 
       {collections.length > 0 && (

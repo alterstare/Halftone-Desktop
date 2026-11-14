@@ -6,7 +6,7 @@ import { useState } from 'react'
 import type { JSX } from 'react'
 import { useStore } from '../store'
 import { play, resumeTarget } from '../player'
-import { AlbumIcon, CloseFullscreenIcon, CloseIcon, CloseSmallIcon, OpenInFullIcon, PictureInPictureAltIcon } from './icons'
+import { AlbumIcon, CloseFullscreenIcon, CloseIcon, CloseSmallIcon, OpenInFullIcon, PictureInPictureAltIcon, SettingsIcon } from './icons'
 import { hosted, remote, requestHost } from '../embed'
 import { useNarrow } from './ui'
 import { enterMini } from '../miniMode'
@@ -77,12 +77,24 @@ function Lp({ id, n }: { id: number; n: number }): JSX.Element | null {
 // panel) / back to the panel (from the big window).
 function SizeToggle(): JSX.Element | null {
   const narrow = useNarrow()
+  // small window: no top bar, so 설정 sits here, right above 최소화 모드
+  const view = useStore((s) => s.view)
+  const settings = narrow && (
+    <button
+      className={`mini icon ${view === 'settings' ? 'on' : ''}`}
+      title="설정 (Ctrl+,)"
+      onClick={() => useStore.getState().setView(view === 'settings' ? 'library' : 'settings')}
+    >
+      <SettingsIcon />
+    </button>
+  )
   if (hosted)
     return (
       <div className="lp-foot">
         <button className="mini icon" title="음성 플레이어 닫기" onClick={() => requestHost({ what: 'close' })}>
           <CloseIcon />
         </button>
+        {settings}
         <button className="mini icon" title="최소화 모드 (Halftone 아래 재생 바)" onClick={() => requestHost({ what: 'bar' })}>
           <PictureInPictureAltIcon />
         </button>
@@ -99,6 +111,7 @@ function SizeToggle(): JSX.Element | null {
     )
   return (
     <div className="lp-foot">
+      {settings}
       <button className="mini icon" title="최소화 모드 (재생 바만 남기기)" onClick={() => void enterMini()}>
         <PictureInPictureAltIcon />
       </button>

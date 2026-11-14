@@ -1,7 +1,7 @@
 // Right-click menus for the library (a work = an album) and the work page's
 // track list. Same component and order of things as Sorta's / Halftone's
 // menus: play first, then where it goes (작품 열기), collecting (즐겨찾기 ·
-// 그룹 · 별점), then copying and the folder.
+// 그룹 · 평점), then copying and the folder.
 import { useCallback, useState } from 'react'
 import type { JSX, MouseEvent } from 'react'
 import { useStore } from '../store'
@@ -82,11 +82,11 @@ function workItems(w: WorkSummary): MenuItem[] {
       ]
     },
     {
-      label: '별점',
+      label: '평점',
       icon: <StarIcon />,
       children: [
         ...[5, 4, 3, 2, 1].map((r) => ({ label: `${r}점`, icon: w.rank === r ? <CheckIcon /> : undefined, checked: w.rank === r, onClick: () => setRank(r) })),
-        { label: '별점 지우기', separator: true, disabled: !w.rank, onClick: () => setRank(0) }
+        { label: '평점 지우기', separator: true, disabled: !w.rank, onClick: () => setRank(0) }
       ]
     },
     { label: '제목 복사', icon: <ContentCopyIcon />, separator: true, onClick: () => copy(w.title, '제목') },

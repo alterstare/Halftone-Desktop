@@ -826,12 +826,24 @@ export async function ocrPage(
   const english = (langHint ?? '').toLowerCase().startsWith('en')
   const blocks: TransBlock[] = []
   const det = await detectBlocks(img)
-  const add = async (b: Box): Promise<boolean> => {
-    const { text, conf } = await readBlock(img, b, det.lines, english)
+  // The detector's block box can stop short of its own lines (a text box's
+  // line ran ~200 px past it): the block is the box grown to them, so its
+  // erase / bubble / layout reach the text's ends. Only its own lines (centre
+  // in the detector's box) count — the grown box can take a neighbour's centre.
+  const add = async (box: Box): Promise<boolean> => {
+    const own = det.lines.filter((l) => holds(box, l))
+    const b: Box = {
+      x1: Math.max(0, Math.min(box.x1, ...own.map((l) => l.x1))),
+      y1: Math.max(0, Math.min(box.y1, ...own.map((l) => l.y1))),
+      x2: Math.min(w, Math.max(box.x2, ...own.map((l) => l.x2))),
+      y2: Math.min(h, Math.max(box.y2, ...own.map((l) => l.y2))),
+      conf: box.conf
+    }
+    const { text, conf } = await readBlock(img, b, own, english)
     if (isJunk(text, conf, english)) return false
-    const paras = paragraphs(b, det.lines)
-    const size = blockSize(b, det.lines, text)
-    const cols = columns(b, det.lines)
+    const paras = paragraphs(b, own)
+    const size = blockSize(b, own, text)
+    const cols = columns(b, own)
     blocks.push({ x: b.x1, y: b.y1, w: b.x2 - b.x1, h: b.y2 - b.y1, text, tr: '', ...(paras && { paras }), ...(size && { size }), cols })
     return true
   }

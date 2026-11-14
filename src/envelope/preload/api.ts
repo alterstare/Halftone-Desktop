@@ -43,6 +43,7 @@ export function createApi(ipcRenderer: IpcRenderer): Api {
     deleteBookmark: (id) => invoke(IPC.deleteBookmark, id),
     setFavorite: (ids, on) => invoke(IPC.setFavorite, ids, on),
     setRank: (ids, r) => invoke(IPC.setRank, ids, r),
+    countPlay: (id) => invoke(IPC.countPlay, id),
     groups: () => invoke(IPC.groups),
     createGroup: (n, ids) => invoke(IPC.createGroup, n, ids),
     renameGroup: (id, n) => invoke(IPC.renameGroup, id, n),

@@ -13,6 +13,7 @@ import Dropdown from '../Dropdown'
 import SettingRow from '../SettingRow'
 import { useSettings } from './context'
 import { ExportDirRow } from './FolderSection'
+import { ArrowForwardIcon, TranslateIcon } from '../icons'
 
 // Base URL + a default vision model for each preset OpenAI-compatible provider
 // (custom = keep whatever the user typed).
@@ -146,7 +147,7 @@ export default function TranslateSection(): JSX.Element {
     <section data-cat="translate">
       <h2>번역</h2>
       <p className="hint">
-        한국어가 아닌 작품을 볼 때 뷰어 하단 “🌐 번역”으로 현재 페이지 말풍선 원문을 지우고 그 자리에
+        한국어가 아닌 작품을 볼 때 뷰어 하단 “<TranslateIcon className="txt-arrow" /> 번역”으로 현재 페이지 말풍선 원문을 지우고 그 자리에
         한국어를 덧씌웁니다. 보고 있는 페이지만 번역하며 결과는 캐시됩니다.
       </p>
       <ExportDirRow />
@@ -270,7 +271,7 @@ export default function TranslateSection(): JSX.Element {
         <div className="set-block">
           <p className="hint" style={{ marginTop: 8 }}>
             Gemini가 글자 인식+번역+위치를 한 번에 처리합니다. Google AI Studio에서 무료 API 키를
-            발급(aistudio.google.com → Get API key)해 입력하세요. (이미지가 Google로 전송)
+            발급(aistudio.google.com <ArrowForwardIcon className="txt-arrow" /> Get API key)해 입력하세요. (이미지가 Google로 전송)
           </p>
           <Field title="Gemini API 키" k="geminiApiKey" secret />
           <Field title="모델" k="geminiModel" />
@@ -306,14 +307,14 @@ export default function TranslateSection(): JSX.Element {
               onChange={(v) => patch({ freeTranslator: v })}
               options={[
                 ['google', 'Google 비공식 (키 불필요 · 불안정)'],
-                ['deepl', 'DeepL Free (키 필요 · 월 50만자 무료 · 품질↑)']
+                ['deepl', 'DeepL Free (키 필요 · 월 50만자 무료 · 품질 좋음)']
               ]}
             />
           </SettingRow>
           {draft.freeTranslator === 'deepl' && (
             <>
               <Field title="DeepL API 키" k="deeplApiKey" secret />
-              <p className="hint">DeepL 계정 → API(Free) 키 발급 후 입력. 엔드포인트는 api-free.deepl.com을 씁니다.</p>
+              <p className="hint">DeepL 계정 <ArrowForwardIcon className="txt-arrow" /> API(Free) 키 발급 후 입력. 엔드포인트는 api-free.deepl.com을 씁니다.</p>
             </>
           )}
         </div>
