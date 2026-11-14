@@ -2961,6 +2961,9 @@ body.resizing {
 .manage-card-actions .mini.danger:not(.on) {
   color: var(--danger);
 }
+.manage-card-actions .mini.merge:not(.on) {
+  color: var(--accent);
+}
 .manage-card.merging {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent) inset;

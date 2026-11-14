@@ -717,7 +717,7 @@ function ManageCard({
           폴더
         </button>
         {onMerge && (
-          <button className={`mini ${merging ? 'on' : ''}`} onClick={onMerge}>
+          <button className={`mini merge ${merging ? 'on' : ''}`} onClick={onMerge}>
             병합
           </button>
         )}
