@@ -797,25 +797,26 @@ select {
   object-fit: contain;
 }
 .coll-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   cursor: pointer;
   user-select: none;
 }
-.coll-caret {
-  display: inline-block;
-  width: 1em;
-  opacity: 0.7;
-}
+/* 작가 컬렉션: the merge / selection buttons on their own line under the name */
 .coll-actions {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-left: 8px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 .coll-thr {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
 }
 /* Number stepper: [ − | value | + ] pill. Used by page-count pickers. */
 .stepper {
@@ -2824,37 +2825,46 @@ body.resizing {
 }
 
 /* ---------- Manage (duplicates / translations) ---------- */
+/* Side margins = the library's (.home, --mw set by Manage). Tabs = the
+   library's chips; a line under them like Sorta's 관리. */
 .manage {
   height: 100%;
   overflow-y: auto;
-  padding: 20px 24px 60px;
+  padding: 26px max(24px, calc((100% - var(--mw, 1120px)) / 2)) 60px;
 }
 .manage-head {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
 }
-.manage-tabs {
-  display: flex;
-  gap: 8px;
+.manage-head .chips.manage-tabs {
+  margin-bottom: 0;
 }
 .manage-actions {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 12px 0 18px;
+  margin: 12px 0 8px;
 }
+/* group count at the row's right end */
+.manage-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+/* Groups are split by divider lines, not boxes. */
 .dup-group {
-  border: 1px solid var(--line);
-  border-radius: var(--r6);
-  padding: 12px;
-  margin-bottom: 16px;
-  background: var(--bg-1);
+  padding: 16px 0;
+}
+.dup-group + .dup-group {
+  border-top: 1px solid var(--line);
 }
 .dup-group-head {
   font-size: 13px;
-  color: var(--text-dim);
+  color: var(--text-tag);
   margin-bottom: 10px;
 }
 .dup-row {
@@ -2931,6 +2941,13 @@ body.resizing {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
+}
+.manage-card-actions .mini.danger:not(.on) {
+  color: var(--danger);
+}
+.manage-card.merging {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
 }
 
 /* ---------- Korean finder (inline in home list) ---------- */
@@ -7472,8 +7489,8 @@ textarea {
   vertical-align: middle;
 }
 .coll-caret .micon {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 .trans-arrow {
   display: inline-flex;

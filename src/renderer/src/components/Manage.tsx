@@ -10,7 +10,7 @@ import { hashAndSize } from '../exclude'
 import Thumb from './Thumb'
 import ConfirmModal from './ConfirmModal'
 import Stepper from './Stepper'
-import { KeyboardArrowLeftIcon, KeyboardArrowRightIcon, ArrowDownIcon, SwapHorizIcon } from './icons'
+import { KeyboardArrowLeftIcon, KeyboardArrowRightIcon, KeyboardArrowDownIcon, SwapHorizIcon } from './icons'
 import { arrowText } from '../arrowText'
 
 export default function Manage(): JSX.Element {
@@ -21,17 +21,20 @@ export default function Manage(): JSX.Element {
   const mode = normal && (storedMode === 'duplicates' || storedMode === 'translations') ? 'merge' : storedMode
   const goManage = useStore((s) => s.goManage)
   const goHome = useStore((s) => s.goHome)
+  const marginWidth = useStore((s) => s.settings.marginWidth)
 
+  // Tabs = the library's chips (same size), a line under them like Sorta's 관리;
+  // side margins = the library's (--mw).
   return (
-    <div className="manage">
+    <div className="manage" style={{ ['--mw' as string]: `${marginWidth}px` }}>
       <div className="manage-head">
-        <div className="flat-group manage-tabs">
-          <button className="mini manage-back" onClick={goHome} title="홈">
+        <div className="chips manage-tabs">
+          <button className="chip layout-toggle manage-back" onClick={goHome} title="홈">
             <KeyboardArrowLeftIcon />
           </button>
           {!normal && (
             <button
-              className={`mini ${mode === 'duplicates' ? 'on' : ''}`}
+              className={`chip ${mode === 'duplicates' ? 'active' : ''}`}
               onClick={() => goManage('duplicates')}
             >
               중복 작품
@@ -39,20 +42,20 @@ export default function Manage(): JSX.Element {
           )}
           {!normal && (
             <button
-              className={`mini ${mode === 'translations' ? 'on' : ''}`}
+              className={`chip ${mode === 'translations' ? 'active' : ''}`}
               onClick={() => goManage('translations')}
             >
               번역본 정리
             </button>
           )}
           <button
-            className={`mini ${mode === 'merge' ? 'on' : ''}`}
+            className={`chip ${mode === 'merge' ? 'active' : ''}`}
             onClick={() => goManage('merge')}
           >
             시리즈 병합
           </button>
           <button
-            className={`mini ${mode === 'collections' ? 'on' : ''}`}
+            className={`chip ${mode === 'collections' ? 'active' : ''}`}
             onClick={() => goManage('collections')}
           >
             작가 컬렉션
@@ -119,9 +122,7 @@ function MergeSeries(): JSX.Element {
         하나의 시리즈 폴더(루트/제목) 아래로 이동합니다.
       </p>
       <div className="manage-actions">
-        <span className="hint" style={{ margin: 0 }}>
-          병합 후보 {candidates.length}개
-        </span>
+        <span className="manage-count">병합 후보 {candidates.length}개</span>
       </div>
       {candidates.length === 0 && <div className="empty">나뉘어 있는 동일 시리즈가 없습니다.</div>}
       {candidates.map((groups, i) => {
@@ -193,6 +194,7 @@ function Duplicates(): JSX.Element {
   const [scanned, setScanned] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirmBulk, setConfirmBulk] = useState(false)
+  const [pendingDel, setPendingDel] = useState<Work | null>(null)
 
   const groups = useMemo(() => findDuplicateGroups(works), [works])
   const missing = useMemo(() => works.filter((w) => !w.coverHash).length, [works])
@@ -240,6 +242,19 @@ function Duplicates(): JSX.Element {
     if (failed) alert(`${failed}개 작품을 휴지통으로 옮기지 못했습니다.`)
   }
 
+  const deleteOne = async (): Promise<void> => {
+    const w = pendingDel
+    setPendingDel(null)
+    if (!w) return
+    try {
+      await window.api.deleteWork(w.id)
+    } catch {
+      return alert('휴지통으로 옮기지 못했습니다.')
+    }
+    invalidate(w.id)
+    removeWork(w.id)
+  }
+
   return (
     <div className="manage-body">
       <p className="hint">
@@ -252,12 +267,10 @@ function Duplicates(): JSX.Element {
             {prog ? `표지 해시 생성… ${prog.done}/${prog.total}` : `표지 해시 생성${missing ? ` (남은 작품 ${missing}개)` : ' (완료)'}`}
           </button>
           <button className="mini danger" onClick={() => setConfirmBulk(true)} disabled={!selected.size}>
-            선택 {selected.size}개 삭제
+            전체 {selected.size}개 삭제
           </button>
         </div>
-        <span className="hint" style={{ margin: 0 }}>
-          중복 그룹 {groups.length}개
-        </span>
+        <span className="manage-count">중복 그룹 {groups.length}개</span>
       </div>
 
       {groups.length === 0 && (scanned || missing === 0) && (
@@ -265,27 +278,42 @@ function Duplicates(): JSX.Element {
       )}
 
       {groups.map((g, gi) => {
-        const keep = pickKeeper(g).id
+        const keeper = pickKeeper(g)
+        // 보존 추천 first (leftmost), the rest in their found order.
+        const ordered = [keeper, ...g.filter((w) => w.id !== keeper.id)]
         return (
           <div className="dup-group" key={gi}>
             <div className="dup-group-head">
-              그룹 {gi + 1} · {g.length}개 · 보존: {g.find((w) => w.id === keep)?.title}
+              그룹 {gi + 1} · {g.length}개 · 보존: {keeper.title}
             </div>
             <div className="dup-row">
-              {g.map((w) => (
+              {ordered.map((w) => (
                 <ManageCard
                   key={w.id}
                   work={w}
                   open={() => openTab(w.id)}
-                  badge={w.id === keep ? '보존 추천' : undefined}
+                  badge={w.id === keeper.id ? '보존 추천' : undefined}
                   checked={selected.has(w.id)}
                   onCheck={() => toggle(w.id)}
+                  onDelete={() => setPendingDel(w)}
                 />
               ))}
             </div>
           </div>
         )
       })}
+
+      {pendingDel && (
+        <ConfirmModal
+          danger
+          title="작품을 삭제할까요?"
+          desc={<><b>{pendingDel.title}</b> 폴더를 휴지통으로 옮깁니다.</>}
+          confirmLabel="삭제"
+          cancelLabel="취소"
+          onConfirm={deleteOne}
+          onCancel={() => setPendingDel(null)}
+        />
+      )}
 
       {confirmBulk && (
         <ConfirmModal
@@ -349,9 +377,7 @@ function Translations(): JSX.Element {
             {prog ? `표지 해시 생성… ${prog.done}/${prog.total}` : `표지 해시 생성${missing ? ` (남은 작품 ${missing}개)` : ' (완료)'}`}
           </button>
         </div>
-        <span className="hint" style={{ margin: 0 }}>
-          번역본 쌍 {pairs.length}개
-        </span>
+        <span className="manage-count">번역본 쌍 {pairs.length}개</span>
       </div>
       {pairs.length === 0 && <div className="empty">매칭되는 한국어 번역본 쌍이 없습니다.</div>}
       {pairs.map((p, i) => (
@@ -591,35 +617,37 @@ function Collections(): JSX.Element {
               onClick={() => toggleOpen(g.dir)}
               role="button"
             >
-              <span className="coll-caret">{isOpen ? <ArrowDownIcon /> : <KeyboardArrowRightIcon />}</span>
+              <span className="coll-caret">{isOpen ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}</span>
               {g.name} · {g.works.length}개 폴더
-              {isOpen && (
-                <span className="coll-actions flat-group" onClick={(e) => e.stopPropagation()}>
-                  <button className="mini" disabled={busy} onClick={() => mergeGroup(g)}>
-                    {busy ? '처리 중…' : selCount >= 2 ? `선택 ${selCount}개 병합` : '전체 병합'}
+            </div>
+            {isOpen && (
+              // One line under the name: n 페이지 이하 병합 · 전체 (선택) 병합 · 선택 반전 (해제).
+              <div className="coll-actions flat-group">
+                <span className="coll-thr">
+                  <Stepper value={n} onChange={(v) => setThr((m) => ({ ...m, [g.dir]: v }))} />
+                  페이지 이하
+                  <button
+                    className="mini"
+                    disabled={busy || nCount < 2}
+                    onClick={() => mergeByThreshold(g, n)}
+                  >
+                    병합{nCount ? ` (${nCount})` : ''}
                   </button>
-                  <span className="coll-thr">
-                    <Stepper value={n} onChange={(v) => setThr((m) => ({ ...m, [g.dir]: v }))} />
-                    페이지 이하
-                    <button
-                      className="mini"
-                      disabled={busy || nCount < 2}
-                      onClick={() => mergeByThreshold(g, n)}
-                    >
-                      병합{nCount ? ` (${nCount})` : ''}
-                    </button>
-                  </span>
-                  {selCount > 0 && (
-                    <button className="mini" onClick={() => clearSel(g)}>
-                      선택 해제
-                    </button>
-                  )}
+                </span>
+                <button className="mini" disabled={busy} onClick={() => mergeGroup(g)}>
+                  {busy ? '처리 중…' : selCount >= 2 ? `선택 ${selCount}개 병합` : '전체 병합'}
+                </button>
+                {selCount > 0 ? (
+                  <button className="mini" onClick={() => clearSel(g)}>
+                    선택 해제
+                  </button>
+                ) : (
                   <button className="mini" onClick={() => invertSel(g)}>
                     선택 반전
                   </button>
-                </span>
-              )}
-            </div>
+                )}
+              </div>
+            )}
             {isOpen && (
               <div className="dup-row">
                 {g.works.map((w) => (
@@ -627,8 +655,8 @@ function Collections(): JSX.Element {
                     key={w.id}
                     work={w}
                     open={() => openTab(w.id)}
-                    checked={selected.has(w.id)}
-                    onCheck={() => toggle(w.id)}
+                    merging={selected.has(w.id)}
+                    onMerge={() => toggle(w.id)}
                   />
                 ))}
               </div>
@@ -650,7 +678,9 @@ function ManageCard({
   checked,
   onCheck,
   onDelete,
-  deleteLabel
+  deleteLabel,
+  merging,
+  onMerge
 }: {
   work: Work
   open: () => void
@@ -659,9 +689,11 @@ function ManageCard({
   onCheck?: () => void
   onDelete?: () => void
   deleteLabel?: string
+  merging?: boolean // 작가 컬렉션: picked for 선택 병합
+  onMerge?: () => void
 }): JSX.Element {
   return (
-    <div className={`manage-card ${checked ? 'sel' : ''}`}>
+    <div className={`manage-card ${checked ? 'sel' : ''} ${merging ? 'merging' : ''}`}>
       {onCheck && (
         <input className="manage-check" type="checkbox" checked={!!checked} onChange={onCheck} />
       )}
@@ -684,6 +716,11 @@ function ManageCard({
         <button className="mini" onClick={() => window.api.openInExplorer(work.id)}>
           폴더
         </button>
+        {onMerge && (
+          <button className={`mini ${merging ? 'on' : ''}`} onClick={onMerge}>
+            병합
+          </button>
+        )}
         {onDelete && (
           <button className="mini danger" onClick={onDelete}>
             {deleteLabel ?? '삭제'}
