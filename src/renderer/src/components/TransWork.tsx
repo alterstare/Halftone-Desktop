@@ -14,6 +14,7 @@ import ConfirmModal from './ConfirmModal'
 import WorkTransEditor from './WorkTransEditor'
 import CharacterMemo from './CharacterMemo'
 import FavDlToggle from './FavDlToggle'
+import FloatSearch from './FloatSearch'
 import { AddIcon, CheckMarkIcon, CloseIcon, EditIcon, SearchIcon, SortIcon } from './icons'
 
 // 번역 편집기 mode: the list of works brought into the translation editor, with
@@ -439,6 +440,8 @@ export default function TransWork(): JSX.Element {
   const goSettings = useStore((s) => s.goSettings)
   const [picking, setPicking] = useState(false)
   const [q, setQ] = useState('')
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const searchRowRef = useRef<HTMLDivElement>(null)
   const [sort, setSort] = useState<ListSort>(lastList.sort)
   const [dir, setDir] = useState<'asc' | 'desc'>(lastList.dir)
   const [workingOnly, setWorkingOnly] = useState(lastList.workingOnly)
@@ -481,12 +484,13 @@ export default function TransWork(): JSX.Element {
   }
 
   return (
-    <div className="home tw" style={{ ['--mw' as string]: `${marginWidth}px` }}>
+    <div className="home tw" ref={scrollRef} style={{ ['--mw' as string]: `${marginWidth}px` }}>
+      <FloatSearch scroller={scrollRef} anchor={searchRowRef} value={q} onChange={setQ} placeholder="제목·코드·작가로 검색" />
       <div className="home-head">
         <div className="badge">Translation</div>
         <h1>번역 편집기</h1>
       </div>
-      <div className="tw-search-row">
+      <div className="tw-search-row" ref={searchRowRef}>
         <Dropdown<ListSort>
           className="field"
           value={sort}

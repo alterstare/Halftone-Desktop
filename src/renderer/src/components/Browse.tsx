@@ -5,6 +5,7 @@ import type { DoujinListResult, GallerySummary, OnlineSort, SearchSort } from '.
 import { cachedPage, dropPages, loadPage, prefetchPages } from '../pageCache'
 import Pager from './Pager'
 import TagSearchInput from './TagSearchInput'
+import FloatSearch from './FloatSearch'
 import OnlineThumb from './OnlineThumb'
 import TagList from './TagList'
 import { getOnlineImages } from '../images'
@@ -80,6 +81,7 @@ export default function Browse(): JSX.Element {
   const setBrowsePage = useStore((s) => s.setBrowsePage)
   const browseTopNonce = useStore((s) => s.browseTopNonce)
   const rootRef = useRef<HTMLDivElement>(null)
+  const searchRowRef = useRef<HTMLDivElement>(null)
   // Bumped to force a fresh fetch even when source/page are unchanged (used by
   // the 🌐 double-press reset when already on the first page).
   const [reloadKey, setReloadKey] = useState(0)
@@ -316,11 +318,12 @@ export default function Browse(): JSX.Element {
 
   return (
     <div className="browse" ref={rootRef} style={{ ['--mw' as string]: `${marginWidth}px` }}>
+      <FloatSearch scroller={rootRef} anchor={searchRowRef} value={query} onChange={setQuery} onEnter={() => runSearch()} placeholder="검색 후 Enter" />
       <div className="browse-head">
         <div className="badge">Doujinshi online</div>
         <h1>온라인 둘러보기</h1>
 
-        <div className="search-row">
+        <div className="search-row" ref={searchRowRef}>
           <Dropdown<string> className="field" value={lang} onChange={setLang} options={LANGS} />
           {/* Browse / search sort. Favorites have their own sort chip below
               (popularity doesn't apply to them). */}

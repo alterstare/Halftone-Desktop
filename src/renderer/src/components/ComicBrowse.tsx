@@ -16,6 +16,7 @@ import Pager from './Pager'
 import { groupSeries, titleKey, isComicCode } from '../util'
 import { useComicStatus } from './useComicStatus'
 import SearchClear from './SearchClear'
+import FloatSearch from './FloatSearch'
 import Dropdown from './Dropdown'
 import ContextMenu from './ContextMenu'
 import Caret from './Caret'
@@ -60,6 +61,7 @@ export default function ComicBrowse(): JSX.Element {
   const authorSeed = useStore((s) => s.comicAuthorSeed)
   const browseTopNonce = useStore((s) => s.browseTopNonce)
   const rootRef = useRef<HTMLDivElement>(null)
+  const searchRowRef = useRef<HTMLDivElement>(null)
   // Bumped to force a fresh fetch even when source/page are unchanged (used by
   // the 🌐 double-press reset when already on the first page).
   const [reloadKey, setReloadKey] = useState(0)
@@ -346,11 +348,12 @@ export default function ComicBrowse(): JSX.Element {
 
   return (
     <div className="browse" ref={rootRef}>
+      <FloatSearch scroller={rootRef} anchor={searchRowRef} value={query} onChange={setQuery} onEnter={run} placeholder="검색 후 Enter" />
       <div className="browse-head">
         <div className="badge">Manga & Webtoon online</div>
         <h1>일반 만화 온라인</h1>
 
-        <div className="search-row">
+        <div className="search-row" ref={searchRowRef}>
           <Dropdown<ComicSort>
             className="field"
             value={sort}

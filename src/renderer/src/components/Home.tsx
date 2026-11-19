@@ -15,6 +15,7 @@ import SeriesGridCard from './SeriesGridCard'
 import OnlineFavCard from './OnlineFavCard'
 import FavDlToggle, { FavSortSelect } from './FavDlToggle'
 import TagSearchInput from './TagSearchInput'
+import FloatSearch from './FloatSearch'
 import Pager from './Pager'
 import ConfirmModal from './ConfirmModal'
 import SelectBar from './SelectBar'
@@ -62,6 +63,7 @@ export default function Home(): JSX.Element {
   const deleteGroup = useStore((s) => s.deleteGroup)
   const homeTopNonce = useStore((s) => s.homeTopNonce)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const searchRowRef = useRef<HTMLDivElement>(null)
   const mountNonce = useRef(homeTopNonce)
   const [delGroup, setDelGroup] = useState<{ id: string; name: string } | null>(null)
 
@@ -501,11 +503,12 @@ export default function Home(): JSX.Element {
       onScroll={(e) => useStore.getState().setHomeScroll(e.currentTarget.scrollTop)}
       style={{ ['--mw' as string]: `${settings.marginWidth}px` }}
     >
+      <FloatSearch scroller={scrollRef} anchor={searchRowRef} value={query} onChange={setQuery} onEnter={() => setSearch(query.trim())} placeholder="검색 후 Enter" />
       <div className="home-head">
         <div className="badge">{libraryMode === 'normal' ? 'Manga & Webtoon' : 'Doujinshi'}</div>
         <h1>라이브러리 탐색</h1>
 
-        <div className="search-row">
+        <div className="search-row" ref={searchRowRef}>
           <Dropdown<SortMode>
             className="field"
             value={sort}
