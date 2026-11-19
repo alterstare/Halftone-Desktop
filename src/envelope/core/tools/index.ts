@@ -3,12 +3,15 @@
 // wav files go to the OS recycle bin (restored from there).
 import { createHash } from 'crypto'
 import { existsSync, promises as fs } from 'fs'
-import { basename, dirname, extname, join } from 'path'
+import { basename, dirname, extname, join, relative } from 'path'
 import type { CoverItem, RenameItem, ToolResult, WavItem } from '../../shared/types'
 import type { Db } from '../db'
 import type { ActionLog } from '../actionLog'
 import type { JobContext } from '../queue'
-import { readDir, workTitle } from '../library/scan'
+import { WAV_HOLD_DIR, readDir, workTitle } from '../library/scan'
+import { seOf } from '../library/roles'
+import { isInside } from '../media'
+import { splitCode } from '../../shared/split'
 import { probe } from '../library/probe'
 import { fillName, repairSiblings } from '../names/mojibake'
 import { namesMap, needsTranslation } from '../names/translate'
@@ -34,8 +37,13 @@ interface WorkRef {
   cover_pref: string | null
 }
 
+// Works the folder tools act on. A work split out of a shared folder by the
+// codes in its file names is left out: those tools work on a whole folder,
+// and its folder holds many other works.
 function worksOf(db: Db, ids: number[] | null): WorkRef[] {
-  const all = db.prepare('SELECT id, path, title, cover_path, images_json, dl_cover, cover_pref FROM works ORDER BY title').all() as WorkRef[]
+  const all = (db.prepare('SELECT id, path, title, cover_path, images_json, dl_cover, cover_pref FROM works ORDER BY title').all() as WorkRef[]).filter(
+    (w) => !splitCode(w.path)
+  )
   return ids ? all.filter((w) => ids.includes(w.id)) : all
 }
 
@@ -69,6 +77,40 @@ function clock(s: number | null): string {
 
 // ---------- wav 정리 ----------
 
+interface Known {
+  path: string
+  g: string // group: versions of one track
+  e: string // edition
+  se: string
+  dir: string // folder inside the work, '/'-joined
+  title: string
+}
+
+// SE as written in the track's own folder names or file name — not the
+// scan's guess (a group with a "SEなし" folder makes its unmarked versions
+// "SE있음"): only a written SE is certain.
+function writtenSe(t: Known): 'on' | 'off' | null {
+  const said = [...t.dir.split('/'), t.title].map(seOf).filter((x): x is 'on' | 'off' => x !== null)
+  return said.length ? said[said.length - 1] : null // the nearest says it
+}
+
+// The one mp3 elsewhere in the work that is certainly the wav's audio (see
+// planWav), or null.
+async function sameElsewhere(wav: string, wavSeconds: number, files: string[], known: Map<string, Known>): Promise<{ mp3: string; seconds: number } | null> {
+  const t = known.get(wav)
+  const se = t && writtenSe(t)
+  if (!t || !t.g || !se) return null
+  const found: { mp3: string; seconds: number }[] = []
+  for (const f of files) {
+    if (extname(f).toLowerCase() !== '.mp3' || dirname(f) === dirname(wav)) continue
+    const m = known.get(f)
+    if (!m || m.g !== t.g || m.e !== t.e || writtenSe(m) !== se) continue
+    const s = await seconds(f)
+    if (s !== null && Math.abs(s - wavSeconds) <= SAME_LENGTH_S) found.push({ mp3: f, seconds: s })
+  }
+  return found.length === 1 ? found[0] : null
+}
+
 export async function planWav(db: Db, ids: number[] | null, ctx?: JobContext): Promise<WavItem[]> {
   const out: WavItem[] = []
   const works = worksOf(db, ids)
@@ -76,6 +118,13 @@ export async function planWav(db: Db, ids: number[] | null, ctx?: JobContext): P
     ctx?.report(i, works.length)
     const w = works[i]
     const files = await walkFiles(w.path)
+    // what the scan knows of each track: the same track's versions (group),
+    // its edition and SE — for an mp3 of the wav in another folder of the work
+    const known = new Map(
+      (db.prepare('SELECT path, group_key AS g, edition_key AS e, se, rel_dir AS dir, title FROM tracks WHERE work_id = ?').all(w.id) as Known[]).map(
+        (t) => [t.path, t]
+      )
+    )
     const byDir = new Map<string, string[]>()
     for (const f of files) byDir.set(dirname(f), [...(byDir.get(dirname(f)) ?? []), f])
     for (const list of byDir.values()) {
@@ -92,7 +141,14 @@ export async function planWav(db: Db, ids: number[] | null, ctx?: JobContext): P
           continue
         }
         if (!pair) {
-          out.push({ ...base, kind: 'convert', mp3: join(dirname(wav), `${stemOf(wav)}.mp3`), wavSeconds, mp3Seconds: null })
+          // No mp3 next to it: one in another folder of the work (mp3/ · wav/)
+          // counts only when it is CERTAINLY the same audio — the same track
+          // and edition, SE written in the names on both sides and the same
+          // (SE있음 / SE없음 versions are as long as each other), as long (±1 s), and the only
+          // such mp3. Anything less certain: converted as before.
+          const other = await sameElsewhere(wav, wavSeconds, files, known)
+          if (other) out.push({ ...base, kind: 'delete', mp3: other.mp3, wavSeconds, mp3Seconds: other.seconds })
+          else out.push({ ...base, kind: 'convert', mp3: join(dirname(wav), `${stemOf(wav)}.mp3`), wavSeconds, mp3Seconds: null })
           continue
         }
         const mp3Seconds = await seconds(pair)
@@ -106,6 +162,21 @@ export async function planWav(db: Db, ids: number[] | null, ctx?: JobContext): P
   return out
 }
 
+// A wav the Recycle Bin can't take → <library folder>/_wav 삭제 대기/<the
+// same path inside it>; a free name if one is there already. Same drive, so a
+// rename (nothing copied).
+async function holdWav(db: Db, it: WavItem): Promise<string> {
+  const row = db.prepare('SELECT root FROM works WHERE id = ?').get(it.workId) as { root: string } | undefined
+  if (!row || !isInside(it.wav, row.root)) throw new Error('라이브러리 폴더 밖의 파일입니다')
+  const rel = relative(row.root, it.wav)
+  const base = join(row.root, WAV_HOLD_DIR, rel)
+  let to = base
+  for (let n = 2; existsSync(to); n++) to = join(dirname(base), `${stemOf(base)} (${n})${extname(base)}`)
+  await fs.mkdir(dirname(to), { recursive: true })
+  await fs.rename(it.wav, to)
+  return to
+}
+
 export async function runWav(
   db: Db,
   items: WavItem[],
@@ -113,13 +184,28 @@ export async function runWav(
   ctx: JobContext
 ): Promise<ToolResult> {
   const failed: string[] = []
-  const done: { wav: string; mp3: string; kind: string }[] = []
+  const done: { wav: string; mp3: string; kind: string; held?: string }[] = []
   const todo = items.filter((x) => x.kind !== 'skip')
   for (let i = 0; i < todo.length; i++) {
     if (ctx.signal.aborted) break
     const it = todo[i]
     const name = basename(it.wav)
     try {
+      // Checked again right before anything happens — files can change after
+      // 확인하기: the wav must be the one checked, and a wav that already has
+      // an mp3 goes only while that mp3 is still there, in the same work
+      // folder, as long.
+      const wp = (db.prepare('SELECT path FROM works WHERE id = ?').get(it.workId) as { path: string } | undefined)?.path
+      if (!wp || !isInside(it.wav, wp) || !isInside(it.mp3, wp)) throw new Error('mp3와 wav가 같은 작품 폴더에 있지 않습니다')
+      if (it.kind === 'convert' && dirname(it.mp3) !== dirname(it.wav)) throw new Error('mp3는 wav 옆에 만듭니다')
+      const wavNow = await fs.stat(it.wav)
+      if (wavNow.size !== it.bytes) throw new Error('확인한 뒤 wav가 바뀌었습니다. 다시 확인해 주세요')
+      if (it.kind !== 'convert') {
+        const w = await seconds(it.wav)
+        const m = await seconds(it.mp3)
+        if (w === null || m === null || Math.abs(w - m) > SAME_LENGTH_S)
+          throw new Error(m === null ? 'mp3가 없거나 읽을 수 없어 wav를 그대로 둡니다' : `재생시간이 다릅니다 (wav ${clock(w)} · mp3 ${clock(m)}) — wav를 그대로 둡니다`)
+      }
       if (it.kind === 'convert') {
         ctx.report(i, todo.length, `mp3로 바꾸는 중 · ${name}`)
         try {
@@ -142,15 +228,28 @@ export async function runWav(
         const st = await fs.stat(it.wav)
         await fs.utimes(it.mp3, st.atime, st.mtime) // keeps date sorting
       } else ctx.report(i, todo.length, `휴지통으로 보내는 중 · ${name}`)
-      await deps.trash(it.wav)
-      done.push({ wav: it.wav, mp3: it.mp3, kind: it.kind })
+      // Where there is no Recycle Bin (a network drive / NAS) Windows refuses
+      // (never deletes for good): the wav is moved into "_wav 삭제 대기" in
+      // its library folder instead, to look over and delete by hand.
+      let held: string | null = null
+      try {
+        await deps.trash(it.wav)
+      } catch {
+        held = await holdWav(db, it).catch((e) => {
+          throw new Error(`휴지통으로 보내지 못했고 "${WAV_HOLD_DIR}" 폴더로도 옮기지 못해 wav를 그대로 두었습니다: ${String((e as Error)?.message ?? e)}${it.kind === 'convert' ? ' — 만든 mp3는 남아 있습니다' : ''}`)
+        })
+      }
+      done.push({ wav: it.wav, mp3: it.mp3, kind: it.kind, ...(held ? { held } : {}) })
     } catch (e) {
       failed.push(`${name}: ${String((e as Error)?.message ?? e)}`)
     }
   }
   ctx.report(todo.length, todo.length)
   const conv = done.filter((d) => d.kind === 'convert').length
-  const summary = `용량 최적화 · mp3 변환 ${conv}개, wav 삭제 ${done.length}개 (휴지통)`
+  const held = done.filter((d) => d.held).length
+  const summary =
+    `용량 최적화 · mp3 변환 ${conv}개, wav 삭제 ${done.length - held}개 (휴지통)` +
+    (held ? `, 휴지통이 없는 곳의 wav ${held}개는 "${WAV_HOLD_DIR}" 폴더로 옮김 (확인 후 직접 지우기)` : '')
   if (done.length)
     db.prepare('INSERT INTO file_history (kind, summary, payload_json, created_at) VALUES (?, ?, ?, ?)').run('wav', summary, JSON.stringify(done), Date.now())
   return { ok: !failed.length, message: `${summary}${failed.length ? `, ${failed.length}개 실패` : ''}`, done: done.length, failed }

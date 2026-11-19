@@ -11,6 +11,7 @@ import { basename, dirname, extname, join, relative, sep } from 'path'
 import type { Db } from './db'
 import { ORIGINALS_FILE, workEntries } from './tools'
 import { decodeText, parseSubtitle, toVtt } from './subtitle'
+import { splitCode } from '../shared/split'
 
 export { ORIGINALS_FILE }
 
@@ -164,7 +165,8 @@ async function japaneseSubs(db: Db, workId: number): Promise<Map<string, string>
 // the record changed.
 export async function recordWork(db: Db, workId: number): Promise<boolean> {
   const w = db.prepare('SELECT id, path, title, code, dl_title FROM works WHERE id = ?').get(workId) as WorkRow | undefined
-  if (!w) return false
+  // a work split out of a shared folder has no folder of its own to record
+  if (!w || splitCode(w.path)) return false
   let rec = loadRecord(db, w.id)
   const imported = !rec
   if (!rec) rec = await readFolderRecord(w.path)

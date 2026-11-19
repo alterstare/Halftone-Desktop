@@ -7,6 +7,7 @@ import type { JSX, MouseEvent } from 'react'
 import { useStore } from '../store'
 import { play, playWork } from '../player'
 import type { TrackGroup, WorkDetail, WorkSummary } from '../../../shared/types'
+import { workDir } from '../../../shared/split'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
 import {
@@ -91,7 +92,7 @@ function workItems(w: WorkSummary): MenuItem[] {
     },
     { label: '제목 복사', icon: <ContentCopyIcon />, separator: true, onClick: () => copy(w.title, '제목') },
     ...(w.code ? [{ label: '작품 코드 복사', icon: <ContentCopyIcon />, onClick: () => copy(w.code!, '작품 코드') }] : []),
-    { label: '폴더 열기', icon: <FolderOpenIcon />, onClick: () => void window.api.showInFolder(w.path) }
+    { label: '폴더 열기', icon: <FolderOpenIcon />, onClick: () => void window.api.showInFolder(workDir(w.path)) }
   ]
 }
 

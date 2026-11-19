@@ -49,7 +49,8 @@ export const DEFAULT_SETTINGS: Settings = {
   translatePrompt: '',
   allowAudioUpload: false,
   allowTextUpload: false,
-  nameDisplay: 'original'
+  nameDisplay: 'original',
+  mobileShare: false
 }
 
 export function loadSettings(db: Db): Settings {

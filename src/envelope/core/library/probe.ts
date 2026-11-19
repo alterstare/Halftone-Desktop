@@ -104,6 +104,9 @@ async function probeMp3(path: string, size: number): Promise<Probe> {
   return parseMp3(await readAt(path, start, 64 * 1024), start, size)
 }
 
+// Less than this share of the bytes a VBR header gives = a cut-off file.
+const TRUNCATED = 0.98
+
 // `b` = file bytes from `start` (after any ID3v2 tag).
 export function parseMp3(b: Buffer, start: number, size: number): Probe {
   let at = 0
@@ -116,9 +119,25 @@ export function parseMp3(b: Buffer, start: number, size: number): Probe {
   const x = at + 4 + side
   const tag = b.toString('ascii', x, x + 4)
   let frames = 0
-  if ((tag === 'Xing' || tag === 'Info') && x + 12 <= b.length && b.readUInt32BE(x + 4) & 1) frames = b.readUInt32BE(x + 8)
+  let bytes = 0 // the stream's size as the header gives it
+  if ((tag === 'Xing' || tag === 'Info') && x + 12 <= b.length) {
+    const flags = b.readUInt32BE(x + 4)
+    let f = x + 8
+    if (flags & 1) {
+      frames = b.readUInt32BE(f)
+      f += 4
+    }
+    if (flags & 2 && f + 4 <= b.length) bytes = b.readUInt32BE(f)
+  }
   // VBRI: "VBRI", version, delay, quality (2 each), bytes, frames (4 each)
-  else if (b.toString('ascii', at + 36, at + 40) === 'VBRI' && at + 54 <= b.length) frames = b.readUInt32BE(at + 50)
+  else if (b.toString('ascii', at + 36, at + 40) === 'VBRI' && at + 54 <= b.length) {
+    bytes = b.readUInt32BE(at + 46)
+    frames = b.readUInt32BE(at + 50)
+  }
+  // A cut-off file (copy stopped part way) keeps a header that tells the
+  // whole length: when the bytes are short of what it says, the length is
+  // unknown — wav 정리 must never take it for a full copy of the wav.
+  if (frames && bytes && audio < bytes * TRUNCATED) return NONE
   if (frames) {
     const duration = (frames * h.samples) / h.sampleRate
     return { duration, bitrate: Math.round((audio * 8) / duration / 1000) }

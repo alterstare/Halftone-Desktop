@@ -18,19 +18,35 @@ import type {
   WorkSummary, SubLang, WorkContent, WorkAge } from '../../shared/types'
 import type { KnownProbes, ScannedWork } from './scan'
 import { naturalCompare } from '../names/normalize'
+import { SPLIT_MARK } from '../../shared/split'
 
 // A track counts as heard once the position is this close to its end (s).
 export const FINISHED_MARGIN = 10
 
 // ---- saving scans ----
 
+// The folder's own work and the works split out of it ("<folder>|<code>").
 export function knownProbes(db: Db, workPath: string): KnownProbes {
   const rows = db
     .prepare(
-      `SELECT t.path, t.size, t.mtime, t.duration, t.bitrate FROM tracks t JOIN works w ON w.id = t.work_id WHERE w.path = ?`
+      `SELECT t.path, t.size, t.mtime, t.duration, t.bitrate FROM tracks t JOIN works w ON w.id = t.work_id
+       WHERE w.path = ? OR substr(w.path, 1, ?) = ?`
     )
-    .all(workPath) as { path: string; size: number; mtime: number; duration: number | null; bitrate: number | null }[]
+    .all(workPath, workPath.length + 1, workPath + SPLIT_MARK) as { path: string; size: number; mtime: number; duration: number | null; bitrate: number | null }[]
   return new Map(rows.map((r) => [r.path, r]))
+}
+
+// 빠른 스캔: the saved works of a folder (its own and those split out of it)
+// when their tracks are exactly these files — else null (rescan it).
+export function unchangedWorks(db: Db, dir: string, files: string[]): string[] | null {
+  const works = db
+    .prepare('SELECT id, path FROM works WHERE path = ? OR substr(path, 1, ?) = ?')
+    .all(dir, dir.length + 1, dir + SPLIT_MARK) as { id: number; path: string }[]
+  if (!works.length) return null
+  const tracks = db.prepare(`SELECT path FROM tracks WHERE work_id IN (${works.map(() => '?').join(',')})`).all(...works.map((w) => w.id)) as { path: string }[]
+  if (tracks.length !== files.length) return null
+  const have = new Set(tracks.map((t) => t.path))
+  return files.every((f) => have.has(f)) ? works.map((w) => w.path) : null
 }
 
 // Insert or refresh a work; its tracks are replaced (progress, favorite, stars
@@ -60,9 +76,14 @@ export function saveWork(db: Db, root: string, w: ScannedWork, now = Date.now())
                            duration, bitrate, size, mtime, mojibake, rel_dir, subs_json)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    for (const t of w.tracks)
+    // A file another work had (a folder just split into works by code, or
+    // back) moves to this one.
+    const take = db.prepare('DELETE FROM tracks WHERE path = ? AND work_id != ?')
+    for (const t of w.tracks) {
+      take.run(t.path, id)
       ins.run(id, t.path, t.title, t.ext, t.kind, t.role, t.edition, t.editionKey, t.se, t.formatDir, t.groupKey, t.sort,
         t.duration, t.bitrate, t.size, t.mtime, t.mojibake ? 1 : 0, t.relDir, JSON.stringify(t.subs))
+    }
     return id
   })()
 }
@@ -628,4 +649,140 @@ export function removeTrackSub(db: Db, path: string): void {
     const subs = (JSON.parse(t.subs_json) as SubFile[]).filter((x) => x.path !== path)
     db.prepare('UPDATE tracks SET subs_json = ? WHERE id = ?').run(JSON.stringify(subs), t.id)
   }
+}
+
+// ---- 모바일 정보 파일 (core/mobile.ts) ----
+
+export interface MobileWorkRow {
+  id: number
+  path: string
+  root: string
+  code: string | null
+  title: string // shown
+  folderTitle: string
+  dlTitle: string | null
+  cover: string | null // shown cover (absolute)
+  images: string[]
+  addedAt: number
+  circle: string | null
+  voices: string[]
+  tags: { ko: string; ja: string }[]
+  content: WorkContent
+  age: WorkAge
+  lang: WorkLang
+  mojibake: boolean
+  sePref: SePref | null
+  edition: string | null
+  favorite: boolean
+  rank: number
+  plays: number
+  lastPlayedAt: number | null
+  lastGroup: string | null
+  groups: string[]
+  progress: Record<string, { position: number; duration: number | null; at: number }>
+  offsets: Record<string, number>
+  bookmarks: { groupKey: string; position: number; name: string; createdAt: number }[]
+  tracks: {
+    id: number
+    path: string
+    title: string
+    ext: string
+    kind: 'audio' | 'video'
+    role: 'main' | 'extra' | 'sample'
+    edition: string
+    editionKey: string
+    se: 'on' | 'off' | 'unknown'
+    formatDir: string
+    groupKey: string
+    sort: number
+    duration: number | null
+    bitrate: number | null
+    relDir: string
+    subs: SubFile[]
+  }[]
+}
+
+// Every work under a library folder with all its tracks (every edition and
+// version) and what the user did with it — what Envelope 모바일 needs.
+export function mobileWorkRows(db: Db, s: Settings, root: string): MobileWorkRow[] {
+  const works = db.prepare('SELECT * FROM works WHERE root = ?').all(root) as (WorkRow & { root: string })[]
+  if (!works.length) return []
+  const names = shownNames(db, s)
+  const tracks = byWork(withAppSubs(db, db.prepare('SELECT t.* FROM tracks t JOIN works w ON w.id = t.work_id WHERE w.root = ?').all(root) as TrackRow[]))
+  const progress = new Map<number, Record<string, { position: number; duration: number | null; at: number }>>()
+  for (const r of db.prepare('SELECT work_id, group_key, position, duration, played_at FROM progress').all() as {
+    work_id: number
+    group_key: string
+    position: number
+    duration: number | null
+    played_at: number
+  }[]) {
+    const m = progress.get(r.work_id) ?? {}
+    m[r.group_key] = { position: r.position, duration: r.duration, at: r.played_at }
+    progress.set(r.work_id, m)
+  }
+  const offsets = offsetsOf(db)
+  const groupNames = new Map((db.prepare('SELECT id, name FROM groups').all() as { id: number; name: string }[]).map((g) => [g.id, g.name]))
+  const groupIds = groupIdsOf(db)
+  const appLangs = appLangsOf(db)
+  const marks = new Map<number, MobileWorkRow['bookmarks']>()
+  for (const b of db.prepare('SELECT work_id, group_key, position, name, created_at FROM bookmarks ORDER BY position').all() as {
+    work_id: number
+    group_key: string
+    position: number
+    name: string
+    created_at: number
+  }[]) {
+    const l = marks.get(b.work_id) ?? []
+    l.push({ groupKey: b.group_key, position: b.position, name: b.name, createdAt: b.created_at })
+    marks.set(b.work_id, l)
+  }
+  return works.map((w) => ({
+    id: w.id,
+    path: w.path,
+    root: w.root,
+    code: w.code,
+    title: nameTitle(w, s, names),
+    folderTitle: w.title,
+    dlTitle: w.dl_title,
+    cover: shownCover(w, s),
+    images: JSON.parse(w.images_json) as string[],
+    addedAt: w.added_at,
+    circle: w.dl_circle,
+    voices: w.dl_voices ? (JSON.parse(w.dl_voices) as string[]) : [],
+    tags: w.dl_tags ? (JSON.parse(w.dl_tags) as { ko: string; ja: string }[]) : [],
+    content: contentOf(w, appLangs.get(w.id)),
+    age: ageOf(w),
+    lang: workLang(w),
+    mojibake: !!w.mojibake,
+    sePref: w.se_pref,
+    edition: w.edition,
+    favorite: !!w.favorite,
+    rank: w.rank,
+    plays: w.play_count,
+    lastPlayedAt: w.last_played_at,
+    lastGroup: w.last_group,
+    groups: (groupIds.get(w.id) ?? []).map((g) => groupNames.get(g)).filter((x): x is string => !!x),
+    progress: progress.get(w.id) ?? {},
+    offsets: Object.fromEntries(offsets.get(w.id) ?? new Map()),
+    bookmarks: marks.get(w.id) ?? [],
+    tracks: (tracks.get(w.id) ?? []).map((t) => ({
+      id: t.id,
+      path: t.path,
+      title: names?.get(t.path) ?? t.title,
+      ext: t.ext,
+      kind: t.kind,
+      role: t.role,
+      edition: t.edition,
+      editionKey: t.edition_key,
+      se: t.se,
+      formatDir: t.format_dir,
+      groupKey: t.group_key,
+      sort: t.sort,
+      duration: t.duration,
+      bitrate: t.bitrate,
+      relDir: t.rel_dir,
+      subs: JSON.parse(t.subs_json) as SubFile[]
+    }))
+  }))
 }

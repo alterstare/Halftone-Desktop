@@ -14,6 +14,7 @@ export const IPC = {
   removeLibraryDir: 'env:library:removeDir',
   libraryDirWorks: 'env:library:dirWorks',
   scan: 'env:library:scan',
+  clearThumbs: 'env:library:clearThumbs',
   works: 'env:library:works',
   work: 'env:library:work',
   setWorkPrefs: 'env:library:workPrefs',
@@ -158,7 +159,8 @@ export interface Api {
   addLibraryDir: (path: string) => Promise<JobSummary> // adds, then scans
   removeLibraryDir: (path: string) => Promise<JobSummary>
   libraryDirWorks: (path: string) => Promise<number> // works removing the folder drops
-  scan: () => Promise<JobSummary>
+  scan: (quick?: boolean) => Promise<JobSummary> // quick = 빠른 스캔 (only works whose files changed)
+  clearThumbnails: () => Promise<JobSummary> // 썸네일 다시 만들기: drop the cache; remade when shown
   works: () => Promise<WorkSummary[]>
   work: (id: number) => Promise<WorkDetail | null>
   setWorkPrefs: (id: number, p: { sePref?: SePref; edition?: string }) => Promise<void>

@@ -205,7 +205,8 @@ h2 {
     .trow,
     .lrow,
     .trow-tool:not(.off),
-    .se-row:not(.on)
+    .se-row:not(.on),
+    .float-search.folded .float-search-box
   ):hover:not(:disabled),
 .dd-btn.open,
 .chip.open:not(.active),

@@ -9,7 +9,7 @@ import { embedded, hosted } from '../embed'
 import type { AppInfo, Settings, SubMode } from '../../../shared/types'
 import { DraftContext, changed } from './settingsDraft'
 import { addLibraryFolder } from './Library'
-import { AddIcon, CheckIcon, CloseIcon, CloudDownloadIcon, DeleteIcon, EditIcon, FolderOpenIcon, RefreshIcon } from './icons'
+import { AddIcon, BoltIcon, CheckIcon, CloseIcon, CloudDownloadIcon, DeleteIcon, EditIcon, FolderOpenIcon, ImageIcon, RefreshIcon } from './icons'
 import { Confirm, Stepper } from './ui'
 import ShortcutSettings from './ShortcutSettings'
 import AutoSubSettings from './AutoSubSettings'
@@ -217,8 +217,40 @@ export default function SettingsView(): JSX.Element | null {
               >
                 <RefreshIcon /> {scanning ? `스캔 중 ${scan.total ? `${scan.done} / ${scan.total}` : ''}` : '다시 스캔'}
               </button>
+              <button
+                className="mini"
+                disabled={!!scanning || !s.libraryDirs.length}
+                title="새로 생긴 파일 · 지운 파일이 있는 작품만 다시 읽습니다(그대로인 작품은 건너뜀)"
+                onClick={async () => {
+                  const r = await window.api.scan(true)
+                  st().showToast(r)
+                  void st().loadWorks()
+                }}
+              >
+                <BoltIcon /> 빠른 스캔
+              </button>
+              <button
+                className="mini"
+                title="저장해 둔 표지 썸네일을 지우고, 화면에 보일 때 다시 만듭니다"
+                onClick={async () => {
+                  const r = await window.api.clearThumbnails()
+                  st().showToast(r)
+                  void st().loadWorks()
+                }}
+              >
+                <ImageIcon /> 썸네일 다시 만들기
+              </button>
             </div>
           </div>
+        </section>
+        <section>
+          <h3>모바일 공유</h3>
+          <Row
+            label="Envelope 모바일과 공유"
+            hint="켜면 라이브러리 폴더마다 .envelope 폴더에 작품 정보(복구 · 번역한 이름, DLsite 정보, 표지, 프로그램 안의 자막)와 즐겨찾기 · 평점 · 그룹 · 이어 듣기 · 북마크 · 자막 싱크를 남기고, 휴대폰에서 바꾼 것을 받아 반영합니다. NAS의 라이브러리 폴더를 휴대폰에서 열면 같은 기록을 씁니다. 작품 파일은 바꾸지 않습니다."
+          >
+            <Seg value={s.mobileShare ? 'on' : 'off'} options={[['on', '켜기'], ['off', '끄기']]} onChange={(v) => void save({ mobileShare: v === 'on' })} />
+          </Row>
         </section>
         <section>
           <h3>작품 정보</h3>

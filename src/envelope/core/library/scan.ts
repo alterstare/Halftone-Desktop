@@ -14,10 +14,14 @@ import { probe } from './probe'
 import { LANG_SUFFIX, SUB_EXTS, langOfName } from '../subtitle'
 import type { SubFile } from '../../shared/types'
 import { DUP_DIR } from '../dupes'
+import { splitPath } from '../../shared/split'
 
 export const AUDIO_EXTS = new Set(['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.opus'])
 export const VIDEO_EXTS = new Set(['.mp4', '.m4v', '.webm'])
 export const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.avif'])
+// wav 정리 puts wavs the Recycle Bin can't take here (a network drive), to
+// be deleted by hand; scans skip it like the 중복 작품 folder.
+export const WAV_HOLD_DIR = '_wav 삭제 대기'
 const JUNK = /^(?:thumbs\.db|\.ds_store|desktop\.ini)$|^\._/i
 const CODE = /(?<![a-z0-9])([RVB]J\d{6,8})(?!\d)/i
 // Same track in two groups only if their lengths agree this closely: seconds,
@@ -82,12 +86,26 @@ async function hasMedia(dir: string, depth = 0): Promise<boolean> {
   return false
 }
 
+// Every audio / video file in a work folder (빠른 스캔 compares these with
+// the saved tracks; nothing is opened).
+export async function mediaFiles(dir: string, out: string[] = []): Promise<string[]> {
+  for (const e of await readDir(dir)) {
+    const p = join(dir, e.name)
+    if (e.isDirectory()) await mediaFiles(p, out)
+    else if (e.isFile()) {
+      const ext = extname(e.name).toLowerCase()
+      if (AUDIO_EXTS.has(ext) || VIDEO_EXTS.has(ext)) out.push(p)
+    }
+  }
+  return out
+}
+
 // Works under a library folder: each folder right below it — or, for a
 // circle-style folder whose children carry work codes, those children.
 export async function findWorks(root: string): Promise<string[]> {
   const out: string[] = []
   for (const e of await readDir(root)) {
-    if (!e.isDirectory() || e.name === DUP_DIR) continue // 중복 작품 › 따로 두기
+    if (!e.isDirectory() || e.name === DUP_DIR || e.name === WAV_HOLD_DIR) continue // 중복 작품 › 제거할 작품 (moved there)
     const p = join(root, e.name)
     if (CODE.test(e.name)) {
       out.push(p)
@@ -334,4 +352,36 @@ function rankBackgrounds(images: RawFile[]): RawFile[] {
     .map((f) => ({ f, s: bgScore(f) }))
     .sort((a, b) => b.s - a.s || naturalCompare(a.f.name, b.f.name))
     .map((x) => x.f)
+}
+
+// ---- folders of single-file works ----
+
+// A folder with no code of its own whose audio files each carry one
+// ("01M.タイトルRJ222673.mp3") holds many works: one per code (a work spread
+// over two files keeps both). Split when 2+ codes and most tracks (80%) have
+// one; tracks without a code stay as the folder's own work. Program only —
+// the files stay where they are (shared/split.ts).
+const SPLIT_MIN_SHARE = 0.8
+const TRACK_LEAD = /^[0-9０-９]+[a-zA-Z]?[._\-\s]+/
+
+export function splitByTrackCode(w: ScannedWork): ScannedWork[] | null {
+  if (w.code || !w.tracks.length) return null
+  const byCode = new Map<string, ScannedTrack[]>()
+  const rest: ScannedTrack[] = []
+  for (const t of w.tracks) {
+    const m = t.title.match(CODE)
+    if (!m) rest.push(t)
+    else {
+      const c = m[1].toUpperCase()
+      byCode.set(c, [...(byCode.get(c) ?? []), t])
+    }
+  }
+  if (byCode.size < 2 || (w.tracks.length - rest.length) / w.tracks.length < SPLIT_MIN_SHARE) return null
+  const out: ScannedWork[] = []
+  for (const [code, tracks] of byCode) {
+    const name = tracks[0].title.replace(CODE, '').replace(TRACK_LEAD, '').replace(/^[\s_\-]+|[\s_\-]+$/g, '')
+    out.push({ ...w, path: splitPath(w.path, code), code, title: name || code, cover: null, images: [], tracks, mojibake: tracks.some((t) => t.mojibake) })
+  }
+  if (rest.length) out.push({ ...w, tracks: rest, mojibake: rest.some((t) => t.mojibake) })
+  return out
 }

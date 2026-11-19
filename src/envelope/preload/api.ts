@@ -6,6 +6,7 @@ import type { ProgressEvent } from '../shared/types'
 // The renderer API over IPC — shared by Env's own preload and Halftone's
 // (which exposes it in the Env frame).
 export function createApi(ipcRenderer: IpcRenderer): Api {
+  let thumbVer = 0 // bumped by 썸네일 다시 만들기
   const on = <T>(ch: string, cb: (v: T) => void): (() => void) => {
     const h = (_e: unknown, v: T): void => cb(v)
     ipcRenderer.on(ch, h)
@@ -32,7 +33,12 @@ export function createApi(ipcRenderer: IpcRenderer): Api {
     addLibraryDir: (p) => invoke(IPC.addLibraryDir, p),
     removeLibraryDir: (p) => invoke(IPC.removeLibraryDir, p),
     libraryDirWorks: (p) => invoke(IPC.libraryDirWorks, p),
-    scan: () => invoke(IPC.scan),
+    scan: (quick) => invoke(IPC.scan, !!quick),
+    clearThumbnails: async () => {
+      const r = (await invoke(IPC.clearThumbs)) as JobSummary
+      thumbVer = Date.now() // new thumbnail urls, so pictures on screen load again
+      return r
+    },
     works: () => invoke(IPC.works),
     work: (id) => invoke(IPC.work, id),
     setWorkPrefs: (id, p) => invoke(IPC.setWorkPrefs, id, p),
@@ -74,7 +80,7 @@ export function createApi(ipcRenderer: IpcRenderer): Api {
     showInFolder: (p) => invoke(IPC.showInFolder, p),
     openFolder: (p) => invoke(IPC.openFolder, p),
     mediaUrl: (p) => `${MEDIA_SCHEME}://f/${Buffer.from(p, 'utf-8').toString('base64url')}`,
-    thumbUrl: (p) => `${MEDIA_SCHEME}://t/${Buffer.from(p, 'utf-8').toString('base64url')}`,
+    thumbUrl: (p) => `${MEDIA_SCHEME}://t/${Buffer.from(p, 'utf-8').toString('base64url')}${thumbVer ? `?v=${thumbVer}` : ''}`,
     undo: () => invoke(IPC.undo),
     redo: () => invoke(IPC.redo),
     onToast: (cb) => on<JobSummary>(IPC.toast, cb),

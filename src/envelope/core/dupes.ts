@@ -1,6 +1,6 @@
 // 중복 작품: the same release found more than once in the library — the same
 // work code (RJ…) in two folders, or, for works without a code, the same
-// title (brackets, spaces and punctuation aside). 따로 두기 (파일 정리 ›
+// title (brackets, spaces and punctuation aside). 제거할 작품 옮기기 (파일 정리 ›
 // 폴더 변경) moves a copy into <library folder>/_중복 작품/ — never deletes;
 // the scan skips that folder, so the copy leaves the library, and 되돌리기
 // moves it back. 중복 아님 remembers a group as distinct.
@@ -11,6 +11,7 @@ import type { Db } from './db'
 import type { ActionLog } from './actionLog'
 import type { JobContext } from './queue'
 import { nfkc } from './names/normalize'
+import { splitCode } from '../shared/split'
 
 export const DUP_DIR = '_중복 작품'
 const SET_ASIDE = 'tools.setaside'
@@ -93,7 +94,8 @@ export function planSetAside(db: Db, ids: number[]): SetAsideItem[] {
   const out: SetAsideItem[] = []
   for (const id of ids) {
     const w = db.prepare('SELECT path, root FROM works WHERE id = ?').get(id) as { path: string; root: string } | undefined
-    if (!w) continue
+    // a work split out of a shared folder has no folder of its own to move
+    if (!w || splitCode(w.path)) continue
     const base = join(w.root, DUP_DIR, basename(w.path))
     let to = base
     for (let n = 2; existsSync(to) || taken.has(to.toLowerCase()); n++) to = `${base} (${n})`
@@ -120,7 +122,7 @@ export async function runSetAside(log: ActionLog, items: SetAsideItem[], ctx: Jo
     }
   }
   ctx.report(items.length, items.length)
-  if (moved.length) log.record(SET_ASIDE, { label: `중복 작품 따로 두기`, items: moved })
+  if (moved.length) log.record(SET_ASIDE, { label: `중복 작품 제거 (중복 폴더로)`, items: moved })
   return {
     ok: !failed.length,
     message: `${moved.length}개 작품을 "${DUP_DIR}" 폴더로 옮겼습니다${failed.length ? ` · ${failed.length}개 실패` : ''}`,

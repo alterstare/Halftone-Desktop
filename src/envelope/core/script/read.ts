@@ -6,6 +6,7 @@ import { basename, dirname, extname, join, relative } from 'path'
 import type { ScriptSource, TrackGroup, WorkDetail } from '../../shared/types'
 import { contentLangOfText, decodeText, langOfText } from '../subtitle'
 import { stem, trackKey, trackNumber } from '../names/normalize'
+import { workDir } from '../../shared/split'
 
 const SCRIPT_NAME = /台本|daihon|シナリオ|scenario|script|대본|recording|セリフ|せりふ|脚本/i
 const NOT_SCRIPT = /readme|credit|license|作品説明|작품설명|規約|注意|お読み|사용\s*규약|使用/i
@@ -84,7 +85,11 @@ async function sampleLang(path: string): Promise<'ja' | 'ko' | 'other'> {
 
 export async function findScripts(work: WorkDetail): Promise<ScriptSource[]> {
   const files: string[] = []
-  await walk(work.path, 5, files)
+  // a work split out of a shared folder: only per-track scripts that match
+  // its own tracks (a whole-work script there belongs to the folder)
+  const base = workDir(work.path)
+  const split = base !== work.path
+  await walk(base, 5, files)
   const groups = work.groups.filter((g) => g.role !== 'sample')
   const out: ScriptSource[] = []
   const used = new Set<string>()
@@ -99,15 +104,15 @@ export async function findScripts(work: WorkDetail): Promise<ScriptSource[]> {
       id: `dir:${dir}`,
       kind: 'perTrack',
       path: dir,
-      label: relative(work.path, dir) || basename(dir),
+      label: relative(base, dir) || basename(dir),
       lang: await sampleLang(matched[0].f),
       files: matched.map((m) => ({ groupKey: m.g!.key, path: m.f }))
     })
   }
   // whole-work scripts
   for (const f of files) {
-    if (used.has(f)) continue
-    const rel = relative(work.path, f)
+    if (split || used.has(f)) continue
+    const rel = relative(base, f)
     if (!SCRIPT_NAME.test(rel)) continue
     out.push({ id: `file:${f}`, kind: 'whole', path: f, label: rel, lang: await sampleLang(f) })
   }

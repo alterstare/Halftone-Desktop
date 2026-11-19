@@ -29,6 +29,7 @@ export const ArrowForwardIcon = mkIcon("<path fill=\"currentColor\" d=\"M16.175 
 export const ArrowUpwardIcon = mkIcon("<path fill=\"currentColor\" d=\"M11 20V7.825l-5.6 5.6L4 12l8-8l8 8l-1.4 1.425l-5.6-5.6V20z\"/>")
 export const AudioFileIcon = mkIcon("<path fill=\"currentColor\" d=\"M10.75 19q.95 0 1.6-.65t.65-1.6V13h3v-2h-4v3.875q-.275-.2-.587-.288t-.663-.087q-.95 0-1.6.65t-.65 1.6t.65 1.6t1.6.65M6 22q-.825 0-1.412-.587T4 20V4q0-.825.588-1.412T6 2h8l6 6v12q0 .825-.587 1.413T18 22zm7-13h5l-5-5z\"/>")
 export const BedtimeIcon = mkIcon("<path fill=\"currentColor\" d=\"M12.1 22q-2.1 0-3.937-.8t-3.2-2.162t-2.163-3.2T2 11.9q0-3.65 2.325-6.437T10.25 2q-.45 2.475.275 4.838t2.5 4.137t4.138 2.5T22 13.75q-.65 3.6-3.45 5.925T12.1 22\"/>")
+export const BoltIcon = mkIcon("<path fill=\"currentColor\" d=\"m8 22l1-7H4l9-13h2l-1 8h6L10 22z\"/>")
 export const BookmarkIcon = mkIcon("<path fill=\"currentColor\" d=\"M5 21V5q0-.825.588-1.412T7 3h10q.825 0 1.413.588T19 5v16l-7-3z\"/>")
 export const BookmarkAddIcon = mkIcon("<path fill=\"currentColor\" d=\"M5 21V5q0-.825.588-1.412T7 3h7q-.5.75-.75 1.438T13 6q0 1.8 1.138 3.175T17 10.9q.575.075 1 .075t1-.075V21l-7-3zM17 9V7h-2V5h2V3h2v2h2v2h-2v2z\"/>")
 export const BookmarksIcon = mkIcon("<path fill=\"currentColor\" d=\"M4 22V8q0-.825.588-1.412T6 6h8q.825 0 1.413.588T16 8v14l-6-3zm14-4V4H7V2h11q.825 0 1.413.588T20 4v14z\"/>")
